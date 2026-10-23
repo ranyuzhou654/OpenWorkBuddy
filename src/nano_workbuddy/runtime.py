@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import compaction, llm, policy, prompt
-from .config import Config, load
+from .config import Config, ModelSpec, load, secret
 from .context import budget, request_tokens, to_messages
 from .index import Index
 from .log import SessionLog
@@ -27,11 +27,11 @@ type Ask = Callable[[policy.Check, Tool, ToolCall], Awaitable[Result | None]]  #
 class Workspace:
     """Process-wide state. One instance per process; no globals."""
 
-    def __init__(self, cfg: Config, connect: Callable[..., llm.Model] = llm.connect,
+    def __init__(self, cfg: Config, connect: Callable[[ModelSpec], llm.Model] | None = None,
                  tools: Registry | None = None):
         self.cfg = cfg
         self.index = Index(cfg.home / "index.db")
-        self.connect = connect
+        self.connect = connect or self._connect
         self.tools = tools or Registry(BUILTIN)
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
         self._stamps: dict[str, dict[str, float]] = {}  # per-session read stamps survive across runs
@@ -40,6 +40,14 @@ class Workspace:
     @classmethod
     def open(cls, home: Path | None = None) -> Workspace:
         return cls(load(home))
+
+    def _connect(self, spec: ModelSpec) -> llm.Model:
+        return llm.connect(spec, secret(spec.provider.api_key, self.cfg.home))
+
+    def model_ref(self, log: SessionLog) -> str:
+        """The session's model, or the default if it was deleted from the settings since."""
+        ref = self.index.session(log.id)["model_ref"]
+        return ref if ref in self.cfg.models else self.cfg.default_model
 
     @property
     def sessions_dir(self) -> Path:
@@ -84,7 +92,7 @@ class Workspace:
     def context_usage(self, log: SessionLog) -> dict[str, int]:
         """Estimated size of the next request versus what the session's model allows."""
         system, messages = to_messages(log.path())
-        spec = self.cfg.model(self.index.session(log.id)["model_ref"])
+        spec = self.cfg.model(self.model_ref(log))
         return {"tokens": request_tokens(system, messages, self.tools.schemas()), "budget": budget(spec)}
 
     # permissions (D12)
@@ -102,8 +110,7 @@ class Workspace:
                      parent_id: str | None = None, emit: Emit = lambda e: None,
                      inbox: Inbox | None = None, ask: Ask | None = None) -> str:
         """Append a user message (as a child of parent_id when editing an earlier message) and run."""
-        model_ref = self.index.session(log.id)["model_ref"]
-        run, created = self.index.start_run(log.id, request_id, model_ref)
+        run, created = self.index.start_run(log.id, request_id, self.model_ref(log))
         if not created:  # a retried request: never start the same work twice
             return run["status"]
         if parent_id is not None:
@@ -127,7 +134,7 @@ class Workspace:
 
     async def compact(self, log: SessionLog, instructions: str | None = None, emit: Emit = lambda e: None) -> str:
         """Manual compaction (/compact): summarise now, whatever the budget says."""
-        run = self.make_run(log, self.index.session(log.id)["model_ref"], None, emit)
+        run = self.make_run(log, self.model_ref(log), None, emit)
         emit({"type": "run.started", "run_id": None, "kind": "compaction"})
         status = "error"
         try:
@@ -165,6 +172,7 @@ class Workspace:
                                     "cannot ask for.")
             return await ask(check, tool, call)
 
+        model_ref = model_ref if model_ref in self.cfg.models else self.cfg.default_model
         return Run(log=log, model=self.connect(self.cfg.model(model_ref)), tools=self.tools, ctx=ctx, run_id=run_id,
                    emit=emit, max_turns=self.cfg.max_turns, inbox=inbox or Inbox(), gate=gate,
                    notices={"permissions": preset.notice.format(root=root)})

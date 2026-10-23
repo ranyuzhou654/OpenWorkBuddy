@@ -11,7 +11,7 @@ from typing import Any
 
 import anthropic
 
-from ..config import ModelSpec, secret
+from ..config import ModelSpec
 from ..types import Block, Message, Stop, Thinking, ToolCall, text
 from . import ContextOverflow, Delta, Response
 
@@ -22,9 +22,9 @@ CACHE = {"type": "ephemeral"}
 
 
 class AnthropicMessages:
-    def __init__(self, spec: ModelSpec):
+    def __init__(self, spec: ModelSpec, api_key: str):
         self.spec = spec
-        self.client = anthropic.AsyncAnthropic(base_url=spec.provider.base_url, api_key=secret(spec.provider.api_key),
+        self.client = anthropic.AsyncAnthropic(base_url=spec.provider.base_url, api_key=api_key,
                                                max_retries=3)
 
     async def stream(self, system: str, messages: list[Message], tools: list[dict[str, Any]],

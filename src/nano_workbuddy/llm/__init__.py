@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-from ..config import ModelSpec
+from ..config import ModelSpec, Provider
 from ..types import Block, Message, Stop
 
 
@@ -37,14 +37,29 @@ class Model(Protocol):
         ...
 
 
-def connect(spec: ModelSpec) -> Model:
+def connect(spec: ModelSpec, api_key: str) -> Model:
     match spec.provider.protocol:
         case "openai-chat":
             from .openai_chat import OpenAIChat
 
-            return OpenAIChat(spec)
+            return OpenAIChat(spec, api_key)
         case "anthropic":
             from .anthropic import AnthropicMessages
 
-            return AnthropicMessages(spec)
+            return AnthropicMessages(spec, api_key)
     raise ValueError(f"unsupported protocol {spec.provider.protocol!r}")
+
+
+async def list_models(provider: Provider, api_key: str) -> list[dict[str, Any]]:
+    """Model ids the endpoint offers. Anthropic also reports context window and output limit;
+    OpenAI-compatible endpoints only list ids, so those limits must be filled in by hand."""
+    if provider.protocol == "anthropic":
+        import anthropic
+
+        client = anthropic.AsyncAnthropic(base_url=provider.base_url, api_key=api_key, max_retries=1)
+        return [{"id": m.id, "context_window": getattr(m, "max_input_tokens", None),
+                 "max_output": getattr(m, "max_tokens", None)} async for m in client.models.list()]
+    import openai
+
+    client = openai.AsyncOpenAI(base_url=provider.base_url, api_key=api_key, max_retries=1)
+    return sorted([{"id": m.id} async for m in client.models.list()], key=lambda m: m["id"])

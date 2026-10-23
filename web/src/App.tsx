@@ -2,26 +2,29 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Info, type Preset, type Project } from "./api";
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
+import { Settings } from "./Settings";
 import { useSession } from "./session";
 import { Tree } from "./Tree";
 
-// The selected session lives in the URL hash (#/s/<id>), so reloads and bookmarks keep it.
-function useHashSession(): [string | null, (sid: string) => void] {
-  const read = () => location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
-  const [sid, setSid] = useState(read);
+// The page lives in the URL hash (#/s/<id> or #/settings), so reloads and bookmarks keep it.
+function useHash(): string {
+  const [hash, setHash] = useState(location.hash);
   useEffect(() => {
-    const onHash = () => setSid(read());
+    const onHash = () => setHash(location.hash);
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return [sid, (id) => (location.hash = `#/s/${id}`)];
+  return hash;
 }
 
 export function App() {
   const [info, setInfo] = useState<Info | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [unauthorized, setUnauthorized] = useState(false);
-  const [sid, select] = useHashSession();
+  const hash = useHash();
+  const sid = hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
+  const select = (id: string) => (location.hash = `#/s/${id}`);
+  const settingsOpen = hash === "#/settings";
   const [showTree, setShowTree] = useState(false);
   const [state, dispatch] = useSession(sid);
   const busy = state.live !== null;
@@ -29,10 +32,13 @@ export function App() {
   const refresh = useCallback(() => {
     api.projects().then(setProjects).catch((e) => e instanceof ApiError && e.status === 401 && setUnauthorized(true));
   }, []);
+  const refreshInfo = useCallback(() => {
+    api.info().then(setInfo).catch(() => {});
+  }, []);
   useEffect(() => {
     refresh();
-    api.info().then(setInfo).catch(() => {});
-  }, [refresh]);
+    refreshInfo();
+  }, [refresh, refreshInfo]);
   useEffect(() => {
     if (!busy) refresh(); // titles and ordering change when a run ends
   }, [busy, refresh]);
@@ -47,13 +53,22 @@ export function App() {
     <div className="app">
       <Sidebar projects={projects} current={sid} onSelect={select} onChanged={refresh} onError={showError} />
       <main>
-        {sid && session ? (
+        {state.error && (
+          <div className="banner" onClick={() => dispatch({ type: "error", message: null })}>{state.error}（点击关闭）</div>
+        )}
+        {settingsOpen ? (
+          <Settings onChanged={refreshInfo} onError={showError} />
+        ) : sid && session ? (
           <>
             <header>
               <div className="title">{session.title ?? "新会话"}</div>
               <select value={session.model_ref} disabled={busy} title="模型（下一次运行生效）"
                 onChange={(e) => api.patch(sid, { model: e.target.value }).catch((er) => showError(String(er)))}>
-                {info?.models.map((m) => <option key={m.name}>{m.name}</option>)}
+                {[...new Set(info?.models.map((m) => m.provider))].map((conn) => (
+                  <optgroup key={conn} label={conn}>
+                    {info?.models.filter((m) => m.provider === conn).map((m) => <option key={m.name}>{m.name}</option>)}
+                  </optgroup>
+                ))}
               </select>
               <select value={session.settings.preset} className={session.settings.preset === "trust" ? "warn" : ""}
                 title={PRESET_HELP[session.settings.preset]}
@@ -76,9 +91,6 @@ export function App() {
                 </span>
               )}
             </header>
-            {state.error && (
-              <div className="banner" onClick={() => dispatch({ type: "error", message: null })}>{state.error}（点击关闭）</div>
-            )}
             <div className="workspace">
               <div className="conversation">
                 <Chat sid={sid} state={state}
@@ -147,6 +159,8 @@ function Sidebar({ projects, current, onSelect, onChanged, onError }: {
       ) : (
         <button className="link" onClick={() => setAdding(true)}>＋ 添加项目</button>
       )}
+      <button className={`link settings-link${location.hash === "#/settings" ? " on" : ""}`}
+        onClick={() => (location.hash = "#/settings")}>⚙ 模型与密钥</button>
     </nav>
   );
 }

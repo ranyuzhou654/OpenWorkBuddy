@@ -254,6 +254,8 @@ def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["serve"]:
         return serve_main(argv[1:])
+    if argv[:1] == ["key"]:
+        return key_main(argv[1:])
     p = argparse.ArgumentParser(prog="nwb", description="nano-workbuddy developer CLI (`nwb serve` starts the web UI)")
     p.add_argument("prompt", nargs="?", help="run one prompt and exit")
     p.add_argument("-C", "--project", type=Path, default=Path("."), help="project directory (default: cwd)")
@@ -283,6 +285,32 @@ def main(argv: list[str] | None = None) -> None:
         status = run(ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log)))
         sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
+
+
+def key_main(argv: list[str]) -> None:
+    """nwb key CONNECTION: save that connection's API key to ~/.nwb/secrets.json (input is hidden)."""
+    import getpass
+
+    from . import settings
+    from .config import key_status, load
+
+    p = argparse.ArgumentParser(prog="nwb key", description="save an API key for a connection in config.toml")
+    p.add_argument("connection", nargs="?", help="connection name; omit to list connections")
+    args = p.parse_args(argv)
+    cfg = load()
+    if args.connection not in cfg.providers:
+        for name, prov in cfg.providers.items():
+            st = key_status(prov.api_key, cfg.home)
+            print(f"{name:20} {prov.base_url:45} {st['source']}:{st['name']} {st.get('hint', '未设置')}")
+        if args.connection:
+            sys.exit(f"no connection {args.connection!r}")
+        return
+    prov = cfg.providers[args.connection]
+    key = getpass.getpass(f"API key for {prov.name} ({prov.base_url}): ").strip()
+    if not key:
+        sys.exit("no key entered; nothing changed")
+    settings.put_provider(cfg.home, prov.name, prov.protocol, prov.base_url, api_key=key)
+    print(f"saved to {cfg.home / 'secrets.json'}; {prov.name} now uses secret:{prov.name}")
 
 
 def serve_main(argv: list[str]) -> None:

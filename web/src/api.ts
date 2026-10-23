@@ -74,9 +74,53 @@ export interface Snapshot {
 }
 
 export interface Info {
-  models: { name: string; context_window: number }[];
+  models: { name: string; provider: string; context_window: number }[];
   default_model: string;
   presets: Record<Preset, string>;
+}
+
+export type Protocol = "openai-chat" | "anthropic";
+
+export interface KeyStatus {
+  source: string; // env | keyring | secret
+  name: string;
+  set: boolean;
+  hint?: string; // last 4 characters; the key itself never leaves the server
+}
+
+export interface ConnectionView {
+  name: string;
+  protocol: Protocol;
+  base_url: string;
+  key: KeyStatus;
+}
+
+export interface ModelView {
+  name: string;
+  provider: string;
+  id: string;
+  context_window: number;
+  max_output: number;
+  params: Record<string, unknown>;
+}
+
+export interface SettingsView {
+  default_model: string;
+  providers: ConnectionView[];
+  models: ModelView[];
+}
+
+export interface RemoteModel {
+  id: string;
+  context_window?: number | null;
+  max_output?: number | null;
+}
+
+export interface ModelTest {
+  ok: boolean;
+  reply?: string;
+  ms?: number;
+  error?: string;
 }
 
 export class ApiError extends Error {
@@ -117,6 +161,16 @@ export const api = {
   fork: (sid: string, entry_id: string) => call<SessionInfo>("POST", `/api/sessions/${sid}/fork`, { entry_id }),
   cancel: (sid: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/cancel`),
   compact: (sid: string, instructions?: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/compact`, { instructions }),
+  settings: () => call<SettingsView>("GET", "/api/settings"),
+  putProvider: (name: string, body: { protocol: Protocol; base_url: string; api_key?: string; key_ref?: string }) =>
+    call<SettingsView>("PUT", `/api/settings/providers/${encodeURIComponent(name)}`, body),
+  deleteProvider: (name: string) => call<SettingsView>("DELETE", `/api/settings/providers/${encodeURIComponent(name)}`),
+  remoteModels: (name: string) => call<RemoteModel[]>("GET", `/api/settings/providers/${encodeURIComponent(name)}/models`),
+  putModel: (name: string, body: Omit<ModelView, "name">) =>
+    call<SettingsView>("PUT", `/api/settings/models/${encodeURIComponent(name)}`, body),
+  deleteModel: (name: string) => call<SettingsView>("DELETE", `/api/settings/models/${encodeURIComponent(name)}`),
+  setDefault: (name: string) => call<SettingsView>("PUT", "/api/settings/default-model", { name }),
+  testModel: (name: string) => call<ModelTest>("POST", `/api/settings/models/${encodeURIComponent(name)}/test`),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
 };

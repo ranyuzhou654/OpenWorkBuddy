@@ -127,3 +127,24 @@ details.divider[open] { text-align: left; border: 1px dashed var(--line); border
 .meter { color: var(--muted); font-size: 12px; }
 .meter.high { color: var(--warn); }
 .warn-line { color: var(--err); font-size: 13px; margin: 4px 0; }
+.sidebar { display: flex; flex-direction: column; }
+.settings-link { margin-top: auto; text-align: left; padding: 8px 10px; }
+.settings { overflow-y: auto; padding: 20px max(20px, calc((100% - 960px) / 2)); }
+.settings h2 { font-size: 16px; margin: 20px 0 4px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; background: var(--panel); }
+.card-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.card-head code { color: var(--muted); }
+.card .row { justify-content: flex-start; }
+.card.form { display: grid; gap: 8px; }
+.card.form label { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; }
+.card.form label.check { display: flex; }
+.key { font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.key.ok { color: var(--ok); }
+.key.missing { color: var(--err); }
+.remote { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 160px; overflow-y: auto; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 12px; }
+table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.models th, table.models td { text-align: left; padding: 6px; border-bottom: 1px solid var(--line); }
+table.models td.actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.sidebar > button.link { align-self: flex-start; }
+table.models td:not(.actions), table.models th { white-space: nowrap; }

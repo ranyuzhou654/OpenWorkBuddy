@@ -10,13 +10,15 @@
 - 阶段 2 Web 工作台：FastAPI + SSE、React 界面、审批卡片、插话/排队、分支切换、服务重启自动续跑。教程：[02-Web工作台](docs/tutorial/02-Web工作台.md)
 - 阶段 3 完整地基：权限规则表 + 只读/工作区/完全信任三档、macOS Seatbelt 与 Linux bubblewrap 沙箱、清理旧工具输出与摘要压缩、Anthropic 协议。教程：[03-权限沙箱与上下文治理](docs/tutorial/03-权限沙箱与上下文治理.md)
 
+- 模型与密钥管理：Web 设置页管理多个连接（地址 + 一把密钥）和模型，获取模型列表、一键测试、设默认，会话里按需切换。教程：[04-模型与密钥管理](docs/tutorial/04-模型与密钥管理.md)
+
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 
 ## 快速开始
 
 ```bash
 uv sync
-export OPENDESIGN_API_KEY=...      # 变量名取决于 ~/.nwb/config.toml 里 api_key 的 env: 引用；也可用 keyring:NAME
+uv run nwb key opendesign          # 保存密钥到 ~/.nwb/secrets.json（不回显）；也可以在网页“⚙ 模型与密钥”里填
 uv run nwb                         # 在当前目录作为项目，进入交互模式
 uv run nwb "列出这个目录下最大的五个文件"   # 单次运行
 uv run nwb -c                      # 继续最近的会话

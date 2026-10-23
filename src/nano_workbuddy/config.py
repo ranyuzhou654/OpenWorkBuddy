@@ -1,11 +1,17 @@
-"""~/.nwb/config.toml is the single source of truth for providers and models (D17).
+"""~/.nwb/config.toml is the single source of truth for connections and models (D17).
 
-Secrets are never stored in the file, only references: "env:NAME" or "keyring:NAME".
+A provider ("connection") is an endpoint plus one API key; two keys for the same service are two
+connections. Keys are never written to config.toml, only references:
+  "env:NAME"      an environment variable
+  "keyring:NAME"  the system keychain
+  "secret:NAME"   ~/.nwb/secrets.json, a 0600 file managed from the web settings page
 """
 
 from __future__ import annotations
 
+import json
 import os
+import tempfile
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +40,8 @@ context_window = 1_000_000
 max_output = 32_000
 """
 
+PROTOCOLS = ("openai-chat", "anthropic")
+
 
 @dataclass(frozen=True)
 class Provider:
@@ -60,6 +68,7 @@ class Config:
     models: dict[str, ModelSpec]
     max_turns: int = 50
     rules: tuple[Rule, ...] = ()  # [[rules]] in config.toml, applied after the preset's own rules
+    providers: dict[str, Provider] = field(default_factory=dict)
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -78,17 +87,57 @@ def load(home: Path | None = None) -> Config:
     if not file.exists():
         home.mkdir(parents=True, exist_ok=True)
         file.write_text(DEFAULT_CONFIG, encoding="utf-8")
-    raw = tomllib.loads(file.read_text(encoding="utf-8"))
+    return parse(home, tomllib.loads(file.read_text(encoding="utf-8")))
+
+
+def parse(home: Path, raw: dict[str, Any]) -> Config:
+    """Build and validate a Config; raises ValueError naming what is wrong."""
     providers = {n: Provider(n, p["protocol"], p["base_url"], p["api_key"])
                  for n, p in raw.get("providers", {}).items()}
-    models = {n: ModelSpec(n, providers[m["provider"]], m["id"], m["context_window"], m["max_output"],
-                           m.get("params", {}))
-              for n, m in raw.get("models", {}).items()}
+    for p in providers.values():
+        if p.protocol not in PROTOCOLS:
+            raise ValueError(f"provider {p.name}: protocol must be one of {', '.join(PROTOCOLS)}")
+    models = {}
+    for n, m in raw.get("models", {}).items():
+        if m["provider"] not in providers:
+            raise ValueError(f"model {n}: unknown provider {m['provider']!r}")
+        models[n] = ModelSpec(n, providers[m["provider"]], m["id"], int(m["context_window"]), int(m["max_output"]),
+                              dict(m.get("params", {})))
+    if raw.get("default_model") not in models:
+        raise ValueError(f"default_model {raw.get('default_model')!r} is not a configured model")
     rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
-    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules)
+    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers)
 
 
-def secret(ref: str) -> str:
+class SecretStore:
+    """~/.nwb/secrets.json: name -> key, readable only by the owner (0600), replaced atomically."""
+
+    def __init__(self, home: Path):
+        self.file = home / "secrets.json"
+
+    def _read(self) -> dict[str, str]:
+        return json.loads(self.file.read_text()) if self.file.exists() else {}
+
+    def get(self, name: str) -> str | None:
+        return self._read().get(name)
+
+    def set(self, name: str, value: str) -> None:
+        self._write({**self._read(), name: value})
+
+    def delete(self, name: str) -> None:
+        data = self._read()
+        if data.pop(name, None) is not None:
+            self._write(data)
+
+    def _write(self, data: dict[str, str]) -> None:
+        self.file.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self.file.parent, prefix=".secrets-")  # created 0600
+        with os.fdopen(fd, "w") as out:
+            json.dump(data, out, indent=2)
+        os.replace(tmp, self.file)
+
+
+def secret(ref: str, home: Path | None = None) -> str:
     kind, _, name = ref.partition(":")
     if kind == "env":
         if value := os.environ.get(name):
@@ -100,4 +149,18 @@ def secret(ref: str) -> str:
         if value := keyring.get_password("nano-workbuddy", name):
             return value
         raise LookupError(f"no keyring entry nano-workbuddy/{name}")
-    raise ValueError(f"secret reference must be env:NAME or keyring:NAME, got {ref!r}")
+    if kind == "secret":
+        if value := SecretStore(home or home_dir()).get(name):
+            return value
+        raise LookupError(f"no key saved for {name!r}; add it on the model settings page")
+    raise ValueError(f"secret reference must be env:NAME, keyring:NAME or secret:NAME, got {ref!r}")
+
+
+def key_status(ref: str, home: Path) -> dict[str, Any]:
+    """What the settings page may show about a key: where it comes from, whether it exists, last 4 chars."""
+    kind, _, name = ref.partition(":")
+    try:
+        value = secret(ref, home)
+    except (LookupError, ValueError):
+        return {"source": kind, "name": name, "set": False}
+    return {"source": kind, "name": name, "set": True, "hint": f"…{value[-4:]}" if len(value) > 8 else "已设置"}

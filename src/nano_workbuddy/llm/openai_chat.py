@@ -8,7 +8,7 @@ from typing import Any
 
 import openai
 
-from ..config import ModelSpec, secret
+from ..config import ModelSpec
 from ..types import Block, Message, Stop, Thinking, ToolCall, new_id, text
 from . import ContextOverflow, Delta, Response
 
@@ -17,9 +17,9 @@ STOPS: dict[str, Stop] = {"stop": "end", "tool_calls": "tool_use", "length": "le
 
 
 class OpenAIChat:
-    def __init__(self, spec: ModelSpec):
+    def __init__(self, spec: ModelSpec, api_key: str):
         self.spec = spec
-        self.client = openai.AsyncOpenAI(base_url=spec.provider.base_url, api_key=secret(spec.provider.api_key),
+        self.client = openai.AsyncOpenAI(base_url=spec.provider.base_url, api_key=api_key,
                                          max_retries=3)
 
     async def stream(self, system: str, messages: list[Message], tools: list[dict[str, Any]],

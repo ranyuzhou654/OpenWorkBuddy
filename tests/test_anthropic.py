@@ -67,10 +67,9 @@ def server():
 
 
 @pytest.fixture
-def model(server, monkeypatch):
-    monkeypatch.setenv("TEST_ANTHROPIC_KEY", "k")
-    provider = Provider("claude", "anthropic", server[0], "env:TEST_ANTHROPIC_KEY")
-    return AnthropicMessages(ModelSpec("c", provider, "claude-test", 200_000, 8_000))
+def model(server):
+    provider = Provider("claude", "anthropic", server[0], "secret:claude")
+    return AnthropicMessages(ModelSpec("c", provider, "claude-test", 200_000, 8_000), "test-key")
 
 
 TOOLS = [{"name": "read", "description": "Read a file", "parameters": {"type": "object", "properties": {}}}]

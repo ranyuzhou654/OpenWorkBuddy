@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import dataclasses
 import secrets
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,10 +17,13 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
+from . import llm, settings
+from .config import key_status, secret
 from .log import entry_json
 from .policy import PRESETS
 from .runs import Busy, RunManager
 from .runtime import Workspace
+from .types import Message, text
 
 COOKIE = "nwb_token"
 
@@ -53,6 +59,25 @@ class Checkout(BaseModel):
 
 class Fork(BaseModel):
     entry_id: str
+
+
+class ProviderBody(BaseModel):
+    protocol: Literal["openai-chat", "anthropic"]
+    base_url: str
+    api_key: str | None = None  # a new key to store; omitted keeps the current one
+    key_ref: str | None = None  # or point at env:NAME / keyring:NAME instead
+
+
+class ModelBody(BaseModel):
+    provider: str
+    id: str
+    context_window: int
+    max_output: int
+    params: dict[str, Any] = {}
+
+
+class DefaultModel(BaseModel):
+    name: str
 
 
 class Decision(BaseModel):
@@ -103,7 +128,8 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     @app.get("/api/info")
     async def info() -> dict[str, Any]:
-        return {"models": [{"name": m.name, "context_window": m.context_window} for m in ws.cfg.models.values()],
+        return {"models": [{"name": m.name, "provider": m.provider.name, "context_window": m.context_window}
+                           for m in ws.cfg.models.values()],
                 "default_model": ws.cfg.default_model, "presets": {k: p.label for k, p in PRESETS.items()}}
 
     @app.get("/api/projects")
@@ -216,6 +242,83 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
         except KeyError as e:
             raise HTTPException(404, str(e)) from e
         return {"ok": True}
+
+    # --- model and key settings (keys go in, never come out: only their status and last 4 characters) ---
+
+    def apply(change) -> dict[str, Any]:
+        try:
+            ws.cfg = change()
+        except settings.SettingsError as e:
+            raise HTTPException(400, str(e)) from e
+        return settings_payload()
+
+    def settings_payload() -> dict[str, Any]:
+        cfg = ws.cfg
+        return {"default_model": cfg.default_model,
+                "providers": [{"name": p.name, "protocol": p.protocol, "base_url": p.base_url,
+                               "key": key_status(p.api_key, cfg.home)} for p in cfg.providers.values()],
+                "models": [{"name": m.name, "provider": m.provider.name, "id": m.id, "context_window": m.context_window,
+                            "max_output": m.max_output, "params": m.params} for m in cfg.models.values()]}
+
+    @app.get("/api/settings")
+    async def settings_view() -> dict[str, Any]:
+        return settings_payload()
+
+    @app.put("/api/settings/providers/{name}")
+    async def put_provider(name: str, body: ProviderBody) -> dict[str, Any]:
+        if body.key_ref and not body.key_ref.startswith(("env:", "keyring:")):
+            raise HTTPException(400, "key_ref must be env:NAME or keyring:NAME")
+        return apply(lambda: settings.put_provider(ws.cfg.home, name, body.protocol, body.base_url,
+                                                   api_key=body.api_key, key_ref=body.key_ref))
+
+    @app.delete("/api/settings/providers/{name}")
+    async def delete_provider(name: str) -> dict[str, Any]:
+        return apply(lambda: settings.delete_provider(ws.cfg.home, name, ws.cfg))
+
+    @app.put("/api/settings/models/{name}")
+    async def put_model(name: str, body: ModelBody) -> dict[str, Any]:
+        return apply(lambda: settings.put_model(ws.cfg.home, name, body.provider, body.id, body.context_window,
+                                                body.max_output, body.params))
+
+    @app.delete("/api/settings/models/{name}")
+    async def delete_model(name: str) -> dict[str, Any]:
+        return apply(lambda: settings.delete_model(ws.cfg.home, name))
+
+    @app.put("/api/settings/default-model")
+    async def set_default(body: DefaultModel) -> dict[str, Any]:
+        return apply(lambda: settings.set_default(ws.cfg.home, body.name))
+
+    @app.get("/api/settings/providers/{name}/models")
+    async def remote_models(name: str) -> list[dict[str, Any]]:
+        if (provider := ws.cfg.providers.get(name)) is None:
+            raise HTTPException(404, "no such connection")
+        try:
+            return await asyncio.wait_for(llm.list_models(provider, secret(provider.api_key, ws.cfg.home)), 30)
+        except Exception as e:  # shown to the user: wrong key, unreachable host, no /models endpoint ...
+            raise HTTPException(502, f"{type(e).__name__}: {e}"[:500]) from e
+
+    @app.post("/api/settings/models/{name}/test")
+    async def test_model(name: str) -> dict[str, Any]:
+        """One tiny real request: proves URL, key and model id work together."""
+        if name not in ws.cfg.models:
+            raise HTTPException(404, "no such model")
+        started, reply, usage = time.monotonic(), [], {}
+        try:
+            model = ws.connect(dataclasses.replace(ws.cfg.model(name), max_output=256))
+
+            async def run() -> None:
+                prompt = [Message(role="user", content=[text("ping")])]
+                async for item in model.stream("Connection test. Reply with the single word OK.", prompt, []):
+                    if isinstance(item, llm.Delta) and item.kind == "text":
+                        reply.append(item.text)
+                    elif isinstance(item, llm.Response):
+                        usage.update(item.usage)
+
+            await asyncio.wait_for(run(), 60)
+        except Exception as e:  # the point of this endpoint is to report what went wrong
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"[:500]}
+        return {"ok": True, "reply": "".join(reply)[:200], "ms": int((time.monotonic() - started) * 1000),
+                "usage": usage}
 
     if static_dir and static_dir.is_dir():
         @app.get("/{path:path}", include_in_schema=False)
