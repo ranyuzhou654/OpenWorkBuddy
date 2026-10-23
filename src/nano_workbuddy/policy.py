@@ -49,15 +49,16 @@ SECRETS = ("~/.ssh", "~/.aws", "~/.gnupg", "~/.kube", "~/.docker", "~/.config/gh
 PROTECTED = (".git", ".nwb")  # inside the project, but changes need approval (hooks, agent config)
 
 
-def _deny_secrets() -> tuple[Rule, ...]:
-    """Credentials are off limits for every tool. This session's spill files sit inside {home},
-    so reading them is re-allowed after the deny."""
+def _deny_secrets(memory: Effect) -> tuple[Rule, ...]:
+    """Credentials are off limits for every tool. Inside {home}, this session's spill files and the
+    skills are readable again, and USER.md is writable through the memory tool (D18)."""
     denies = tuple(r for s in SECRETS for r in (Rule("*", s, "deny"), Rule("*", f"{s}/*", "deny")))
-    return (*denies, Rule("read", "{spill}/*", "allow"))
+    return (*denies, Rule("read", "{spill}/*", "allow"), Rule("read", "{home}/skills/*", "allow"),
+            Rule("memory", "{home}/USER.md", memory))
 
 
 # Harness tools that only read the harness's own data (tool catalog, skill files) never need approval.
-HARNESS = (Rule("tool_search", "*", "allow"),)
+HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"))
 
 
 def _ask_protected() -> tuple[Rule, ...]:
@@ -72,14 +73,14 @@ SANDBOX_TEXT = ("Shell commands run in a sandbox: {writable}; everything else is
 PRESETS: dict[str, Preset] = {
     "readonly": Preset(
         "只读", "read-only",
-        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *HARNESS, *_deny_secrets()),
+        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *HARNESS, *_deny_secrets("ask")),
         "Permission preset: read-only. You may read files freely; every write, edit or command needs the "
         "user's approval. " + SANDBOX_TEXT.format(writable="only $TMPDIR is writable")),
     "workspace": Preset(
         "工作区", "workspace",
         (Rule("*", "*", "ask"), Rule("read", "*", "allow"), Rule("write", "{root}/*", "allow"),
-         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), *HARNESS, *_ask_protected(),
-         *_deny_secrets()),
+         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), Rule("memory", "*", "allow"), *HARNESS,
+         *_ask_protected(), *_deny_secrets("allow")),
         "Permission preset: workspace. Reading, and editing files inside the project ({root}), need no approval "
         "(except .git and .nwb). Changes outside the project need the user's approval. "
         + SANDBOX_TEXT.format(writable="the project directory and $TMPDIR are writable")),
@@ -123,7 +124,7 @@ def sandbox_policy(preset: Preset, root: Path, tmp: Path, home: Path, spill: Pat
         return None
     writable = (root, tmp) if preset.sandbox == "workspace" else (tmp,)
     return SandboxPolicy(writable=writable, protected=tuple(root / d for d in PROTECTED),
-                         deny_read=_secret_paths(home), allow_read=(spill,), network=False)
+                         deny_read=_secret_paths(home), allow_read=(spill, home / "skills"), network=False)
 
 
 def server_sandbox(writable: tuple[Path, ...], network: bool, home: Path) -> SandboxPolicy:

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .compaction import fit
-from .context import loaded_tools, spill, to_messages, visible
+from .context import in_view, loaded_tools, pinned, spill, to_messages
 from .llm import ContextOverflow, Delta, Model, Response
 from .log import SessionLog
 from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
@@ -154,10 +154,12 @@ def _take_steer(run: Run) -> bool:
 
 
 def sync_notices(run: Run) -> bool:
-    """Append a notice whenever what the model can currently see differs from run.notices
-    (first run, preset changed, or a compaction summarised the old notice away)."""
-    seen = {e.data["kind"]: e.data["text"] for e in visible(run.log.path()) if e.type == NOTICE}
-    changed = [(k, v) for k, v in run.notices.items() if seen.get(k) != v]
+    """Append a notice whenever what the model can currently see differs from what it should see:
+    run.notices (first run, preset changed, ...) and pinned content such as loaded skills. Either may
+    have been summarised away by a compaction; then it is put back."""
+    path = run.log.path()
+    seen = in_view(path)
+    changed = [(k, v) for k, v in (run.notices | pinned(path)).items() if seen.get(k) != v]
     for kind, body in changed:
         run.log.append(NOTICE, {"kind": kind, "text": body}, run_id=run.run_id)
     return bool(changed)

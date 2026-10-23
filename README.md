@@ -12,6 +12,7 @@
 
 - 模型与密钥管理：Web 设置页管理多个连接（地址 + 一把密钥）和模型，获取模型列表、一键测试、设默认，会话里按需切换。教程：[04-模型与密钥管理](docs/tutorial/04-模型与密钥管理.md)
 - 阶段 4a MCP：官方 SDK 接入 stdio / Streamable HTTP 服务器，本机服务器默认进沙箱，工具与内置工具同一权限闸门，工具多时用 `tool_search` 延迟加载，设置页增删启停与连接测试。教程：[05-MCP接入](docs/tutorial/05-MCP接入.md)
+- 阶段 4b Skill 与记忆：发现 `~/.nwb/skills`、`~/.agents/skills`、项目 `.agents/skills` 下的技能，`skill` 工具按需加载、压缩后自动放回，输入框 `/技能名`；`memory` 工具维护 `USER.md` 和项目 `AGENTS.md`，设置页可查看改正。教程：[06-Skill与记忆](docs/tutorial/06-Skill与记忆.md)
 
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 

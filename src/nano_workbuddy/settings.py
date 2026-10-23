@@ -242,3 +242,24 @@ def delete_mcp(home: Path, name: str) -> Config:
         if key.startswith(f"mcp-{name}-"):
             store.delete(key)
     return cfg
+
+
+def set_skill_enabled(home: Path, name: str, enabled: bool) -> Config:
+    """Skills are on unless listed in [skills] disabled."""
+
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if "skills" not in doc:
+            doc["skills"] = tomlkit.table()
+        disabled = [n for n in doc["skills"].get("disabled", []) if n != name] + ([] if enabled else [name])
+        doc["skills"]["disabled"] = disabled
+
+    return edit(home, change)
+
+
+def set_skill_dirs(home: Path, dirs: list[str]) -> Config:
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if "skills" not in doc:
+            doc["skills"] = tomlkit.table()
+        doc["skills"]["dirs"] = [d.strip() for d in dirs if d.strip()]
+
+    return edit(home, change)

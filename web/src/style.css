@@ -152,3 +152,10 @@ table.models td:not(.actions), table.models th { white-space: nowrap; }
 .mcp-tools { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
 .mcp-tools li { margin: 2px 0; }
 .mcp-tools code { color: var(--text); }
+.slash { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.slash button { text-align: left; border: none; background: var(--code); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slash button span { color: var(--muted); }
+.memory textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.skill { display: flex; gap: 6px; align-items: baseline; padding: 3px 0; }
+.skill b { flex-shrink: 0; white-space: nowrap; }
+.skill .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

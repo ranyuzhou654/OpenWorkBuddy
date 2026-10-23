@@ -67,6 +67,14 @@ class FakeModel:
         yield item
 
 
+@pytest.fixture(autouse=True)
+def no_shared_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the user's real ~/.agents/skills out of tests."""
+    from nano_workbuddy import skills
+
+    monkeypatch.setattr(skills, "SHARED", tmp_path / "shared-skills")
+
+
 @pytest.fixture
 def home(tmp_path: Path) -> Path:
     return tmp_path / "home"

@@ -129,11 +129,29 @@ export interface McpView extends McpSpec {
   keys: Record<string, KeyStatus>; // env/header values that are key references
 }
 
+export interface SkillView {
+  name: string;
+  description: string;
+  path: string;
+  source: "user" | "project";
+  project: string | null;
+  enabled: boolean;
+}
+
+export interface MemoryFile {
+  key: string; // "user" or a project id
+  label: string;
+  path: string;
+  text: string;
+}
+
 export interface SettingsView {
   default_model: string;
   providers: ConnectionView[];
   models: ModelView[];
   mcp: McpView[];
+  skills: SkillView[];
+  skill_dirs: string[];
 }
 
 export interface RemoteModel {
@@ -203,6 +221,12 @@ export const api = {
     call<SettingsView>("PATCH", `/api/settings/mcp/${encodeURIComponent(name)}`, { enabled }),
   deleteMcp: (name: string) => call<SettingsView>("DELETE", `/api/settings/mcp/${encodeURIComponent(name)}`),
   connectMcp: (name: string) => call<SettingsView>("POST", `/api/settings/mcp/${encodeURIComponent(name)}/connect`),
+  enableSkill: (name: string, enabled: boolean) =>
+    call<SettingsView>("PATCH", `/api/settings/skills/${encodeURIComponent(name)}`, { enabled }),
+  setSkillDirs: (dirs: string[]) => call<SettingsView>("PUT", "/api/settings/skill-dirs", { dirs }),
+  sessionSkills: (sid: string) => call<{ name: string; description: string }[]>("GET", `/api/sessions/${sid}/skills`),
+  memory: () => call<MemoryFile[]>("GET", "/api/memory"),
+  putMemory: (key: string, text: string) => call<MemoryFile[]>("PUT", `/api/memory/${encodeURIComponent(key)}`, { text }),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
 };

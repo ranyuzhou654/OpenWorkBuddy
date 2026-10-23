@@ -52,7 +52,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
         if (e.type === "notice")
           return (
             <details key={e.id} className="divider">
-              <summary>{NOTICES[e.data.kind] ?? "系统通知"}</summary>
+              <summary>{NOTICES[e.data.kind] ?? (e.data.kind.startsWith("skill:") ? `已加载技能 ${e.data.kind.slice(6)}` : "系统通知")}</summary>
               <div className="note">{e.data.text}</div>
             </details>
           );
@@ -163,6 +163,7 @@ function Markdown({ text }: { text: string }) {
 const NOTICES: Record<string, string> = {
   permissions: "已告知模型当前的权限设置",
   mcp: "已告知模型 MCP 服务器状态",
+  skills: "已告知模型可用的技能",
 };
 
 // mcp__github__create_issue → github › create_issue
@@ -174,6 +175,8 @@ function toolLabel(name: string): string {
 function summary(name: string, args: Record<string, any>): string {
   if (name === "bash") return (args.unsandboxed ? "[沙箱外] " : "") + String(args.command ?? "");
   if (name === "tool_search") return String(args.query ?? "");
+  if (name === "skill") return String(args.name ?? "");
+  if (name === "memory") return `${{ add: "添加", replace: "修改", remove: "删除" }[args.action as string] ?? args.action} ${args.file === "user" ? "USER.md" : "AGENTS.md"}`;
   return String(args.path ?? JSON.stringify(args));
 }
 
@@ -187,6 +190,13 @@ function ToolArgs({ name, args }: { name: string; args: Record<string, any> }) {
     );
   if (name === "write") return <pre>{String(args.content ?? "").slice(0, 4000)}</pre>;
   if (name === "bash") return <pre>{args.command}</pre>;
+  if (name === "memory")
+    return (
+      <div className="diff">
+        {args.old_text && <pre className="del">{args.old_text}</pre>}
+        {args.text && <pre className="add">{args.text}</pre>}
+      </div>
+    );
   return <pre>{JSON.stringify(args, null, 2)}</pre>;
 }
 

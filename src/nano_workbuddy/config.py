@@ -91,6 +91,8 @@ class Config:
     rules: tuple[Rule, ...] = ()  # [[rules]] in config.toml, applied after the preset's own rules
     providers: dict[str, Provider] = field(default_factory=dict)
     mcp: dict[str, McpServer] = field(default_factory=dict)
+    skills_disabled: tuple[str, ...] = ()  # [skills] disabled = [...]
+    skill_dirs: tuple[str, ...] = ()  # [skills] dirs = [...]: more places to look for skills
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -129,7 +131,8 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
         raise ValueError(f"default_model {raw.get('default_model')!r} is not a configured model")
     rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
     mcp = {n: _mcp(n, m) for n, m in raw.get("mcp", {}).items()}
-    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp)
+    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
+                  tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())))
 
 
 def _mcp(name: str, m: dict[str, Any]) -> McpServer:

@@ -98,7 +98,30 @@ def result_text(e: Entry) -> str:
 
 
 def is_prunable(e: Entry) -> bool:
-    return e.type == TOOL_RESULT and len(result_text(e)) > ELIDE_MIN_CHARS
+    return e.type == TOOL_RESULT and len(result_text(e)) > ELIDE_MIN_CHARS and "pin" not in e.data.get("meta", {})
+
+
+def in_view(path: list[Entry]) -> dict[str, str]:
+    """Notices and pinned results the model can currently see: kind or pin key -> text."""
+    seen: dict[str, str] = {}
+    for e in visible(path):
+        if e.type == NOTICE:
+            seen[e.data["kind"]] = e.data["text"]
+        elif e.type == TOOL_RESULT and (key := e.data.get("meta", {}).get("pin")):
+            seen[key] = result_text(e)
+    return seen
+
+
+def pinned(path: list[Entry]) -> dict[str, str]:
+    """Content that must stay in view once loaded (skills): pin key -> latest text. A tool result pins
+    with meta {"pin": key}; a notice pins with {"pin": true} and its kind as the key."""
+    out: dict[str, str] = {}
+    for e in path:
+        if e.type == TOOL_RESULT and (key := e.data.get("meta", {}).get("pin")):
+            out[key] = result_text(e)
+        elif e.type == NOTICE and e.data.get("pin"):
+            out[e.data["kind"]] = e.data["text"]
+    return out
 
 
 def to_messages(path: list[Entry]) -> tuple[str, list[Message]]:

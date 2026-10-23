@@ -17,9 +17,10 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
-from . import llm, settings
+from . import llm, settings, skills
 from .config import McpServer, key_status, secret
 from .log import entry_json
+from .memory import project_file
 from .policy import PRESETS
 from .runs import Busy, RunManager
 from .runtime import Workspace
@@ -98,6 +99,14 @@ class McpBody(BaseModel):
 
 class Enabled(BaseModel):
     enabled: bool
+
+
+class SkillDirs(BaseModel):
+    dirs: list[str]
+
+
+class MemoryText(BaseModel):
+    text: str
 
 
 class Decision(BaseModel):
@@ -283,7 +292,20 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 "mcp": [{**dataclasses.asdict(m), **status, "keys": {k: key_status(v, cfg.home)
                                                                      for k, v in (*m.env.items(), *m.headers.items())
                                                                      if v.startswith(("env:", "keyring:", "secret:"))}}
-                        for m, status in ((m, ws.mcp.status(cfg.mcp)[m.name]) for m in cfg.mcp.values())]}
+                        for m, status in ((m, ws.mcp.status(cfg.mcp)[m.name]) for m in cfg.mcp.values())],
+                "skills": skill_views(), "skill_dirs": list(cfg.skill_dirs)}
+
+    def skill_views() -> list[dict[str, Any]]:
+        """User skills once, then each project's own; on/off is by name, like the model sees them."""
+        out = [skill_view(s, None) for s in ws.skills(None, enabled=False).values()]
+        for p in ws.index.projects():
+            found = skills.discover(Path(p["root_path"]), ws.cfg.home)
+            out += [skill_view(s, p["name"]) for s in found.values() if s.source == "project"]
+        return out
+
+    def skill_view(s: skills.Skill, project: str | None) -> dict[str, Any]:
+        return {"name": s.name, "description": s.description, "path": str(s.path), "source": s.source,
+                "project": project, "enabled": s.name not in ws.cfg.skills_disabled}
 
     @app.get("/api/settings")
     async def settings_view() -> dict[str, Any]:
@@ -337,6 +359,42 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
             await srv.stop()
         await ws.mcp.connect(ws.cfg.mcp)
         return settings_payload()
+
+    @app.patch("/api/settings/skills/{name}")
+    async def enable_skill(name: str, body: Enabled) -> dict[str, Any]:
+        return apply(lambda: settings.set_skill_enabled(ws.cfg.home, name, body.enabled))
+
+    @app.put("/api/settings/skill-dirs")
+    async def skill_dirs(body: SkillDirs) -> dict[str, Any]:
+        return apply(lambda: settings.set_skill_dirs(ws.cfg.home, body.dirs))
+
+    @app.get("/api/sessions/{sid}/skills")
+    async def session_skills(sid: str) -> list[dict[str, str]]:
+        """Enabled skills for this session's project: what "/name" in the composer can invoke."""
+        found = ws.skills(ws.root_of(session_log(sid)))
+        return [{"name": s.name, "description": s.description} for s in found.values()]
+
+    # --- memory files (D18): the user can always read and correct what the model saved ---
+
+    def memory_files() -> list[dict[str, Any]]:
+        files = [{"key": "user", "label": "个人（USER.md）", "path": ws.cfg.home / "USER.md"}]
+        files += [{"key": p["id"], "label": f"项目 {p['name']}", "path": project_file(Path(p["root_path"]))}
+                  for p in ws.index.projects()]
+        return [{**f, "path": str(f["path"]), "text": f["path"].read_text(encoding="utf-8") if f["path"].is_file()
+                 else ""} for f in files]
+
+    @app.get("/api/memory")
+    async def memory() -> list[dict[str, Any]]:
+        return memory_files()
+
+    @app.put("/api/memory/{key}")
+    async def put_memory(key: str, body: MemoryText) -> list[dict[str, Any]]:
+        f = next((Path(m["path"]) for m in memory_files() if m["key"] == key), None)
+        if f is None:
+            raise HTTPException(404, "no such memory file")
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(body.text, encoding="utf-8")
+        return memory_files()
 
     @app.get("/api/settings/providers/{name}/models")
     async def remote_models(name: str) -> list[dict[str, Any]]:

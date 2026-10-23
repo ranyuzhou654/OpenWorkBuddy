@@ -42,7 +42,7 @@ async def test_multi_step_file_task(make_ws, project):
     assert "Permission preset: workspace" in log.path()[2].data["text"]
     assert text_of(log.path()[-1].data["content"]) == "done: # hi"
     assert model.requests[0]["system"].startswith("You are nano-workbuddy")
-    assert [t["name"] for t in model.requests[0]["tools"]] == ["read", "write", "edit", "bash"]
+    assert [t["name"] for t in model.requests[0]["tools"]] == ["read", "write", "edit", "bash", "memory"]
     assert {"run.started", "assistant.delta", "run.finished"} <= {e["type"] for e in events}
     run = ws.index.unfinished_runs(log.id)
     assert run == []

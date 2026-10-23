@@ -9,16 +9,17 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import compaction, llm, policy, prompt
+from . import compaction, llm, policy, prompt, skills
 from .config import Config, ModelSpec, load, secret
-from .context import budget, estimate_tokens, loaded_tools, request_tokens, to_messages
+from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
 from .log import SessionLog
 from .loop import SHUTDOWN, Inbox, Run, close_pending, drive
+from .memory import memory_tool
 from .tools import BUILTIN, Registry, Result, Tool, ToolCtx, ToolError
 from .tools.mcp import McpHub, Server, tool_search
 from .tools.registry import parse_args
-from .types import SYSTEM_PROMPT, USER, ToolCall, new_id, text
+from .types import NOTICE, SYSTEM_PROMPT, USER, ToolCall, new_id, text
 
 MAX_RESUMES = 3
 DEFER_SHARE = 0.05  # exposure "auto": defer MCP tools when their schemas would take more of the window than this
@@ -35,7 +36,7 @@ class Workspace:
         self.cfg = cfg
         self.index = Index(cfg.home / "index.db")
         self.connect = connect or self._connect
-        self.tools = tools or Registry(BUILTIN)  # built-in tools; MCP tools are added per run
+        self.tools = tools or Registry([*BUILTIN, memory_tool(cfg.home)])  # skill and MCP tools are added per run
         self.mcp = McpHub(cfg.home)
         self.last_tools = self.tools  # the most recent run's tools, for context estimates between runs
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
@@ -103,11 +104,24 @@ class Workspace:
 
     # tools (D14)
 
-    async def toolset(self, spec: ModelSpec) -> tuple[Registry, dict[str, str]]:
-        """Built-in tools plus the tools of every enabled MCP server, read fresh at each run start so
-        that a server switched off in the settings is gone from the next run. Returns notices to sync."""
+    def skills(self, root: Path | None, enabled: bool = True) -> dict[str, skills.Skill]:
+        """Skills found for a project; by default minus those switched off in the settings."""
+        found = skills.discover(root, self.cfg.home, self.cfg.skill_dirs)
+        return {n: s for n, s in found.items() if not (enabled and n in self.cfg.skills_disabled)}
+
+    async def toolset(self, spec: ModelSpec, root: Path) -> tuple[Registry, dict[str, str]]:
+        """Built-in tools, the skill tool and the tools of every enabled MCP server, read fresh at each run
+        start so that a skill or server switched off in the settings is gone from the next run.
+        Also returns the notices that tell the model what is available."""
+        notices: dict[str, str] = {}
+        base = list(self.tools.tools.values())
+        if found := self.skills(root, enabled=False):  # then keep the model's list current, even if empty
+            enabled = {n: s for n, s in found.items() if n not in self.cfg.skills_disabled}
+            notices["skills"] = skills.listing(enabled) or "No skills are enabled."
+            base += [skills.skill_tool(enabled)] if enabled else []
         if not self.cfg.mcp:
-            return self.tools, {}
+            self.last_tools = Registry(base)
+            return self.last_tools, notices
         servers = await self.mcp.connect(self.cfg.mcp)
         live = [s for s in servers if s.client]
         auto = sum(estimate_tokens(json.dumps([t.schema() for t in s.as_tools()])) for s in live
@@ -117,10 +131,9 @@ class Workspace:
                                                      spec.context_window)}
         mcp_tools = {s.spec.name: s.as_tools() for s in live}
         deferred = [t.name for s in live if s.spec.name in lazy for t in mcp_tools[s.spec.name]]
-        tools = [*self.tools.tools.values(), *([tool_search] if deferred else []),
-                 *(t for ts in mcp_tools.values() for t in ts)]
+        tools = [*base, *([tool_search] if deferred else []), *(t for ts in mcp_tools.values() for t in ts)]
         self.last_tools = Registry(tools, deferred)
-        return self.last_tools, {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
+        return self.last_tools, notices | {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
 
     # permissions (D12)
 
@@ -143,8 +156,17 @@ class Workspace:
         if parent_id is not None:
             log.checkout(parent_id)
         close_pending(log, run["id"], "Interrupted; the user sent a new message instead.")
+        if forced := self._invoked_skill(log, content):  # "/name ...": load the skill for the model (D15)
+            body, key = skills.render(forced), f"skill:{forced.name}"
+            if in_view(log.path()).get(key) != body:  # unless the model already sees this exact text
+                log.append(NOTICE, {"kind": key, "text": body, "pin": True}, run_id=run["id"])
         log.append(USER, {"content": [text(content)]}, run_id=run["id"])
         return await self._drive(log, run, emit, inbox, ask)
+
+    def _invoked_skill(self, log: SessionLog, content: str) -> skills.Skill | None:
+        if not content.startswith("/"):
+            return None
+        return self.skills(self.root_of(log)).get(content[1:].split(maxsplit=1)[0] if content[1:].strip() else "")
 
     async def resume(self, log: SessionLog, emit: Emit = lambda e: None,
                      inbox: Inbox | None = None, ask: Ask | None = None) -> str | None:
@@ -213,7 +235,7 @@ class Workspace:
         emit({"type": "run.started", "run_id": run_row["id"]})
         try:
             ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
-            tools, notices = await self.toolset(self.cfg.model(ref))
+            tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log))
             run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices)
             usage = run.usage
             status = await drive(run)

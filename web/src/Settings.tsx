@@ -4,6 +4,7 @@ import {
   type SettingsView,
 } from "./api";
 import { McpSection } from "./Mcp";
+import { MemorySection, SkillsSection } from "./Skills";
 
 // A connection is an endpoint plus one API key. Two keys for the same service = two connections.
 // Every model belongs to one connection; sessions pick a model, new sessions start on the default.
@@ -138,6 +139,8 @@ export function Settings({ onChanged, onError }: { onChanged: () => void; onErro
       )}
 
       <McpSection view={view} save={save} onError={onError} />
+      <SkillsSection view={view} save={save} />
+      <MemorySection onError={onError} />
     </div>
   );
 }
