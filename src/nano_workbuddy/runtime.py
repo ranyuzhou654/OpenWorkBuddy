@@ -27,6 +27,7 @@ DEFER_SHARE = 0.05  # exposure "auto": defer MCP tools when their schemas would 
 
 type Emit = Callable[[dict[str, Any]], None]
 type Ask = Callable[[policy.Check, Tool, ToolCall], Awaitable[Result | None]]  # asks the user; None = allowed
+type Question = Callable[[dict[str, Any]], Awaitable[str]]  # ask_user: shows a question, returns the answer
 
 
 class Workspace:
@@ -149,7 +150,7 @@ class Workspace:
 
     async def submit(self, log: SessionLog, content: str, *, request_id: str | None = None,
                      parent_id: str | None = None, emit: Emit = lambda e: None,
-                     inbox: Inbox | None = None, ask: Ask | None = None) -> str:
+                     inbox: Inbox | None = None, ask: Ask | None = None, question: Question | None = None) -> str:
         """Append a user message (as a child of parent_id when editing an earlier message) and run."""
         run, created = self.index.start_run(log.id, request_id, self.model_ref(log))
         if not created:  # a retried request: never start the same work twice
@@ -170,7 +171,7 @@ class Workspace:
             if in_view(log.path()).get(key) != body:  # unless the model already sees this exact text
                 log.append(NOTICE, {"kind": key, "text": body, "pin": True}, run_id=run["id"])
         log.append(USER, {"content": [text(content)]}, run_id=run["id"])
-        return await self._drive(log, run, emit, inbox, ask)
+        return await self._drive(log, run, emit, inbox, ask, question)
 
     async def _hook(self, log: SessionLog, event: str, payload: dict[str, Any], emit: Emit,
                     tool: str | None = None) -> hooks.Outcome:
@@ -187,7 +188,8 @@ class Workspace:
         return self.skills(self.root_of(log)).get(content[1:].split(maxsplit=1)[0] if content[1:].strip() else "")
 
     async def resume(self, log: SessionLog, emit: Emit = lambda e: None,
-                     inbox: Inbox | None = None, ask: Ask | None = None) -> str | None:
+                     inbox: Inbox | None = None, ask: Ask | None = None,
+                     question: Question | None = None) -> str | None:
         """Continue runs a crash or restart left unfinished (D6). Gives up after MAX_RESUMES attempts."""
         status = None
         for run in self.index.unfinished_runs(log.id):
@@ -196,7 +198,7 @@ class Workspace:
                 status = "error"
                 continue
             emit({"type": "run.resumed", "run_id": run["id"]})
-            status = await self._drive(log, run, emit, inbox, ask)
+            status = await self._drive(log, run, emit, inbox, ask, question)
         return status
 
     async def compact(self, log: SessionLog, instructions: str | None = None, emit: Emit = lambda e: None) -> str:
@@ -224,7 +226,7 @@ class Workspace:
 
     def make_run(self, log: SessionLog, model_ref: str, run_id: str | None, emit: Emit,
                  inbox: Inbox | None = None, ask: Ask | None = None, tools: Registry | None = None,
-                 notices: dict[str, str] | None = None) -> Run:
+                 notices: dict[str, str] | None = None, question: Question | None = None) -> Run:
         """Freeze one run's settings: model, preset and tools are read once (D12); approved rules are read live."""
         tools = tools or self.last_tools
         preset_name = self.preset(log)
@@ -234,7 +236,7 @@ class Workspace:
         ctx = ToolCtx(root=root, session_id=log.id, spill_dir=spill, emit=emit,
                       read_stamps=self._stamps.setdefault(log.id, {}),
                       sandbox=policy.sandbox_policy(preset, root, tmp_dir(log.id), home, spill),
-                      tmp=tmp_dir(log.id), tools=tools)
+                      tmp=tmp_dir(log.id), tools=tools, question=question)
         places = {"root": str(root), "home": str(home), "spill": str(spill)}
 
         async def gate(tool: Tool, call: ToolCall) -> Result | None:
@@ -281,15 +283,15 @@ class Workspace:
                    on_stop=on_stop if "Stop" in has else None,
                    notices={"permissions": preset.notice.format(root=root), **(notices or {})})
 
-    async def _drive(self, log: SessionLog, run_row: dict[str, Any], emit: Emit,
-                     inbox: Inbox | None, ask: Ask | None) -> str:
+    async def _drive(self, log: SessionLog, run_row: dict[str, Any], emit: Emit, inbox: Inbox | None,
+                     ask: Ask | None, question: Question | None = None) -> str:
         """Unknown errors propagate to the caller; the run is still marked so it is not resumed."""
         status, usage = "error", {}
         emit({"type": "run.started", "run_id": run_row["id"]})
         try:
             ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
             tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log))
-            run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices)
+            run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices, question)
             usage = run.usage
             status = await drive(run)
         except asyncio.CancelledError as e:

@@ -32,6 +32,7 @@ class ToolCtx:
     sandbox: SandboxPolicy | None = None  # None: commands run unconfined (full-trust preset)
     tmp: Path | None = None  # writable scratch directory for sandboxed commands
     tools: Registry | None = None  # the run's own registry, for tool_search
+    question: Callable[[dict[str, Any]], Awaitable[str]] | None = None  # asks the user (ask_user); None: no UI
 
 
 @dataclass(slots=True)

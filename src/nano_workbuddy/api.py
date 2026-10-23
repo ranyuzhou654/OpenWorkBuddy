@@ -110,6 +110,10 @@ class MemoryText(BaseModel):
     text: str
 
 
+class Answer(BaseModel):
+    answer: str
+
+
 class Decision(BaseModel):
     decision: Literal["once", "always", "reject"]
     feedback: str | None = None
@@ -274,6 +278,16 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     async def approve(aid: str, body: Decision) -> dict[str, bool]:
         try:
             runs.resolve(aid, body.decision, body.feedback)
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        return {"ok": True}
+
+    @app.post("/api/questions/{qid}")
+    async def answer(qid: str, body: Answer) -> dict[str, bool]:
+        if not body.answer.strip():
+            raise HTTPException(400, "empty answer")
+        try:
+            runs.answer(qid, body.answer.strip())
         except KeyError as e:
             raise HTTPException(404, str(e)) from e
         return {"ok": True}

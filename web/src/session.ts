@@ -29,7 +29,7 @@ const initial: State = {
   context: null,
 };
 
-const emptyLive = (): Live => ({ run_id: null, text: "", thinking: "", outputs: {}, steer: [], queue: [], approvals: [] });
+const emptyLive = (): Live => ({ run_id: null, text: "", thinking: "", outputs: {}, steer: [], queue: [], approvals: [], questions: [] });
 
 function onEvent(s: State, ev: any): State {
   const live = s.live ?? emptyLive();
@@ -65,6 +65,10 @@ function onEvent(s: State, ev: any): State {
       return { ...s, live: { ...live, approvals: [...live.approvals, ev.approval] } };
     case "approval.resolved":
       return s.live ? { ...s, live: { ...s.live, approvals: s.live.approvals.filter((a) => a.id !== ev.id) } } : s;
+    case "question.requested":
+      return { ...s, live: { ...live, questions: [...live.questions, ev.question] } };
+    case "question.resolved":
+      return s.live ? { ...s, live: { ...s.live, questions: s.live.questions.filter((q) => q.id !== ev.id) } } : s;
     case "inbox":
       return { ...s, live: s.live && { ...s.live, steer: ev.steer, queue: ev.queue }, dropped: ev.dropped ?? s.dropped };
     default:

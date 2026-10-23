@@ -1,4 +1,4 @@
-"""read / write / edit / bash. Phase 1 runs with full user permissions; the sandbox arrives in phase 3."""
+"""read / write / edit / bash: the file and shell tools. tools/__init__.py lists every built-in tool."""
 
 from __future__ import annotations
 
@@ -214,5 +214,3 @@ async def bash(args: BashArgs, ctx: ToolCtx) -> Result:
         body += SANDBOX_HINT
     return Result.ok(f"{body}\n[exit code {proc.returncode}]".lstrip())
 
-
-BUILTIN = [read, write, edit, bash]

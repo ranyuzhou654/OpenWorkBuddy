@@ -187,9 +187,9 @@ def test_settings_mcp_round_trip(home):
 
 
 def test_registry_search_and_declaration_order():
-    from nano_workbuddy.tools import BUILTIN
+    from nano_workbuddy.tools import bash, edit, read, write
 
-    reg = Registry(BUILTIN, deferred=["edit", "bash"])
+    reg = Registry([read, write, edit, bash], deferred=["edit", "bash"])
     assert [s["name"] for s in reg.schemas()] == ["read", "write"]
     assert [s["name"] for s in reg.schemas(["bash", "edit", "bash"])] == ["read", "write", "bash", "edit"]
     assert [t.name for t in reg.search("shell command")] == ["bash"]

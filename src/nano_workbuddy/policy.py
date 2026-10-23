@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from .sandbox import SandboxPolicy
 
@@ -57,8 +58,9 @@ def _deny_secrets(memory: Effect) -> tuple[Rule, ...]:
             Rule("memory", "{home}/USER.md", memory))
 
 
-# Harness tools that only read the harness's own data (tool catalog, skill files) never need approval.
-HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"))
+# Harness tools that touch only the conversation (tool catalog, skills, the plan, a question) never need approval.
+HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"), Rule("todo", "*", "allow"),
+           Rule("ask_user", "*", "allow"))
 
 
 def _ask_protected() -> tuple[Rule, ...]:
@@ -104,6 +106,9 @@ class Check:
         Resources are escaped so a command like `rm *` is never turned into a wildcard."""
         if self.resource.startswith("/"):
             return Rule(self.action, glob.escape(str(Path(self.resource).parent)) + "/*", "allow")
+        if self.resource.startswith(("http://", "https://")):  # a site: scheme://host/*
+            u = urlsplit(self.resource)
+            return Rule(self.action, glob.escape(f"{u.scheme}://{u.netloc}") + "/*", "allow")
         return Rule(self.action, glob.escape(self.resource), "allow")
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, type Approval, type Block, type Entry } from "./api";
+import { api, type Approval, type Block, type Entry, type Question, type Todo } from "./api";
 import { childrenOf, pathTo, textOf, type State } from "./session";
 
 type ToolCall = Extract<Block, { type: "tool_call" }>;
@@ -16,7 +16,8 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
     if (e.type === "tool_result") results[e.data.call_id] = e;
     if (e.type === "tool_started") started.add(e.data.call_id);
   }
-  const waiting = new Map((live?.approvals ?? []).map((a) => [a.call_id, a]));
+  const waiting = new Map<string, unknown>([...(live?.approvals ?? []), ...(live?.questions ?? [])].map((a) => [a.call_id, a]));
+  const todos = latestTodos(path);
   const busy = live !== null;
 
   // Follow the bottom while streaming, unless the user scrolled up to read.
@@ -71,12 +72,14 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
           {live.text && <Markdown text={live.text} />}
         </div>
       )}
-      {live && !live.thinking && !live.text && live.approvals.length === 0 && <div className="working">工作中…</div>}
+      {live && !live.thinking && !live.text && waiting.size === 0 && <div className="working">工作中…</div>}
       {live?.approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)}
+      {live?.questions.map((q) => <QuestionCard key={q.id} question={q} />)}
       {live && [...live.steer.map((t) => ["插话", t]), ...live.queue.map((t) => ["排队", t])].map(([kind, t], i) => (
         <div key={i} className="msg user pending"><span className="tag">{kind}</span>{t}</div>
       ))}
       <div ref={end} />
+      {todos && (busy || todos.some((t) => t.status !== "completed")) && <TodoPanel todos={todos} />}
     </div>
   );
 }
@@ -126,7 +129,7 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
 }
 
 function AssistantMessage({ entry, results, started, waiting, outputs }: {
-  entry: Entry; results: Record<string, Entry>; started: Set<string>; waiting: Map<string, Approval>;
+  entry: Entry; results: Record<string, Entry>; started: Set<string>; waiting: Map<string, unknown>;
   outputs: Record<string, string>;
 }) {
   const blocks: Block[] = entry.data.content;
@@ -183,6 +186,14 @@ function summary(name: string, args: Record<string, any>): string {
   if (name === "bash") return (args.unsandboxed ? "[沙箱外] " : "") + String(args.command ?? "");
   if (name === "tool_search") return String(args.query ?? "");
   if (name === "skill") return String(args.name ?? "");
+  if (name === "grep") return `${args.pattern ?? ""}${args.glob ? `  (${args.glob})` : ""}${args.path && args.path !== "." ? `  in ${args.path}` : ""}`;
+  if (name === "glob") return `${args.pattern ?? ""}${args.path && args.path !== "." ? `  in ${args.path}` : ""}`;
+  if (name === "web_fetch") return String(args.url ?? "");
+  if (name === "ask_user") return String(args.question ?? "");
+  if (name === "todo") {
+    const list: Todo[] = Array.isArray(args.todos) ? args.todos : [];
+    return `${list.filter((t) => t.status === "completed").length}/${list.length} 完成`;
+  }
   if (name === "memory") return `${{ add: "添加", replace: "修改", remove: "删除" }[args.action as string] ?? args.action} ${args.file === "user" ? "USER.md" : "AGENTS.md"}`;
   return String(args.path ?? JSON.stringify(args));
 }
@@ -195,6 +206,7 @@ function ToolArgs({ name, args }: { name: string; args: Record<string, any> }) {
         <pre className="add">{args.new_string}</pre>
       </div>
     );
+  if (name === "todo") return <TodoList todos={Array.isArray(args.todos) ? args.todos : []} />;
   if (name === "write") return <pre>{String(args.content ?? "").slice(0, 4000)}</pre>;
   if (name === "bash") return <pre>{args.command}</pre>;
   if (name === "memory")
@@ -211,7 +223,8 @@ function ToolCard({ call, result, running, waiting, output }: {
   call: ToolCall; result?: Entry; running: boolean; waiting: boolean; output?: string;
 }) {
   const status = result ? (result.data.is_error ? "error" : "done") : waiting ? "waiting" : running ? "running" : "pending";
-  const label = { done: "完成", error: "出错", waiting: "等待确认", running: "运行中", pending: "排队" }[status];
+  const label = { done: "完成", error: "出错", waiting: call.name === "ask_user" ? "等待回答" : "等待确认",
+    running: "运行中", pending: "排队" }[status];
   const [open, setOpen] = useState(false);
   const content: Block[] = result?.data.content ?? [];
   return (
@@ -246,7 +259,9 @@ function ApprovalCard({ approval }: { approval: Approval }) {
         <div className="warn-line">这条命令要求在沙箱外运行：可以联网，也可以写项目目录以外的文件。</div>
       )}
       <ToolArgs name={approval.tool} args={approval.args} />
-      {approval.resource && approval.tool !== "bash" && <div className="note">实际路径：{approval.resource}</div>}
+      {approval.resource && approval.tool !== "bash" && (
+        <div className="note">{approval.resource.startsWith("http") ? "地址" : "实际路径"}：{approval.resource}</div>
+      )}
       {approval.tool.startsWith("mcp__") && <div className="note">来自 MCP 服务器的工具。“总是允许”会放行这个工具的所有调用（本会话内）。</div>}
       {rejecting ? (
         <div className="row">
@@ -264,6 +279,62 @@ function ApprovalCard({ approval }: { approval: Approval }) {
           <button className="danger" onClick={() => setRejecting(true)}>拒绝…</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function latestTodos(path: Entry[]): Todo[] | null {
+  for (let i = path.length - 1; i >= 0; i--) {
+    const e = path[i];
+    if (e.type === "tool_result" && e.data.name === "todo" && e.data.meta?.todos) return e.data.meta.todos;
+  }
+  return null;
+}
+
+const TODO_MARK = { pending: "○", in_progress: "◐", completed: "●" } as const;
+
+function TodoList({ todos }: { todos: Todo[] }) {
+  return (
+    <ul className="todo-list">
+      {todos.map((t, i) => <li key={i} className={t.status}><span>{TODO_MARK[t.status]}</span>{t.content}</li>)}
+    </ul>
+  );
+}
+
+// The latest plan stays in view at the bottom of the conversation while there is work left.
+function TodoPanel({ todos }: { todos: Todo[] }) {
+  const done = todos.filter((t) => t.status === "completed").length;
+  return (
+    <div className="todo-panel">
+      <div className="todo-title">计划 {done}/{todos.length}</div>
+      <TodoList todos={todos} />
+    </div>
+  );
+}
+
+function QuestionCard({ question }: { question: Question }) {
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  const answer = async (a: string) => {
+    if (!a.trim()) return;
+    setSent(true);
+    await api.answer(question.id, a.trim()).catch(() => setSent(false));
+  };
+  return (
+    <div className="approval question">
+      <div className="approval-title">助手想问你：</div>
+      <div className="question-text">{question.question}</div>
+      {question.options.length > 0 && (
+        <div className="row options">
+          {question.options.map((o) => <button key={o} disabled={sent} onClick={() => answer(o)}>{o}</button>)}
+        </div>
+      )}
+      <div className="row">
+        <input placeholder={question.options.length ? "或者输入你自己的回答" : "输入回答"} value={text} disabled={sent}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && answer(text)} />
+        <button className="primary" disabled={sent || !text.trim()} onClick={() => answer(text)}>回答</button>
+      </div>
     </div>
   );
 }

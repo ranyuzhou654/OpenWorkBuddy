@@ -140,6 +140,27 @@ def terminal_ask(ws: Workspace, log: SessionLog) -> Ask:
     return ask
 
 
+async def terminal_question(q: dict[str, Any]) -> str:
+    """ask_user in the terminal: a number picks a suggested answer, anything else is the answer itself."""
+    PRINTER._end_stream()
+    print(f"{YELLOW}? {q['question']}{RESET}")
+    for i, option in enumerate(q["options"], 1):
+        print(f"  {i}. {option}")
+    loop, task = asyncio.get_running_loop(), asyncio.current_task()
+    loop.remove_signal_handler(signal.SIGINT)
+    try:
+        while not (answer := input("  > ").strip()):
+            pass
+    except (KeyboardInterrupt, EOFError):
+        task.cancel()
+        raise asyncio.CancelledError from None
+    finally:
+        loop.add_signal_handler(signal.SIGINT, task.cancel)
+    if answer.isdigit() and 1 <= int(answer) <= len(q["options"]):
+        return q["options"][int(answer) - 1]
+    return answer
+
+
 async def cancellable(coro: Coroutine[Any, Any, Any]) -> Any:
     """Ctrl-C cancels the run (killing its subprocesses) instead of the program."""
     task = asyncio.ensure_future(coro)
@@ -238,7 +259,7 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
         case "/compact":
             run(ws, ws.compact(log, arg or None, PRINTER))
         case "/resume":
-            run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
+            run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log), question=terminal_question))
         case _:
             print(HELP)
     return log
@@ -265,7 +286,7 @@ def repl(ws: Workspace, log: SessionLog) -> None:
                 return
             log = nxt
             continue
-        run(ws, ws.submit(log, line, emit=PRINTER, ask=terminal_ask(ws, log)))
+        run(ws, ws.submit(log, line, emit=PRINTER, ask=terminal_ask(ws, log), question=terminal_question))
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -298,9 +319,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.preset:
         ws.index.update_settings(log.id, {"preset": args.preset})
     if ws.index.unfinished_runs(log.id):  # D6: pick up where a crash left off
-        run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
+        run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log), question=terminal_question))
     if args.prompt:
-        status = run(ws, ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log)))
+        status = run(ws, ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log),
+                                   question=terminal_question))
         sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
 

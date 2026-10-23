@@ -54,6 +54,18 @@ export interface Approval {
   always: { action: string; resource: string }; // the rule "always allow" would add
 }
 
+export interface Question {
+  id: string;
+  call_id: string;
+  question: string;
+  options: string[];
+}
+
+export interface Todo {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
 export interface Live {
   run_id: string | null;
   text: string;
@@ -62,6 +74,7 @@ export interface Live {
   steer: string[];
   queue: string[];
   approvals: Approval[];
+  questions: Question[];
 }
 
 export interface Snapshot {
@@ -228,6 +241,7 @@ export const api = {
   sessionSkills: (sid: string) => call<{ name: string; description: string }[]>("GET", `/api/sessions/${sid}/skills`),
   memory: () => call<MemoryFile[]>("GET", "/api/memory"),
   putMemory: (key: string, text: string) => call<MemoryFile[]>("PUT", `/api/memory/${encodeURIComponent(key)}`, { text }),
+  answer: (qid: string, answer: string) => call<{ ok: boolean }>("POST", `/api/questions/${qid}`, { answer }),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
 };

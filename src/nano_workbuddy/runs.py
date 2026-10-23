@@ -18,7 +18,7 @@ from typing import Any
 from . import policy
 from .log import SessionLog, entry_json
 from .loop import SHUTDOWN, Inbox
-from .runtime import Ask, Emit, Workspace
+from .runtime import Ask, Emit, Question, Workspace
 from .tools import Result, Tool
 from .types import ToolCall, new_id
 
@@ -26,7 +26,7 @@ log_ = logging.getLogger(__name__)
 
 MAX_LIVE_OUTPUT = 20_000
 
-type Factory = Callable[[Emit, Inbox, Ask], Awaitable[str | None]]
+type Factory = Callable[[Emit, Inbox, Ask, Question], Awaitable[str | None]]
 
 
 class Busy(Exception):
@@ -63,12 +63,14 @@ class Live:
     thinking: str = ""
     outputs: dict[str, str] = field(default_factory=dict)  # call_id -> streamed tool output so far
     approvals: dict[str, tuple[dict[str, Any], asyncio.Future[tuple[str, str | None]]]] = field(default_factory=dict)
+    questions: dict[str, tuple[dict[str, Any], asyncio.Future[str]]] = field(default_factory=dict)
     seen_requests: set[str] = field(default_factory=set)
 
     def view(self) -> dict[str, Any]:
         return {"run_id": self.run_id, "text": self.text, "thinking": self.thinking, "outputs": self.outputs,
                 "steer": self.inbox.steer, "queue": self.inbox.queue,
-                "approvals": [v for v, _ in self.approvals.values()]}
+                "approvals": [v for v, _ in self.approvals.values()],
+                "questions": [v for v, _ in self.questions.values()]}
 
 
 class RunManager:
@@ -135,9 +137,9 @@ class RunManager:
             self._publish_inbox(log.id, live.inbox)
             return kind
 
-        def factory(emit: Emit, inbox: Inbox, ask: Ask) -> Awaitable[str]:
+        def factory(emit: Emit, inbox: Inbox, ask: Ask, question: Question) -> Awaitable[str]:
             return self.ws.submit(log, content, request_id=request_id, parent_id=parent_id, emit=emit,
-                                  inbox=inbox, ask=ask)
+                                  inbox=inbox, ask=ask, question=question)
 
         self._start(log, factory)
         return "run"
@@ -145,12 +147,12 @@ class RunManager:
     def compact(self, log: SessionLog, instructions: str | None = None) -> None:
         if log.id in self.live:
             raise Busy("cannot compact while a run is active")
-        self._start(log, lambda emit, inbox, ask: self.ws.compact(log, instructions, emit))
+        self._start(log, lambda emit, inbox, ask, question: self.ws.compact(log, instructions, emit))
 
     def switch_branch(self, log: SessionLog, target_id: str) -> None:
         if log.id in self.live:
             raise Busy("cannot switch branches while a run is active")
-        self._start(log, lambda emit, inbox, ask: self.ws.switch_branch(log, target_id, emit))
+        self._start(log, lambda emit, inbox, ask, question: self.ws.switch_branch(log, target_id, emit))
 
     def cancel(self, session_id: str) -> None:
         if (live := self.live.get(session_id)) is None or live.task is None:
@@ -162,7 +164,8 @@ class RunManager:
         self.ws.index.expire_pending_approvals()
         for sid in dict.fromkeys(r["session_id"] for r in self.ws.index.unfinished_runs()):
             log = self.ws.open_session(sid)
-            self._start(log, lambda emit, inbox, ask, log=log: self.ws.resume(log, emit, inbox, ask))
+            self._start(log, lambda emit, inbox, ask, question, log=log: self.ws.resume(log, emit, inbox, ask,
+                                                                                        question))
 
     async def shutdown(self) -> None:
         """Stop runs so that they resume on the next start instead of counting as cancelled."""
@@ -179,7 +182,8 @@ class RunManager:
     async def _run(self, log: SessionLog, live: Live, factory: Factory) -> None:
         status = "error"
         try:
-            status = await factory(self._emitter(log.id, live), live.inbox, self._asker(log, live)) or "ok"
+            status = await factory(self._emitter(log.id, live), live.inbox, self._asker(log, live),
+                                   self._questioner(log, live)) or "ok"
         except asyncio.CancelledError as e:
             if SHUTDOWN in e.args:
                 raise
@@ -233,6 +237,32 @@ class RunManager:
             return None
 
         return ask
+
+    # questions (ask_user)
+
+    def _questioner(self, log: SessionLog, live: Live) -> Question:
+        hub = self.hubs[log.id]
+
+        async def question(q: dict[str, Any]) -> str:
+            view = {"id": new_id("q"), **q}
+            fut: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+            live.questions[view["id"]] = (view, fut)
+            hub.publish({"type": "question.requested", "question": view})
+            try:
+                return await fut
+            finally:
+                live.questions.pop(view["id"], None)
+                hub.publish({"type": "question.resolved", "id": view["id"]})
+
+        return question
+
+    def answer(self, question_id: str, text: str) -> None:
+        for live in self.live.values():
+            if question_id in live.questions:
+                if not (fut := live.questions[question_id][1]).done():
+                    fut.set_result(text)
+                return
+        raise KeyError(f"no pending question {question_id}")
 
     def resolve(self, approval_id: str, decision: str, feedback: str | None = None) -> None:
         for sid, live in self.live.items():

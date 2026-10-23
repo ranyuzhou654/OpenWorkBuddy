@@ -39,6 +39,7 @@
 | stdio MCP 服务器 | 默认在沙箱内运行、允许联网，只能写临时目录和配置声明的路径；可逐个标 `sandbox = false` |
 | memory 工具审批 | 工作区档不审批，只读档审批 |
 | shell 钩子格式 | 兼容 Claude Code（PreToolUse / PostToolUse / UserPromptSubmit / Stop，JSON 输入输出，退出码 2 表示拦截） |
+| web_fetch 审批 | 按站点：只读、工作区档首次访问某站点时询问，“总是允许”放行 `scheme://host/*`（本会话）；完全信任档不问 |
 
 D4、D5、D6 三个改选是联动的：JSONL 天然适合追加式树（Pi 的做法），而“日志即检查点”让自动续跑不需要另建任务框架。代价估计：比原推荐多约 300 行，集中在 `log.py` 和 `resume.py`，第 4.3、4.4 节给出具体设计。
 
