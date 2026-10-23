@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from .log import SessionLog
+from .policy import Rule
 from .types import USER, new_id, text_of
 
 OWNER = "local"  # single-user for now; every query still scopes by owner (D16)
-DEFAULT_SETTINGS = {"mode": "confirm", "allow": []}
+DEFAULT_SETTINGS = {"preset": "workspace"}
 
 SCHEMA = """
 create table if not exists projects(
@@ -28,6 +29,9 @@ create table if not exists runs(
   id text primary key, session_id text not null, request_id text unique, status text not null,
   model_ref text, resume_count integer not null default 0, started_at real not null, ended_at real,
   usage_json text);
+create table if not exists rules(
+  id text primary key, scope text not null, session_id text, action text not null, resource text not null,
+  effect text not null, created_at real not null);
 create table if not exists approvals(
   id text primary key, session_id text not null, run_id text, call_id text not null, tool text not null,
   args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real);
@@ -52,7 +56,11 @@ class Index:
         self.db.executescript(SCHEMA)  # creates whatever is missing, at the latest shape
         version = self.db.execute("pragma user_version").fetchone()[0] if existed else len(MIGRATIONS)
         for sql in MIGRATIONS[version:]:
-            self.db.execute(sql)
+            try:
+                self.db.execute(sql)
+            except sqlite3.OperationalError as e:  # a database written by a build that had the column already
+                if "duplicate column" not in str(e):
+                    raise
         self.db.execute(f"pragma user_version={len(MIGRATIONS)}")
 
     def _one(self, sql: str, *args: Any) -> dict[str, Any] | None:
@@ -96,7 +104,10 @@ class Index:
     @staticmethod
     def _session(row: dict[str, Any] | None) -> dict[str, Any] | None:
         if row is not None:
-            row["settings"] = {**DEFAULT_SETTINGS, **json.loads(row.pop("settings_json"))}
+            stored = json.loads(row.pop("settings_json"))
+            if "mode" in stored:  # phase 2 settings: confirm / trust
+                stored = {"preset": "trust" if stored["mode"] == "trust" else "workspace"}
+            row["settings"] = {**DEFAULT_SETTINGS, **stored}
         return row
 
     def session(self, session_id: str) -> dict[str, Any] | None:
@@ -146,6 +157,17 @@ class Index:
     def bump_resume(self, run_id: str) -> int:
         self.db.execute("update runs set resume_count=resume_count+1 where id=?", (run_id,))
         return self._one("select resume_count from runs where id=?", run_id)["resume_count"]
+
+    # rules approved by the user ("always allow")
+
+    def add_rule(self, session_id: str, rule: Rule) -> None:
+        self.db.execute("insert into rules(id, scope, session_id, action, resource, effect, created_at)"
+                        " values (?,?,?,?,?,?,?)", (new_id("rule"), "session", session_id, rule.action, rule.resource,
+                                                     rule.effect, time.time()))
+
+    def session_rules(self, session_id: str) -> list[Rule]:
+        rows = self._all("select * from rules where scope='session' and session_id=? order by created_at", session_id)
+        return [Rule(r["action"], r["resource"], r["effect"]) for r in rows]
 
     # approvals
 

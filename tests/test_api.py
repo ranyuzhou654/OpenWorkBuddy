@@ -82,7 +82,7 @@ def entry_of(type_):
 
 @pytest.fixture
 def ws_for(home):
-    return lambda model: Workspace(load(home), connect=lambda spec: model)
+    return lambda model: Workspace(load(home), connect=model.connect)
 
 
 async def test_auth_and_origin_checks(ws_for):
@@ -102,7 +102,7 @@ async def test_run_streams_entries_and_deltas(ws_for, project):
     model = FakeModel(reply("writing", call("write", path="a.txt", content="hi")), reply("all done"))
     async with Server(ws_for(model)) as s:
         sid = await s.session(project)
-        await s.client.patch(f"/api/sessions/{sid}", json={"mode": "trust"})
+        await s.client.patch(f"/api/sessions/{sid}", json={"preset": "trust"})
         stream = Stream(s.client, sid)
         await stream.ready.wait()
         assert (await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "go"})).json() == {
@@ -111,7 +111,7 @@ async def test_run_streams_entries_and_deltas(ws_for, project):
         stream.close()
         assert done["status"] == "ok"
         kinds = [e["entry"]["type"] for e in stream.events if e["type"] == "entry"]
-        assert kinds == ["system_prompt", "user", "assistant", "tool_started", "tool_result", "assistant"]
+        assert kinds == ["system_prompt", "user", "notice", "assistant", "tool_started", "tool_result", "assistant"]
         assert any(e["type"] == "assistant.delta" and e["text"] == "all done" for e in stream.events)
         assert (project / "a.txt").read_text() == "hi"
 
@@ -125,7 +125,9 @@ async def test_reconnect_replays_only_newer_entries(ws_for, project):
         await stream.until(finished)
         stream.close()
         snap = (await s.client.get(f"/api/sessions/{sid}")).json()
-        assert snap["live"] is None and len(snap["entries"]) == 3
+        assert snap["live"] is None and [e["type"] for e in snap["entries"]] == [
+            "system_prompt", "user", "notice", "assistant"]
+        assert 0 < snap["context"]["tokens"] < snap["context"]["budget"]
 
         later = Stream(s.client, sid, after=snap["seq"])  # a client that saw everything so far
         await later.ready.wait()
@@ -133,42 +135,45 @@ async def test_reconnect_replays_only_newer_entries(ws_for, project):
         await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "second"})
         await later.until(finished)
         later.close()
-        texts = [e["entry"]["data"]["content"][0]["text"] for e in later.events if e["type"] == "entry"]
+        texts = [e["entry"]["data"]["content"][0]["text"] for e in later.events
+                 if e["type"] == "entry" and e["entry"]["type"] in ("user", "assistant")]
         assert texts == ["second", "two"]
 
 
-async def test_approval_once_reject_and_always(ws_for, project):
+async def test_approval_once_reject_and_always(ws_for, project, tmp_path):
+    out = tmp_path / "outside"  # writes outside the project need approval in the workspace preset
+    out.mkdir()
     model = FakeModel(
-        reply(None, call("bash", command="echo ran > ran.txt")),
-        reply(None, call("bash", command="echo bad > bad.txt")),
-        reply(None, call("bash", command="true")),
-        reply(None, call("bash", command="echo again > again.txt")),
+        reply(None, call("write", path=str(out / "a.txt"), content="a")),
+        reply(None, call("write", path=str(out / "b.txt"), content="b")),
+        reply(None, call("write", path=str(out / "c.txt"), content="c")),
+        reply(None, call("write", path=str(out / "d.txt"), content="d")),
         reply("finished"),
     )
     async with Server(ws_for(model)) as s:
-        sid = await s.session(project)  # default mode: confirm
+        sid = await s.session(project)
         stream = Stream(s.client, sid)
         await stream.ready.wait()
         await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "go"})
 
-        decisions = [("once", None), ("reject", "use a different file"), ("always", None)]
+        decisions = [("once", None), ("reject", "use a different folder"), ("always", None)]
         for i, (decision, feedback) in enumerate(decisions):
             await stream.until(lambda e, i=i: sum(x["type"] == "approval.requested" for x in stream.events) > i)
-            req = [x for x in stream.events if x["type"] == "approval.requested"][i]
+            req = [x for x in stream.events if x["type"] == "approval.requested"][i]["approval"]
+            assert req["action"] == "write" and req["always"]["resource"].endswith("/outside/*")
             snap = (await s.client.get(f"/api/sessions/{sid}")).json()
-            assert [a["id"] for a in snap["live"]["approvals"]] == [req["approval"]["id"]]
-            r = await s.client.post(f"/api/approvals/{req['approval']['id']}",
-                                    json={"decision": decision, "feedback": feedback})
+            assert [a["id"] for a in snap["live"]["approvals"]] == [req["id"]]
+            r = await s.client.post(f"/api/approvals/{req['id']}", json={"decision": decision, "feedback": feedback})
             assert r.status_code == 200
         await stream.until(finished)
         stream.close()
 
-        assert (project / "ran.txt").exists() and not (project / "bad.txt").exists()
-        assert (project / "again.txt").exists()  # allowed by "always" without asking
+        assert sorted(f.name for f in out.iterdir()) == ["a.txt", "c.txt", "d.txt"]  # d: covered by "always"
         assert sum(e["type"] == "approval.requested" for e in stream.events) == 3
         rejected = model.requests[2]["messages"][-1]
-        assert "use a different file" in rejected["content"][0]["text"]
-        assert (await s.client.get(f"/api/sessions/{sid}")).json()["session"]["settings"]["allow"] == ["bash"]
+        assert "use a different folder" in rejected["content"][0]["text"]
+        rules = s.ws.index.session_rules(sid)
+        assert [(r.action, r.effect) for r in rules] == [("write", "allow")]
 
 
 async def test_steer_queue_and_cancel(ws_for, project):
@@ -201,7 +206,7 @@ async def test_cancel_endpoint_and_branch_edit(ws_for, project):
     model = FakeModel(reply("A1"), reply(None, call("bash", command="sleep 30")), reply("B1"))
     async with Server(ws_for(model)) as s:
         sid = await s.session(project)
-        await s.client.patch(f"/api/sessions/{sid}", json={"mode": "trust"})
+        await s.client.patch(f"/api/sessions/{sid}", json={"preset": "trust"})
         stream = Stream(s.client, sid)
         await stream.ready.wait()
         await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "first"})

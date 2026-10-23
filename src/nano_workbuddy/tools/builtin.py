@@ -6,11 +6,13 @@ import asyncio
 import base64
 import contextlib
 import os
+import re
 import signal
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..sandbox import SandboxUnavailable, wrap
 from .registry import Result, ToolCtx, ToolError, Verdict, tool
 
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
@@ -18,7 +20,12 @@ IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_LINE = 2000
 MAX_OUTPUT = 10 * 1024 * 1024
-ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ")
+ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ",
+             "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
+SANDBOX_DENIAL = re.compile(r"Operation not permitted|Read-only file system|Could not resolve host|"
+                            r"Failed to connect|Network is unreachable|Temporary failure in name resolution")
+SANDBOX_HINT = ("\n[This command ran in the sandbox. If it failed because it needs the network or must write "
+                "outside the project, re-run it with unsandboxed=true; the user will be asked to approve.]")
 
 
 class Args(BaseModel):
@@ -26,8 +33,13 @@ class Args(BaseModel):
 
 
 def resolve(ctx: ToolCtx, path: str) -> Path:
+    """Absolute and symlink-free, so permission rules see where a write really lands."""
     p = Path(path).expanduser()
     return (p if p.is_absolute() else ctx.root / p).resolve()
+
+
+def _path_scope(action: str):
+    return lambda args, ctx: (action, str(resolve(ctx, args.path)))
 
 
 def _check_fresh(ctx: ToolCtx, p: Path) -> None:
@@ -45,7 +57,7 @@ class ReadArgs(Args):
     limit: int = Field(2000, ge=1, le=5000, description="Maximum number of lines")
 
 
-@tool(effect="read", parallel=True)
+@tool(effect="read", parallel=True, scope=_path_scope("read"))
 async def read(args: ReadArgs, ctx: ToolCtx) -> Result:
     """Read a text file with line numbers, or an image. Use offset/limit for large files."""
     p = resolve(ctx, args.path)
@@ -84,7 +96,7 @@ def _write_recover(args: WriteArgs, ctx: ToolCtx) -> Verdict:
     return "not_done"
 
 
-@tool(effect="write", recover=_write_recover)
+@tool(effect="write", recover=_write_recover, scope=_path_scope("write"))
 async def write(args: WriteArgs, ctx: ToolCtx) -> Result:
     """Create or overwrite a file. An existing file must be read first. Prefer edit for changes."""
     p = resolve(ctx, args.path)
@@ -113,7 +125,7 @@ def _edit_recover(args: EditArgs, ctx: ToolCtx) -> Verdict:
     return "not_done" if s.count(args.old_string) == 1 or args.replace_all else "unknown"
 
 
-@tool(effect="write", recover=_edit_recover)
+@tool(effect="write", recover=_edit_recover, scope=_path_scope("edit"))
 async def edit(args: EditArgs, ctx: ToolCtx) -> Result:
     """Replace an exact string in a file. old_string must match exactly once unless replace_all is set.
     Read the file first."""
@@ -137,6 +149,12 @@ async def edit(args: EditArgs, ctx: ToolCtx) -> Result:
 class BashArgs(Args):
     command: str
     timeout: int = Field(120, ge=1, le=600, description="Seconds before the command is killed")
+    unsandboxed: bool = Field(False, description="Run outside the sandbox, for commands that need the network or "
+                              "must write outside the project. Requires the user's approval; use only when needed.")
+
+
+def _bash_scope(args: BashArgs, ctx: ToolCtx) -> tuple[str, str]:
+    return ("bash.unsandboxed" if args.unsandboxed and ctx.sandbox else "bash"), args.command
 
 
 def _env() -> dict[str, str]:
@@ -155,11 +173,22 @@ async def _kill(proc: asyncio.subprocess.Process) -> None:
             continue
 
 
-@tool(effect="exec")
+@tool(effect="exec", scope=_bash_scope)
 async def bash(args: BashArgs, ctx: ToolCtx) -> Result:
     """Run a shell command in the project root and return combined stdout/stderr and the exit code."""
+    argv, env = ["/bin/bash", "-c", args.command], _env()
+    sandboxed = ctx.sandbox is not None and not args.unsandboxed
+    if sandboxed:
+        try:
+            argv = wrap(argv, ctx.sandbox)
+        except SandboxUnavailable as e:  # never fall back to running unconfined
+            raise ToolError(f"{e}. Sandboxed commands cannot run here; ask the user to install the sandbox "
+                            "or switch to the full-trust preset.") from e
+        if ctx.tmp:
+            ctx.tmp.mkdir(parents=True, exist_ok=True)
+            env["TMPDIR"] = str(ctx.tmp)
     proc = await asyncio.create_subprocess_exec(
-        "/bin/bash", "-c", args.command, cwd=ctx.root, env=_env(), stdin=asyncio.subprocess.DEVNULL,
+        *argv, cwd=ctx.root, env=env, stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True)
     out = bytearray()
 
@@ -181,6 +210,8 @@ async def bash(args: BashArgs, ctx: ToolCtx) -> Result:
     body = out.decode(errors="replace").rstrip()
     if len(out) >= MAX_OUTPUT:
         body += f"\n[output truncated at {MAX_OUTPUT} bytes]"
+    if sandboxed and proc.returncode != 0 and SANDBOX_DENIAL.search(body):
+        body += SANDBOX_HINT
     return Result.ok(f"{body}\n[exit code {proc.returncode}]".lstrip())
 
 

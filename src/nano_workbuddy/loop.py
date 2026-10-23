@@ -11,11 +11,25 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from .context import spill, to_messages
-from .llm import Delta, Model, Response
+from .compaction import fit
+from .context import spill, to_messages, visible
+from .llm import ContextOverflow, Delta, Model, Response
 from .log import SessionLog
 from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
-from .types import ASSISTANT, STATE, TOOL_RESULT, TOOL_STARTED, USER, Entry, ToolCall, text
+from .types import (
+    ASSISTANT,
+    COMPACTION,
+    NOTICE,
+    PRUNE,
+    STATE,
+    TOOL_RESULT,
+    TOOL_STARTED,
+    USER,
+    Entry,
+    Message,
+    ToolCall,
+    text,
+)
 
 TRUNCATED = ("Not executed: the response hit the output token limit, so the arguments may be incomplete. "
              "Re-issue the call with complete arguments.")
@@ -53,13 +67,16 @@ class Done:
 type Step = CallModel | RunTools | FailCalls | Done
 
 
+TRANSPARENT = (TOOL_STARTED, STATE, NOTICE, PRUNE, COMPACTION)  # bookkeeping: never decides the next step
+
+
 def next_step(path: list[Entry]) -> Step:
     """Pure function of the log path; the whole loop hinges on it."""
     answered: set[str] = set()
     for e in reversed(path):
         if e.type == TOOL_RESULT:
             answered.add(e.data["call_id"])
-        elif e.type in (TOOL_STARTED, STATE):
+        elif e.type in TRANSPARENT:
             continue
         elif e.type == USER:
             return CallModel()
@@ -91,12 +108,13 @@ class Run:
     model: Model
     tools: Registry
     ctx: ToolCtx
-    run_id: str
+    run_id: str | None  # None for work outside a run, such as manual compaction
     emit: Callable[[dict[str, Any]], None] = lambda event: None  # ephemeral events; entries come from the log
     max_turns: int = 50
     usage: dict[str, int] = field(default_factory=dict)
     inbox: Inbox = field(default_factory=Inbox)
     gate: Gate | None = None  # permission check before any tool runs
+    notices: dict[str, str] = field(default_factory=dict)  # kind -> text the model must currently see
 
 
 async def drive(run: Run) -> str:
@@ -131,18 +149,44 @@ def _take_steer(run: Run) -> bool:
     return bool(msgs)
 
 
+def sync_notices(run: Run) -> bool:
+    """Append a notice whenever what the model can currently see differs from run.notices
+    (first run, preset changed, or a compaction summarised the old notice away)."""
+    seen = {e.data["kind"]: e.data["text"] for e in visible(run.log.path()) if e.type == NOTICE}
+    changed = [(k, v) for k, v in run.notices.items() if seen.get(k) != v]
+    for kind, body in changed:
+        run.log.append(NOTICE, {"kind": kind, "text": body}, run_id=run.run_id)
+    return bool(changed)
+
+
+async def prepare(run: Run, overflow: bool = False) -> tuple[str, list[Message]]:
+    sync_notices(run)
+    system, messages = await fit(run, overflow)
+    if sync_notices(run):  # a compaction may have folded a notice into the summary
+        system, messages = to_messages(run.log.path())
+    return system, messages
+
+
 async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
-    system, messages = to_messages(run.log.path())
+    system, messages = await prepare(run)
     partial: list[str] = []
     resp: Response | None = None
     try:
-        async for item in run.model.stream(system, messages, run.tools.schemas(), tool_choice):
-            if isinstance(item, Delta):
-                if item.kind == "text":
-                    partial.append(item.text)
-                run.emit({"type": "assistant.delta", "kind": item.kind, "text": item.text})
-            else:
-                resp = item
+        for attempt in range(2):
+            try:
+                async for item in run.model.stream(system, messages, run.tools.schemas(), tool_choice):
+                    if isinstance(item, Delta):
+                        if item.kind == "text":
+                            partial.append(item.text)
+                        run.emit({"type": "assistant.delta", "kind": item.kind, "text": item.text})
+                    else:
+                        resp = item
+                break
+            except ContextOverflow:  # our estimate was low: shrink once and retry
+                if attempt:
+                    raise
+                run.emit({"type": "context.overflow"})
+                system, messages = await prepare(run, overflow=True)
     except asyncio.CancelledError:
         if partial:  # keep what the user already saw; never keep half-streamed tool calls
             run.log.append(ASSISTANT, {"content": [text("".join(partial))], "stop": "aborted"}, run_id=run.run_id)

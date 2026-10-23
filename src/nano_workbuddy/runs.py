@@ -17,8 +17,8 @@ from typing import Any
 
 from . import policy
 from .log import SessionLog, entry_json
-from .loop import SHUTDOWN, Gate, Inbox
-from .runtime import Emit, Workspace
+from .loop import SHUTDOWN, Inbox
+from .runtime import Ask, Emit, Workspace
 from .tools import Result, Tool
 from .types import ToolCall, new_id
 
@@ -26,7 +26,7 @@ log_ = logging.getLogger(__name__)
 
 MAX_LIVE_OUTPUT = 20_000
 
-type Factory = Callable[[Emit, Inbox, Gate], Awaitable[str | None]]
+type Factory = Callable[[Emit, Inbox, Ask], Awaitable[str | None]]
 
 
 class Busy(Exception):
@@ -135,12 +135,17 @@ class RunManager:
             self._publish_inbox(log.id, live.inbox)
             return kind
 
-        def factory(emit: Emit, inbox: Inbox, gate: Gate) -> Awaitable[str]:
+        def factory(emit: Emit, inbox: Inbox, ask: Ask) -> Awaitable[str]:
             return self.ws.submit(log, content, request_id=request_id, parent_id=parent_id, emit=emit,
-                                  inbox=inbox, gate=gate)
+                                  inbox=inbox, ask=ask)
 
         self._start(log, factory)
         return "run"
+
+    def compact(self, log: SessionLog, instructions: str | None = None) -> None:
+        if log.id in self.live:
+            raise Busy("cannot compact while a run is active")
+        self._start(log, lambda emit, inbox, ask: self.ws.compact(log, instructions, emit))
 
     def cancel(self, session_id: str) -> None:
         if (live := self.live.get(session_id)) is None or live.task is None:
@@ -152,7 +157,7 @@ class RunManager:
         self.ws.index.expire_pending_approvals()
         for sid in dict.fromkeys(r["session_id"] for r in self.ws.index.unfinished_runs()):
             log = self.ws.open_session(sid)
-            self._start(log, lambda emit, inbox, gate, log=log: self.ws.resume(log, emit, inbox, gate))
+            self._start(log, lambda emit, inbox, ask, log=log: self.ws.resume(log, emit, inbox, ask))
 
     async def shutdown(self) -> None:
         """Stop runs so that they resume on the next start instead of counting as cancelled."""
@@ -169,7 +174,7 @@ class RunManager:
     async def _run(self, log: SessionLog, live: Live, factory: Factory) -> None:
         status = "error"
         try:
-            status = await factory(self._emitter(log.id, live), live.inbox, self._gate(log, live)) or "ok"
+            status = await factory(self._emitter(log.id, live), live.inbox, self._asker(log, live)) or "ok"
         except asyncio.CancelledError as e:
             if SHUTDOWN in e.args:
                 raise
@@ -180,7 +185,8 @@ class RunManager:
         finally:
             if self.live.get(log.id) is live:
                 del self.live[log.id]
-        self.hubs[log.id].publish({"type": "session", "session": self.ws.index.session(log.id)})  # title, leaf
+        self.hubs[log.id].publish({"type": "session", "session": self.ws.index.session(log.id),
+                                   "context": self.ws.context_usage(log)})  # title, leaf, context size
         leftovers = live.inbox.steer + live.inbox.queue
         if leftovers and status in ("ok", "limit"):  # messages that arrived as the run was ending
             first, rest = leftovers[0], leftovers[1:]
@@ -195,14 +201,14 @@ class RunManager:
 
     # approvals
 
-    def _gate(self, log: SessionLog, live: Live) -> Gate:
+    def _asker(self, log: SessionLog, live: Live) -> Ask:
         hub = self.hubs[log.id]
 
-        async def gate(tool: Tool, call: ToolCall) -> Result | None:
-            if policy.decide(self.ws.index.session(log.id)["settings"], tool) == "allow":
-                return None
+        async def ask(check: policy.Check, tool: Tool, call: ToolCall) -> Result | None:
             aid = new_id("a")
-            view = {"id": aid, "call_id": call["id"], "tool": tool.name, "args": call["args"]}
+            always = check.suggestion()
+            view = {"id": aid, "call_id": call["id"], "tool": tool.name, "args": call["args"], "action": check.action,
+                    "resource": check.resource, "always": {"action": always.action, "resource": always.resource}}
             fut: asyncio.Future[tuple[str, str | None]] = asyncio.get_running_loop().create_future()
             live.approvals[aid] = (view, fut)
             self.ws.index.add_approval(aid, log.id, live.run_id, call)
@@ -215,20 +221,19 @@ class RunManager:
                 raise
             finally:
                 live.approvals.pop(aid, None)
+            if decision == "always":
+                self.ws.index.add_rule(log.id, always)
             if decision == "reject":
                 return Result.error("The user denied this call." + (f" Their feedback: {feedback}" if feedback else ""))
             return None
 
-        return gate
+        return ask
 
     def resolve(self, approval_id: str, decision: str, feedback: str | None = None) -> None:
         for sid, live in self.live.items():
             if approval_id not in live.approvals:
                 continue
-            view, fut = live.approvals[approval_id]
-            if decision == "always":
-                allow = self.ws.index.session(sid)["settings"]["allow"]
-                self.ws.index.update_settings(sid, {"allow": sorted({*allow, view["tool"]})})
+            _, fut = live.approvals[approval_id]
             self.ws.index.resolve_approval(approval_id, "denied" if decision == "reject" else "allowed", feedback)
             fut.set_result((decision, feedback))
             self.hubs[sid].publish({"type": "approval.resolved", "id": approval_id, "decision": decision})

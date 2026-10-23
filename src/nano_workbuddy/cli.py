@@ -13,10 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from .log import SessionLog
-from .runtime import Workspace
-from .types import ASSISTANT, USER, Entry, text_of
+from .loop import CANCELLED
+from .policy import PRESETS, Check
+from .runtime import Ask, Workspace
+from .tools import Result, Tool
+from .types import ASSISTANT, USER, Entry, ToolCall, text_of
 
-DIM, RED, CYAN, BOLD, RESET = "\033[2m", "\033[31m", "\033[36m", "\033[1m", "\033[0m"
+DIM, RED, CYAN, YELLOW, BOLD, RESET = "\033[2m", "\033[31m", "\033[36m", "\033[33m", "\033[1m", "\033[0m"
 
 HELP = """\
 /new                 start a new session in this project
@@ -27,6 +30,8 @@ HELP = """\
 /edit ID             go back to before user message ID; your next input becomes a new branch
 /fork ID             copy the path up to ID into a new session
 /model [NAME]        show or set the model for the next run
+/preset [NAME]       show or set the permission preset: readonly, workspace, trust
+/compact [FOCUS]     summarise older turns now (optionally saying what to keep)
 /resume              continue a run interrupted by a crash
 /quit"""
 
@@ -73,6 +78,11 @@ class Printer:
                     self.shown = set()  # ids are per turn; providers may reuse them
                 elif e["type"] == "tool_started":
                     self._call_header(e["data"]["call_id"])
+                elif e["type"] == "compaction":
+                    self._end_stream()
+                    print(f"{DIM}[context compacted: about {e['data']['tokens_before']} tokens summarised]{RESET}")
+                elif e["type"] == "prune":
+                    print(f"{DIM}[{e['data']['count']} old tool outputs cleared from context]{RESET}")
                 elif e["type"] == "tool_result":
                     d = e["data"]
                     self._call_header(d["call_id"])  # calls blocked before starting still get a header
@@ -80,6 +90,10 @@ class Printer:
                     more = f" … (+{len(lines) - 3} lines)" if len(lines) > 3 else ""
                     color = RED if d["is_error"] else DIM
                     print(color + "\n".join(f"  ⎿ {line[:160]}" for line in lines[:3]) + more + RESET)
+            case "run.started" if ev.get("kind") == "compaction":
+                print(f"{DIM}[compacting…]{RESET}")
+            case "context.overflow":
+                print(f"{DIM}[the model said the context is too long; compacting and retrying]{RESET}")
             case "run.resumed":
                 print(f"{DIM}[resuming interrupted run {ev['run_id']}]{RESET}")
             case "run.finished":
@@ -88,6 +102,34 @@ class Printer:
                 note = "" if ev["status"] == "ok" else f"{RED}[{ev['status']}]{RESET} "
                 print(f"{note}{DIM}[tokens in {u.get('input', 0)} (cached {u.get('cache_read', 0)}), "
                       f"out {u.get('output', 0)}]{RESET}")
+
+
+def terminal_ask(ws: Workspace, log: SessionLog) -> Ask:
+    """Approvals in the terminal: y = once, a = always (this session), n [feedback] = deny."""
+
+    async def ask(check: Check, tool: Tool, call: ToolCall) -> Result | None:
+        PRINTER._end_stream()
+        always = check.suggestion()
+        print(f"{YELLOW}? {check.action}: {check.resource[:400]}{RESET}\n"
+              f"  y = allow once · a = always allow {always.action} {always.resource[:80]} · n [reason] = deny")
+        loop, task = asyncio.get_running_loop(), asyncio.current_task()
+        loop.remove_signal_handler(signal.SIGINT)  # so Ctrl-C interrupts input() instead of waiting for Enter
+        try:
+            answer = input("  > ").strip()
+        except (KeyboardInterrupt, EOFError):
+            task.cancel()  # stop the run at its next await
+            return Result.error(CANCELLED)
+        finally:
+            loop.add_signal_handler(signal.SIGINT, task.cancel)
+        if answer.lower() in ("y", "yes"):
+            return None
+        if answer.lower() in ("a", "always"):
+            ws.index.add_rule(log.id, always)
+            return None
+        feedback = answer[1:].strip() if answer[:1].lower() == "n" else answer
+        return Result.error("The user denied this call." + (f" Their feedback: {feedback}" if feedback else ""))
+
+    return ask
 
 
 async def cancellable(coro: Coroutine[Any, Any, Any]) -> Any:
@@ -168,15 +210,25 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
             if arg:
                 ws.set_model(log, arg)
             print(f"model: {ws.index.session(log.id)['model_ref']}  (configured: {', '.join(ws.cfg.models)})")
+        case "/preset":
+            if arg:
+                if arg not in PRESETS:
+                    print(f"presets: {', '.join(PRESETS)}")
+                else:
+                    ws.index.update_settings(log.id, {"preset": arg})
+            print(f"preset: {ws.preset(log)}  (applies from the next run)")
+        case "/compact":
+            run(ws.compact(log, arg or None, PRINTER))
         case "/resume":
-            run(ws.resume(log, PRINTER))
+            run(ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
         case _:
             print(HELP)
     return log
 
 
 def repl(ws: Workspace, log: SessionLog) -> None:
-    print(f"{DIM}nano-workbuddy · session {log.id} · {ws.root_of(log)} · /help for commands{RESET}")
+    print(f"{DIM}nano-workbuddy · session {log.id} · {ws.root_of(log)} · preset {ws.preset(log)} · "
+          f"/help for commands{RESET}")
     while True:
         try:
             line = input(f"{BOLD}›{RESET} ").strip()
@@ -195,7 +247,7 @@ def repl(ws: Workspace, log: SessionLog) -> None:
                 return
             log = nxt
             continue
-        run(ws.submit(log, line, emit=PRINTER))
+        run(ws.submit(log, line, emit=PRINTER, ask=terminal_ask(ws, log)))
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -208,6 +260,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("-c", "--continue", dest="cont", action="store_true", help="continue the latest session")
     p.add_argument("-s", "--session", help="open a session by id")
     p.add_argument("-m", "--model", help="model name from config.toml")
+    p.add_argument("-p", "--preset", choices=list(PRESETS), help="permission preset for this session")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
@@ -222,10 +275,13 @@ def main(argv: list[str] | None = None) -> None:
     PRINTER.watch(log)
     if args.model:
         ws.set_model(log, args.model)
+    if args.preset:
+        ws.index.update_settings(log.id, {"preset": args.preset})
     if ws.index.unfinished_runs(log.id):  # D6: pick up where a crash left off
-        run(ws.resume(log, PRINTER))
+        run(ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
     if args.prompt:
-        sys.exit(0 if run(ws.submit(log, args.prompt, emit=PRINTER)) in ("ok", "limit") else 1)
+        status = run(ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log)))
+        sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
 
 

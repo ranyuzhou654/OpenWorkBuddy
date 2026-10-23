@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
+from ..sandbox import SandboxPolicy
 from ..types import Image, Text, ToolCall, text
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ class ToolCtx:
     emit: Callable[[dict[str, Any]], None] = lambda event: None
     read_stamps: dict[str, float] = field(default_factory=dict)  # path -> mtime at last read
     call_id: str = ""
+    sandbox: SandboxPolicy | None = None  # None: commands run unconfined (full-trust preset)
+    tmp: Path | None = None  # writable scratch directory for sandboxed commands
 
 
 @dataclass(slots=True)
@@ -56,6 +59,10 @@ class Tool:
     effect: Effect
     parallel: bool  # safe to run concurrently with other parallel tools
     recover: Callable[[Any, ToolCtx], Verdict] | None  # after a crash: did the call already take effect?
+    scope: Callable[[Any, ToolCtx], tuple[str, str]] | None  # (action, resource) for permission rules
+
+    def permission_scope(self, args: Any, ctx: ToolCtx) -> tuple[str, str]:
+        return self.scope(args, ctx) if self.scope else (self.name, "")
 
     def schema(self) -> dict[str, Any]:
         params = self.args.model_json_schema()
@@ -65,10 +72,11 @@ class Tool:
         return {"name": self.name, "description": self.description, "parameters": params}
 
 
-def tool(*, effect: Effect, parallel: bool = False, recover: Callable[[Any, ToolCtx], Verdict] | None = None):
+def tool(*, effect: Effect, parallel: bool = False, recover: Callable[[Any, ToolCtx], Verdict] | None = None,
+         scope: Callable[[Any, ToolCtx], tuple[str, str]] | None = None):
     def wrap(fn: Callable[[Any, ToolCtx], Awaitable[Result]]) -> Tool:
         args = next(iter(inspect.signature(fn, eval_str=True).parameters.values())).annotation
-        return Tool(fn.__name__, inspect.cleandoc(fn.__doc__ or ""), args, fn, effect, parallel, recover)
+        return Tool(fn.__name__, inspect.cleandoc(fn.__doc__ or ""), args, fn, effect, parallel, recover, scope)
 
     return wrap
 

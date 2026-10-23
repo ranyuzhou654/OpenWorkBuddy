@@ -2,7 +2,7 @@
 // Durable events ("entry", "checkout", "leaf") rebuild the tree; ephemeral ones update `live`.
 
 import { useEffect, useReducer } from "react";
-import { api, type Entry, type Live, type SessionInfo, type Snapshot } from "./api";
+import { api, type ContextUsage, type Entry, type Live, type SessionInfo, type Snapshot } from "./api";
 
 export interface State {
   session: SessionInfo | null;
@@ -13,6 +13,7 @@ export interface State {
   error: string | null;
   dropped: string[]; // messages of a cancelled run, handed back to the composer
   usage: Record<string, number> | null;
+  context: ContextUsage | null;
 }
 
 type Action =
@@ -25,6 +26,7 @@ type Action =
 
 const initial: State = {
   session: null, entries: {}, leaf: null, live: null, connected: false, error: null, dropped: [], usage: null,
+  context: null,
 };
 
 const emptyLive = (): Live => ({ run_id: null, text: "", thinking: "", outputs: {}, steer: [], queue: [], approvals: [] });
@@ -47,7 +49,7 @@ function onEvent(s: State, ev: any): State {
     case "leaf":
       return { ...s, leaf: ev.leaf_id };
     case "session":
-      return { ...s, session: ev.session };
+      return { ...s, session: ev.session, context: ev.context ?? s.context };
     case "run.started":
       return { ...s, live: { ...live, run_id: ev.run_id }, error: null };
     case "run.finished":
@@ -80,6 +82,7 @@ function reducer(s: State, a: Action): State {
         entries: Object.fromEntries(a.snap.entries.map((e) => [e.id, e])),
         leaf: a.snap.leaf_id,
         live: a.snap.live,
+        context: a.snap.context,
       };
     case "event":
       return onEvent(s, a.ev);

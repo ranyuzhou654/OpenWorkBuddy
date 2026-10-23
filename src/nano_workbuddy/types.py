@@ -24,6 +24,7 @@ class Thinking(TypedDict):
     text: str
     provider: str  # replayed only to the provider that produced it
     meta: NotRequired[dict[str, Any]]  # opaque provider fields (signature, wire field name, ...)
+    stale: NotRequired[bool]  # produced before a prune/compaction edited history (set in projection only)
 
 
 class ToolCall(TypedDict):
@@ -54,6 +55,9 @@ ASSISTANT = "assistant"
 TOOL_STARTED = "tool_started"
 TOOL_RESULT = "tool_result"
 STATE = "state"
+NOTICE = "notice"  # context the harness gives the model mid-session (permissions...), sent as user-role text
+PRUNE = "prune"  # old tool results up to a seq are shown as pointers to saved copies
+COMPACTION = "compaction"  # a summary that stands in for everything before first_kept_id
 
 
 def text(s: str) -> Text:

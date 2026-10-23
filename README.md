@@ -8,8 +8,9 @@
 
 - 阶段 1 核心闭环：树形 JSONL 会话日志、可崩溃续跑的 Agent 循环、OpenAI Chat 协议适配、read/write/edit/bash、开发用 CLI。教程：[01-核心闭环](docs/tutorial/01-核心闭环.md)
 - 阶段 2 Web 工作台：FastAPI + SSE、React 界面、审批卡片、插话/排队、分支切换、服务重启自动续跑。教程：[02-Web工作台](docs/tutorial/02-Web工作台.md)
+- 阶段 3 完整地基：权限规则表 + 只读/工作区/完全信任三档、macOS Seatbelt 与 Linux bubblewrap 沙箱、清理旧工具输出与摘要压缩、Anthropic 协议。教程：[03-权限沙箱与上下文治理](docs/tutorial/03-权限沙箱与上下文治理.md)
 
-**还没有沙箱（阶段 3）。** Web 界面默认“写入和命令需确认”；CLI 不询问，以你的用户权限运行。
+默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 
 ## 快速开始
 
@@ -31,6 +32,28 @@ uv run nwb serve                                  # 启动并在浏览器打开�
 前端开发时可以另开 `cd web && npm run dev`（Vite 把 `/api` 代理到 `nwb serve` 的 8765 端口），登录链接改用 `http://localhost:5173/api/login?token=…`。
 
 首次运行会生成 `~/.nwb/config.toml`，在其中添加其他 provider 和模型。`NWB_HOME` 环境变量可以改数据目录。
+
+接入 Claude（Anthropic 协议）的示例：
+
+```toml
+[providers.anthropic]
+protocol = "anthropic"
+base_url = "https://api.anthropic.com"
+api_key = "env:ANTHROPIC_API_KEY"
+
+[models.opus]
+provider = "anthropic"
+id = "claude-opus-5-5"
+context_window = 1_000_000
+max_output = 64_000
+params = { thinking = { type = "adaptive", display = "summarized" } }
+
+# 自己的权限规则：排在预设之后，最后匹配的生效
+[[rules]]
+action = "bash"
+resource = "git push*"
+effect = "ask"
+```
 
 交互模式下按 Ctrl-C 取消当前运行（会结束它启动的子进程），在空提示符下按 Ctrl-C 或 Ctrl-D 退出。输入 `/help` 查看 `/tree`、`/edit`、`/checkout`、`/fork` 等命令。
 

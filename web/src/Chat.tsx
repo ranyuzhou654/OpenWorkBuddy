@@ -40,6 +40,22 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
             <AssistantMessage key={e.id} entry={e} results={results} started={started} waiting={waiting}
               outputs={live?.outputs ?? {}} />
           );
+        if (e.type === "compaction")
+          return (
+            <details key={e.id} className="divider">
+              <summary>上下文已压缩：约 {e.data.tokens_before} tokens 的较早对话被摘要替代（原文仍保存在会话里）</summary>
+              <Markdown text={e.data.summary} />
+            </details>
+          );
+        if (e.type === "prune")
+          return <div key={e.id} className="divider">已从上下文中清理 {e.data.count} 条旧工具输出（全文已另存）</div>;
+        if (e.type === "notice")
+          return (
+            <details key={e.id} className="divider">
+              <summary>{e.data.kind === "permissions" ? "已告知模型当前的权限设置" : "系统通知"}</summary>
+              <div className="note">{e.data.text}</div>
+            </details>
+          );
         return null;
       })}
       {live && (live.thinking || live.text) && (
@@ -110,7 +126,7 @@ function AssistantMessage({ entry, results, started, waiting, outputs }: {
   return (
     <div className={`msg assistant${entry.data.stop === "aborted" ? " aborted" : ""}`}>
       {blocks.map((b, i) => {
-        if (b.type === "thinking") return <Thinking key={i} text={b.text} />;
+        if (b.type === "thinking") return b.text ? <Thinking key={i} text={b.text} /> : null;
         if (b.type === "text") return <Markdown key={i} text={b.text} />;
         if (b.type === "tool_call")
           return (
@@ -145,7 +161,7 @@ function Markdown({ text }: { text: string }) {
 }
 
 function summary(name: string, args: Record<string, any>): string {
-  if (name === "bash") return String(args.command ?? "");
+  if (name === "bash") return (args.unsandboxed ? "[沙箱外] " : "") + String(args.command ?? "");
   return String(args.path ?? JSON.stringify(args));
 }
 
@@ -197,8 +213,11 @@ function ApprovalCard({ approval }: { approval: Approval }) {
   return (
     <div className="approval">
       <div className="approval-title">需要你确认：<b>{approval.tool}</b></div>
+      {approval.action === "bash.unsandboxed" && (
+        <div className="warn-line">这条命令要求在沙箱外运行：可以联网，也可以写项目目录以外的文件。</div>
+      )}
       <ToolArgs name={approval.tool} args={approval.args} />
-      {approval.tool !== "bash" && approval.args.path && <div className="note">文件：{approval.args.path}</div>}
+      {approval.tool !== "bash" && <div className="note">实际路径：{approval.resource}</div>}
       {rejecting ? (
         <div className="row">
           <input placeholder="告诉助手为什么拒绝、应该怎么做（可选）" value={feedback} onChange={(e) => setFeedback(e.target.value)} autoFocus
@@ -208,7 +227,9 @@ function ApprovalCard({ approval }: { approval: Approval }) {
       ) : (
         <div className="row">
           <button className="primary" onClick={() => decide("once")}>允许</button>
-          <button onClick={() => decide("always")}>本会话总是允许 {approval.tool}</button>
+          <button onClick={() => decide("always")} title={`添加规则：${approval.always.action} ${approval.always.resource}`}>
+            本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}` : "这条命令"}
+          </button>
           <button className="danger" onClick={() => setRejecting(true)}>拒绝…</button>
         </div>
       )}

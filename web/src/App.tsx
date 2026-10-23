@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Info, type Project } from "./api";
+import { api, ApiError, type Info, type Preset, type Project } from "./api";
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
 import { useSession } from "./session";
@@ -53,14 +53,21 @@ export function App() {
               <div className="title">{session.title ?? "新会话"}</div>
               <select value={session.model_ref} disabled={busy} title="模型（下一次运行生效）"
                 onChange={(e) => api.patch(sid, { model: e.target.value }).catch((er) => showError(String(er)))}>
-                {info?.models.map((m) => <option key={m}>{m}</option>)}
+                {info?.models.map((m) => <option key={m.name}>{m.name}</option>)}
               </select>
-              <select value={session.settings.mode} className={session.settings.mode === "trust" ? "warn" : ""}
-                title={info?.modes[session.settings.mode]}
-                onChange={(e) => api.patch(sid, { mode: e.target.value }).catch((er) => showError(String(er)))}>
-                <option value="confirm">写入和命令需确认</option>
-                <option value="trust">完全信任（不询问）</option>
+              <select value={session.settings.preset} className={session.settings.preset === "trust" ? "warn" : ""}
+                title={PRESET_HELP[session.settings.preset]}
+                onChange={(e) => api.patch(sid, { preset: e.target.value }).catch((er) => showError(String(er)))}>
+                {Object.entries(info?.presets ?? {}).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
               </select>
+              {state.context && (
+                <span className={`meter${state.context.tokens > state.context.budget * 0.8 ? " high" : ""}`}
+                  title={`下一次请求约 ${state.context.tokens} tokens，上限 ${state.context.budget}（超出时先清理旧工具输出，再压缩）`}>
+                  上下文 {kTokens(state.context.tokens)}/{kTokens(state.context.budget)}
+                </span>
+              )}
+              <button disabled={busy} title="把较早的对话压缩成摘要，释放上下文"
+                onClick={() => api.compact(sid).catch((e) => showError(String(e)))}>压缩</button>
               <button className={showTree ? "on" : ""} onClick={() => setShowTree(!showTree)}>会话树</button>
               <span className={`conn ${state.connected ? "ok" : ""}`} title={state.connected ? "已连接" : "连接中断，重连中"} />
               {state.usage && (
@@ -87,6 +94,16 @@ export function App() {
       </main>
     </div>
   );
+}
+
+const PRESET_HELP: Record<Preset, string> = {
+  readonly: "只读：读文件不询问；写入、编辑、命令都要确认。命令在只读沙箱中运行、不能联网。",
+  workspace: "工作区：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；项目外写入、沙箱外运行需确认。",
+  trust: "完全信任：不进沙箱、不询问，以你的全部权限运行。",
+};
+
+function kTokens(n: number): string {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
 function Sidebar({ projects, current, onSelect, onChanged, onError }: {

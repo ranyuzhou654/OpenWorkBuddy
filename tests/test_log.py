@@ -99,6 +99,17 @@ def test_index_migrates_a_phase1_database(tmp_path):
       insert into sessions values ('s_1', 'p_1', 't', '/x', 0, null, 'm', 0);""")
     db.close()
     idx = Index(tmp_path / "index.db")
-    assert idx.session("s_1")["settings"] == {"mode": "confirm", "allow": []}
+    assert idx.session("s_1")["settings"] == {"preset": "workspace"}
     assert idx.db.execute("pragma user_version").fetchone()[0] == 1
     Index(tmp_path / "index.db")  # reopening is a no-op
+
+
+def test_index_migration_tolerates_a_column_that_already_exists(tmp_path):
+    import sqlite3
+
+    from nano_workbuddy.index import SCHEMA, Index
+
+    db = sqlite3.connect(tmp_path / "index.db")
+    db.executescript(SCHEMA)  # latest shape, but user_version was never set
+    db.close()
+    assert Index(tmp_path / "index.db").db.execute("pragma user_version").fetchone()[0] == 1

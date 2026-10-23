@@ -43,4 +43,8 @@ def connect(spec: ModelSpec) -> Model:
             from .openai_chat import OpenAIChat
 
             return OpenAIChat(spec)
+        case "anthropic":
+            from .anthropic import AnthropicMessages
+
+            return AnthropicMessages(spec)
     raise ValueError(f"unsupported protocol {spec.provider.protocol!r}")

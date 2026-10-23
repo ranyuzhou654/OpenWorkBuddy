@@ -15,7 +15,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
 from .log import entry_json
-from .policy import MODES
+from .policy import PRESETS
 from .runs import Busy, RunManager
 from .runtime import Workspace
 
@@ -32,7 +32,11 @@ class NewSession(BaseModel):
 
 class SessionPatch(BaseModel):
     model: str | None = None
-    mode: Literal["confirm", "trust"] | None = None
+    preset: Literal["readonly", "workspace", "trust"] | None = None
+
+
+class Compact(BaseModel):
+    instructions: str | None = None
 
 
 class SendMessage(BaseModel):
@@ -99,7 +103,8 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     @app.get("/api/info")
     async def info() -> dict[str, Any]:
-        return {"models": list(ws.cfg.models), "default_model": ws.cfg.default_model, "modes": MODES}
+        return {"models": [{"name": m.name, "context_window": m.context_window} for m in ws.cfg.models.values()],
+                "default_model": ws.cfg.default_model, "presets": {k: p.label for k, p in PRESETS.items()}}
 
     @app.get("/api/projects")
     async def projects() -> list[dict[str, Any]]:
@@ -124,7 +129,8 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     @app.get("/api/sessions/{sid}")
     async def snapshot(sid: str) -> dict[str, Any]:
-        return runs.snapshot(session_log(sid))
+        log = session_log(sid)
+        return {**runs.snapshot(log), "context": ws.context_usage(log)}
 
     @app.patch("/api/sessions/{sid}")
     async def update_session(sid: str, body: SessionPatch) -> dict[str, Any]:
@@ -134,10 +140,10 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 ws.set_model(log, body.model)
             except KeyError as e:
                 raise HTTPException(400, str(e)) from e
-        if body.mode:
-            ws.index.update_settings(sid, {"mode": body.mode})
+        if body.preset:
+            ws.index.update_settings(sid, {"preset": body.preset})  # next run; the model is told via a notice
         session = ws.index.session(sid)
-        runs.hub(log).publish({"type": "session", "session": session})
+        runs.hub(log).publish({"type": "session", "session": session, "context": ws.context_usage(log)})
         return session
 
     @app.get("/api/sessions/{sid}/events", response_class=EventSourceResponse)
@@ -186,6 +192,14 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
         if body.entry_id not in log.entries:
             raise HTTPException(404, "no such entry")
         return ws.index.session(ws.fork(log, body.entry_id).id)
+
+    @app.post("/api/sessions/{sid}/compact")
+    async def compact(sid: str, body: Compact) -> dict[str, bool]:
+        try:
+            runs.compact(session_log(sid), body.instructions)
+        except Busy as e:
+            raise HTTPException(409, str(e)) from e
+        return {"ok": True}
 
     @app.post("/api/sessions/{sid}/cancel")
     async def cancel(sid: str) -> dict[str, bool]:

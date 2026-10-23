@@ -6,6 +6,7 @@ from conftest import HANG, FakeModel, call, reply
 
 from nano_workbuddy.log import SessionLog
 from nano_workbuddy.loop import CANCELLED, RECOVERED, TRUNCATED, UNKNOWN
+from nano_workbuddy.tools import Result
 from nano_workbuddy.types import ASSISTANT, TOOL_RESULT, TOOL_STARTED, USER, text_of
 
 
@@ -15,6 +16,12 @@ def results(log):
 
 def types(log):
     return [e.type for e in log.path()]
+
+
+def roles(messages):
+    """Message roles, with harness notices marked so tests can see where they land."""
+    return ["notice" if m["role"] == "user" and text_of(m["content"]).startswith("<system-notice>") else m["role"]
+            for m in messages]
 
 
 async def test_multi_step_file_task(make_ws, project):
@@ -30,8 +37,9 @@ async def test_multi_step_file_task(make_ws, project):
 
     assert status == "ok"
     assert (project / "notes.md").read_text() == "# hi\n"
-    assert types(log) == ["system_prompt", "user", "assistant", "tool_started", "tool_result", "assistant",
+    assert types(log) == ["system_prompt", "user", "notice", "assistant", "tool_started", "tool_result", "assistant",
                           "tool_started", "tool_result", "assistant"]
+    assert "Permission preset: workspace" in log.path()[2].data["text"]
     assert text_of(log.path()[-1].data["content"]) == "done: # hi"
     assert model.requests[0]["system"].startswith("You are nano-workbuddy")
     assert [t["name"] for t in model.requests[0]["tools"]] == ["read", "write", "edit", "bash"]
@@ -121,8 +129,8 @@ async def test_edit_branch_from_an_earlier_message(make_ws, project):
     assert [text_of(e.data["content"]) for e in log.path() if e.type in (USER, ASSISTANT)] == [
         "first, rephrased", "B1"]
     assert len(log.children(first_user.parent_id)) == 2
-    sent = [text_of(m["content"]) for m in model.requests[-1]["messages"]]
-    assert sent == ["first, rephrased"]  # the abandoned branch is not in context
+    sent = [text_of(m["content"]) for m in model.requests[-1]["messages"] if m["role"] == "user"]
+    assert sent[0] == "first, rephrased" and "first" not in sent  # the abandoned branch is not in context
 
 
 async def test_duplicate_request_id_does_not_start_a_second_run(make_ws, project):
@@ -199,7 +207,7 @@ async def test_new_message_closes_dangling_calls(make_ws, project):
     ws.index.finish_run(ws.index.unfinished_runs(log.id)[0]["id"], "error")  # user declined to resume
     await ws.submit(log, "something else")
     msgs = model.requests[0]["messages"]
-    assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "user"]
+    assert roles(msgs) == ["user", "assistant", "tool", "user", "notice"]
 
 
 # --- steer and gate (phase 2) ---
@@ -218,7 +226,7 @@ async def test_steer_joins_the_run_before_the_next_model_call(make_ws, project):
     ws = make_ws(model)
     log = ws.new_session(project)
     await ws.submit(log, "do A", inbox=inbox)
-    assert [m["role"] for m in model.requests[1]["messages"]] == ["user", "assistant", "tool", "user"]
+    assert roles(model.requests[1]["messages"]) == ["user", "notice", "assistant", "tool", "user"]
     assert text_of(model.requests[1]["messages"][-1]["content"]) == "also do B"
 
 
@@ -239,16 +247,19 @@ async def test_steer_after_the_final_answer_continues_the_run(make_ws, project):
         "hi", "first answer", "one more thing", "second answer"]
 
 
-async def test_gate_blocks_before_anything_happens(make_ws, project):
-    from nano_workbuddy.tools import Result
+async def test_denied_approval_blocks_before_anything_happens(make_ws, project):
+    asked = []
 
-    async def deny(tool, c):
-        return Result.error("The user denied this call.") if tool.effect != "read" else None
+    async def deny(check, tool, call):
+        asked.append((check.action, check.resource))
+        return Result.error("The user denied this call.")
 
     model = FakeModel(reply(None, call("write", path="x.txt", content="no")), reply("ok"))
     ws = make_ws(model)
     log = ws.new_session(project)
-    await ws.submit(log, "go", gate=deny)
+    ws.index.update_settings(log.id, {"preset": "readonly"})
+    await ws.submit(log, "go", ask=deny)
+    assert asked == [("write", str((project / "x.txt").resolve()))]
     assert not (project / "x.txt").exists()
     assert TOOL_STARTED not in types(log)  # denied calls never reach tool_started: nothing to recover
     assert "denied" in text_of(results(log)[0]["content"])

@@ -9,16 +9,22 @@ export type Block =
 export interface Entry {
   id: string;
   parent_id: string | null;
-  type: string; // system_prompt | user | assistant | tool_started | tool_result | state
+  type: string; // system_prompt | user | assistant | tool_started | tool_result | state | notice | prune | compaction
   data: any;
   run_id?: string;
   ts: number;
   seq: number;
 }
 
+export type Preset = "readonly" | "workspace" | "trust";
+
 export interface Settings {
-  mode: "confirm" | "trust";
-  allow: string[];
+  preset: Preset;
+}
+
+export interface ContextUsage {
+  tokens: number;
+  budget: number;
 }
 
 export interface SessionInfo {
@@ -43,6 +49,9 @@ export interface Approval {
   call_id: string;
   tool: string;
   args: Record<string, any>;
+  action: string; // e.g. "write", "bash.unsandboxed"
+  resource: string; // the path or command the permission check saw
+  always: { action: string; resource: string }; // the rule "always allow" would add
 }
 
 export interface Live {
@@ -61,12 +70,13 @@ export interface Snapshot {
   leaf_id: string | null;
   entries: Entry[];
   live: Live | null;
+  context: ContextUsage;
 }
 
 export interface Info {
-  models: string[];
+  models: { name: string; context_window: number }[];
   default_model: string;
-  modes: Record<string, string>;
+  presets: Record<Preset, string>;
 }
 
 export class ApiError extends Error {
@@ -99,13 +109,14 @@ export const api = {
   addProject: (path: string) => call<Project>("POST", "/api/projects", { path }),
   newSession: (projectId: string) => call<SessionInfo>("POST", `/api/projects/${projectId}/sessions`, {}),
   snapshot: (sid: string) => call<Snapshot>("GET", `/api/sessions/${sid}`),
-  patch: (sid: string, body: { model?: string; mode?: string }) => call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
+  patch: (sid: string, body: { model?: string; preset?: string }) => call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
   send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue" }) =>
     call<{ delivery: string }>("POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
   checkout: (sid: string, entry_id: string, descend = false) =>
     call<{ leaf_id: string }>("POST", `/api/sessions/${sid}/checkout`, { entry_id, descend }),
   fork: (sid: string, entry_id: string) => call<SessionInfo>("POST", `/api/sessions/${sid}/fork`, { entry_id }),
   cancel: (sid: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/cancel`),
+  compact: (sid: string, instructions?: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/compact`, { instructions }),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
 };

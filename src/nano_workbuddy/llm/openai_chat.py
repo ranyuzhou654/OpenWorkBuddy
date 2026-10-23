@@ -76,7 +76,7 @@ def to_chat(system: str, messages: list[Message], provider: str) -> list[dict[st
                     msg["content"] = msg["content"] or None
                 # D8: thinking goes back only to the provider that produced it (DeepSeek requires it with tools)
                 for b in m["content"]:
-                    if b["type"] == "thinking" and b["provider"] == provider and "meta" in b:
+                    if b["type"] == "thinking" and b["provider"] == provider and "field" in b.get("meta", {}):
                         msg[b["meta"]["field"]] = b["text"]
                 out.append(msg)
             case "tool":

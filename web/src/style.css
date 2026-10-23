@@ -121,3 +121,9 @@ pre.out { max-height: 320px; overflow-y: auto; }
 .tree-node:hover:not(:disabled) { background: var(--line); }
 .tree-node .who { display: inline-block; width: 22px; color: var(--accent); }
 .tree-node .fork { color: var(--warn); margin-right: 4px; }
+.divider { color: var(--muted); font-size: 12px; text-align: center; margin: 14px 0; }
+.divider summary { cursor: pointer; }
+details.divider[open] { text-align: left; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; }
+.meter { color: var(--muted); font-size: 12px; }
+.meter.high { color: var(--warn); }
+.warn-line { color: var(--err); font-size: 13px; margin: 4px 0; }

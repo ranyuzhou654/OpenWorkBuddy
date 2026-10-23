@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .policy import Rule
+
 DEFAULT_CONFIG = """\
 default_model = "deepseek-flash"
 
@@ -57,6 +59,7 @@ class Config:
     default_model: str
     models: dict[str, ModelSpec]
     max_turns: int = 50
+    rules: tuple[Rule, ...] = ()  # [[rules]] in config.toml, applied after the preset's own rules
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -81,7 +84,8 @@ def load(home: Path | None = None) -> Config:
     models = {n: ModelSpec(n, providers[m["provider"]], m["id"], m["context_window"], m["max_output"],
                            m.get("params", {}))
               for n, m in raw.get("models", {}).items()}
-    return Config(home, raw["default_model"], models, raw.get("max_turns", 50))
+    rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
+    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules)
 
 
 def secret(ref: str) -> str:

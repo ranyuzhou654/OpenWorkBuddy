@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import inspect
 from pathlib import Path
 from typing import Any
@@ -29,11 +30,25 @@ def reply(s: str | None = None, *calls: ToolCall, stop: str | None = None) -> Re
 class FakeModel:
     """Plays a script of responses. Items: Response, callable(messages) -> Response or awaitable, exception, HANG."""
 
-    def __init__(self, *script: Any):
+    def __init__(self, *script: Any, window: int | None = None, summary: Any = "SUMMARY"):
         self.script = list(script)
+        self.summary = summary  # answer to compaction requests (or an exception to raise)
+        self.summaries: list[str] = []
         self.requests: list[dict[str, Any]] = []
+        self.spec = None  # set by connect(): budgets come from the configured model
+        self.window = window  # override the context window to exercise compaction
+
+    def connect(self, spec):
+        self.spec = dataclasses.replace(spec, context_window=self.window) if self.window else spec
+        return self
 
     async def stream(self, system, messages, tools, tool_choice=None):
+        if system.startswith("You write handoff summaries"):
+            self.summaries.append(messages[0]["content"][0]["text"])
+            if isinstance(self.summary, BaseException):
+                raise self.summary
+            yield reply(self.summary)
+            return
         self.requests.append({"system": system, "messages": copy.deepcopy(messages), "tools": tools,
                               "tool_choice": tool_choice})
         item = self.script.pop(0)
@@ -67,6 +82,6 @@ def project(tmp_path: Path) -> Path:
 @pytest.fixture
 def make_ws(home: Path):
     def make(model: FakeModel) -> Workspace:
-        return Workspace(load(home), connect=lambda spec: model)
+        return Workspace(load(home), connect=model.connect)
 
     return make
