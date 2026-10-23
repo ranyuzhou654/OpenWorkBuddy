@@ -148,3 +148,7 @@ table.models th, table.models td { text-align: left; padding: 6px; border-bottom
 table.models td.actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .sidebar > button.link { align-self: flex-start; }
 table.models td:not(.actions), table.models th { white-space: nowrap; }
+.cmd { display: block; color: var(--muted); margin: 4px 0; word-break: break-all; }
+.mcp-tools { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
+.mcp-tools li { margin: 2px 0; }
+.mcp-tools code { color: var(--text); }

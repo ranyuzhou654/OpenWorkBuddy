@@ -145,9 +145,17 @@ async def cancellable(coro: Coroutine[Any, Any, Any]) -> Any:
         loop.remove_signal_handler(signal.SIGINT)
 
 
-def run(coro: Coroutine[Any, Any, Any]) -> Any:
+def run(ws: Workspace, coro: Coroutine[Any, Any, Any]) -> Any:
+    """Each prompt gets its own event loop; MCP connections belong to it and close with it."""
+
+    async def main() -> Any:
+        try:
+            return await cancellable(coro)
+        finally:
+            await ws.mcp.close()
+
     try:
-        return asyncio.run(cancellable(coro))
+        return asyncio.run(main())
     except Exception as e:  # shown to the user; the run is already marked as error
         print(f"{RED}error: {type(e).__name__}: {e}{RESET}")
         return "error"
@@ -218,9 +226,9 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
                     ws.index.update_settings(log.id, {"preset": arg})
             print(f"preset: {ws.preset(log)}  (applies from the next run)")
         case "/compact":
-            run(ws.compact(log, arg or None, PRINTER))
+            run(ws, ws.compact(log, arg or None, PRINTER))
         case "/resume":
-            run(ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
+            run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
         case _:
             print(HELP)
     return log
@@ -247,7 +255,7 @@ def repl(ws: Workspace, log: SessionLog) -> None:
                 return
             log = nxt
             continue
-        run(ws.submit(log, line, emit=PRINTER, ask=terminal_ask(ws, log)))
+        run(ws, ws.submit(log, line, emit=PRINTER, ask=terminal_ask(ws, log)))
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -280,9 +288,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.preset:
         ws.index.update_settings(log.id, {"preset": args.preset})
     if ws.index.unfinished_runs(log.id):  # D6: pick up where a crash left off
-        run(ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
+        run(ws, ws.resume(log, PRINTER, ask=terminal_ask(ws, log)))
     if args.prompt:
-        status = run(ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log)))
+        status = run(ws, ws.submit(log, args.prompt, emit=PRINTER, ask=terminal_ask(ws, log)))
         sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
 

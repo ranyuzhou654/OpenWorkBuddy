@@ -55,7 +55,7 @@ class ContextTooLarge(Exception):
 async def fit(run: Run, overflow: bool = False) -> tuple[str, list[Message]]:
     """The next request's (system, messages), shrunk first if needed. overflow=True means the provider
     already rejected a request as too long: our estimate was low, so shrink regardless."""
-    tools = run.tools.schemas()
+    tools = run.schemas()
     limit = budget(run.model.spec)
 
     def project() -> tuple[str, list[Message], int]:

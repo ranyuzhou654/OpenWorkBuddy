@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -10,15 +11,17 @@ from typing import Any
 
 from . import compaction, llm, policy, prompt
 from .config import Config, ModelSpec, load, secret
-from .context import budget, request_tokens, to_messages
+from .context import budget, estimate_tokens, loaded_tools, request_tokens, to_messages
 from .index import Index
 from .log import SessionLog
 from .loop import SHUTDOWN, Inbox, Run, close_pending, drive
 from .tools import BUILTIN, Registry, Result, Tool, ToolCtx, ToolError
+from .tools.mcp import McpHub, Server, tool_search
 from .tools.registry import parse_args
 from .types import SYSTEM_PROMPT, USER, ToolCall, new_id, text
 
 MAX_RESUMES = 3
+DEFER_SHARE = 0.05  # exposure "auto": defer MCP tools when their schemas would take more of the window than this
 
 type Emit = Callable[[dict[str, Any]], None]
 type Ask = Callable[[policy.Check, Tool, ToolCall], Awaitable[Result | None]]  # asks the user; None = allowed
@@ -32,7 +35,9 @@ class Workspace:
         self.cfg = cfg
         self.index = Index(cfg.home / "index.db")
         self.connect = connect or self._connect
-        self.tools = tools or Registry(BUILTIN)
+        self.tools = tools or Registry(BUILTIN)  # built-in tools; MCP tools are added per run
+        self.mcp = McpHub(cfg.home)
+        self.last_tools = self.tools  # the most recent run's tools, for context estimates between runs
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
         self._stamps: dict[str, dict[str, float]] = {}  # per-session read stamps survive across runs
         self.index.reindex(self.sessions_dir)
@@ -93,7 +98,29 @@ class Workspace:
         """Estimated size of the next request versus what the session's model allows."""
         system, messages = to_messages(log.path())
         spec = self.cfg.model(self.model_ref(log))
-        return {"tokens": request_tokens(system, messages, self.tools.schemas()), "budget": budget(spec)}
+        tools = self.last_tools.schemas(loaded_tools(log.path()))
+        return {"tokens": request_tokens(system, messages, tools), "budget": budget(spec)}
+
+    # tools (D14)
+
+    async def toolset(self, spec: ModelSpec) -> tuple[Registry, dict[str, str]]:
+        """Built-in tools plus the tools of every enabled MCP server, read fresh at each run start so
+        that a server switched off in the settings is gone from the next run. Returns notices to sync."""
+        if not self.cfg.mcp:
+            return self.tools, {}
+        servers = await self.mcp.connect(self.cfg.mcp)
+        live = [s for s in servers if s.client]
+        auto = sum(estimate_tokens(json.dumps([t.schema() for t in s.as_tools()])) for s in live
+                   if s.spec.exposure == "auto")
+        lazy = {s.spec.name for s in live
+                if s.spec.exposure == "deferred" or (s.spec.exposure == "auto" and auto > DEFER_SHARE *
+                                                     spec.context_window)}
+        mcp_tools = {s.spec.name: s.as_tools() for s in live}
+        deferred = [t.name for s in live if s.spec.name in lazy for t in mcp_tools[s.spec.name]]
+        tools = [*self.tools.tools.values(), *([tool_search] if deferred else []),
+                 *(t for ts in mcp_tools.values() for t in ts)]
+        self.last_tools = Registry(tools, deferred)
+        return self.last_tools, {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
 
     # permissions (D12)
 
@@ -144,8 +171,10 @@ class Workspace:
         return status
 
     def make_run(self, log: SessionLog, model_ref: str, run_id: str | None, emit: Emit,
-                 inbox: Inbox | None = None, ask: Ask | None = None) -> Run:
-        """Freeze one run's settings: model and preset are read once (D12); approved rules are read live."""
+                 inbox: Inbox | None = None, ask: Ask | None = None, tools: Registry | None = None,
+                 notices: dict[str, str] | None = None) -> Run:
+        """Freeze one run's settings: model, preset and tools are read once (D12); approved rules are read live."""
+        tools = tools or self.last_tools
         preset_name = self.preset(log)
         preset = policy.PRESETS[preset_name]
         root, home = self.root_of(log), self.cfg.home.resolve()
@@ -153,7 +182,7 @@ class Workspace:
         ctx = ToolCtx(root=root, session_id=log.id, spill_dir=spill, emit=emit,
                       read_stamps=self._stamps.setdefault(log.id, {}),
                       sandbox=policy.sandbox_policy(preset, root, tmp_dir(log.id), home, spill),
-                      tmp=tmp_dir(log.id))
+                      tmp=tmp_dir(log.id), tools=tools)
         places = {"root": str(root), "home": str(home), "spill": str(spill)}
 
         async def gate(tool: Tool, call: ToolCall) -> Result | None:
@@ -173,9 +202,9 @@ class Workspace:
             return await ask(check, tool, call)
 
         model_ref = model_ref if model_ref in self.cfg.models else self.cfg.default_model
-        return Run(log=log, model=self.connect(self.cfg.model(model_ref)), tools=self.tools, ctx=ctx, run_id=run_id,
+        return Run(log=log, model=self.connect(self.cfg.model(model_ref)), tools=tools, ctx=ctx, run_id=run_id,
                    emit=emit, max_turns=self.cfg.max_turns, inbox=inbox or Inbox(), gate=gate,
-                   notices={"permissions": preset.notice.format(root=root)})
+                   notices={"permissions": preset.notice.format(root=root), **(notices or {})})
 
     async def _drive(self, log: SessionLog, run_row: dict[str, Any], emit: Emit,
                      inbox: Inbox | None, ask: Ask | None) -> str:
@@ -183,7 +212,9 @@ class Workspace:
         status, usage = "error", {}
         emit({"type": "run.started", "run_id": run_row["id"]})
         try:
-            run = self.make_run(log, run_row["model_ref"], run_row["id"], emit, inbox, ask)
+            ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
+            tools, notices = await self.toolset(self.cfg.model(ref))
+            run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices)
             usage = run.usage
             status = await drive(run)
         except asyncio.CancelledError as e:
@@ -194,6 +225,30 @@ class Workspace:
             self.index.sync_session(log)
             emit({"type": "run.finished", "run_id": run_row["id"], "status": status, "usage": usage})
         return status
+
+
+def mcp_notice(specs: dict[str, Any], servers: list[Server], lazy: set[str]) -> str:
+    """What the model is told about MCP servers. It changes only when servers do, so it is appended
+    as a new notice (D9) instead of rewriting the system prompt."""
+    by_name = {s.spec.name: s for s in servers}
+    lines = []
+    for name in specs:
+        s = by_name.get(name)
+        if s is None:
+            continue  # disabled: say nothing, its tools are simply gone
+        if s.client is None:
+            lines.append(f"- {name}: unavailable ({s.error or 'not started'}); its tools cannot be used now.")
+            continue
+        about = s.spec.description or s.instructions.strip()
+        how = "deferred: load its tools with tool_search" if name in lazy else "tools declared directly"
+        lines.append(f"- {name} ({len(s.tools)} tools, {how})" + (f": {about}" if about else ""))
+    if not lines:
+        return "No MCP servers are enabled."
+    text = "MCP servers (their tools are named mcp__<server>__<tool>):\n" + "\n".join(lines)
+    if lazy:
+        text += ("\nDeferred tools are not declared yet. Call tool_search with keywords, or \"select:<name>\", "
+                 "to load the ones you need; they become callable from your next step.")
+    return text
 
 
 def tmp_dir(session_id: str) -> Path:

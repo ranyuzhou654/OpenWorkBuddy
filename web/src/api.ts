@@ -104,10 +104,36 @@ export interface ModelView {
   params: Record<string, unknown>;
 }
 
+export type Exposure = "auto" | "direct" | "deferred";
+
+export interface McpSpec {
+  command: string;
+  args: string[];
+  env: Record<string, string>; // values may be key references: env:X / keyring:X / secret:X
+  url: string;
+  headers: Record<string, string>;
+  enabled: boolean;
+  exposure: Exposure;
+  sandbox: boolean;
+  network: boolean;
+  writable: string[];
+  timeout: number;
+  description: string;
+}
+
+export interface McpView extends McpSpec {
+  name: string;
+  status: "connected" | "error" | "idle" | "disabled";
+  error: string;
+  tools: { name: string; description: string }[];
+  keys: Record<string, KeyStatus>; // env/header values that are key references
+}
+
 export interface SettingsView {
   default_model: string;
   providers: ConnectionView[];
   models: ModelView[];
+  mcp: McpView[];
 }
 
 export interface RemoteModel {
@@ -171,6 +197,12 @@ export const api = {
   deleteModel: (name: string) => call<SettingsView>("DELETE", `/api/settings/models/${encodeURIComponent(name)}`),
   setDefault: (name: string) => call<SettingsView>("PUT", "/api/settings/default-model", { name }),
   testModel: (name: string) => call<ModelTest>("POST", `/api/settings/models/${encodeURIComponent(name)}/test`),
+  putMcp: (name: string, body: McpSpec & { secret_keys: string[] }) =>
+    call<SettingsView>("PUT", `/api/settings/mcp/${encodeURIComponent(name)}`, body),
+  enableMcp: (name: string, enabled: boolean) =>
+    call<SettingsView>("PATCH", `/api/settings/mcp/${encodeURIComponent(name)}`, { enabled }),
+  deleteMcp: (name: string) => call<SettingsView>("DELETE", `/api/settings/mcp/${encodeURIComponent(name)}`),
+  connectMcp: (name: string) => call<SettingsView>("POST", `/api/settings/mcp/${encodeURIComponent(name)}/connect`),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
 };

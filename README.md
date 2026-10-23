@@ -11,6 +11,7 @@
 - 阶段 3 完整地基：权限规则表 + 只读/工作区/完全信任三档、macOS Seatbelt 与 Linux bubblewrap 沙箱、清理旧工具输出与摘要压缩、Anthropic 协议。教程：[03-权限沙箱与上下文治理](docs/tutorial/03-权限沙箱与上下文治理.md)
 
 - 模型与密钥管理：Web 设置页管理多个连接（地址 + 一把密钥）和模型，获取模型列表、一键测试、设默认，会话里按需切换。教程：[04-模型与密钥管理](docs/tutorial/04-模型与密钥管理.md)
+- 阶段 4a MCP：官方 SDK 接入 stdio / Streamable HTTP 服务器，本机服务器默认进沙箱，工具与内置工具同一权限闸门，工具多时用 `tool_search` 延迟加载，设置页增删启停与连接测试。教程：[05-MCP接入](docs/tutorial/05-MCP接入.md)
 
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 
@@ -55,6 +56,12 @@ params = { thinking = { type = "adaptive", display = "summarized" } }
 action = "bash"
 resource = "git push*"
 effect = "ask"
+
+# MCP 服务器（也可以在设置页添加）。本机服务器默认在沙箱里运行，可联网，只能写 writable 列出的路径
+[mcp.fetch]
+command = "uvx"
+args = ["mcp-server-fetch"]
+writable = ["~/.cache/uv", "~/.local/share/uv"]
 ```
 
 交互模式下按 Ctrl-C 取消当前运行（会结束它启动的子进程），在空提示符下按 Ctrl-C 或 Ctrl-D 退出。输入 `/help` 查看 `/tree`、`/edit`、`/checkout`、`/fork` 等命令。

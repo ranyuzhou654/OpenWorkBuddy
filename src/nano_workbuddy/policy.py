@@ -56,6 +56,10 @@ def _deny_secrets() -> tuple[Rule, ...]:
     return (*denies, Rule("read", "{spill}/*", "allow"))
 
 
+# Harness tools that only read the harness's own data (tool catalog, skill files) never need approval.
+HARNESS = (Rule("tool_search", "*", "allow"),)
+
+
 def _ask_protected() -> tuple[Rule, ...]:
     return tuple(Rule(a, f"{{root}}/{d}/*", "ask") for a in ("write", "edit") for d in PROTECTED)
 
@@ -68,13 +72,14 @@ SANDBOX_TEXT = ("Shell commands run in a sandbox: {writable}; everything else is
 PRESETS: dict[str, Preset] = {
     "readonly": Preset(
         "只读", "read-only",
-        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *_deny_secrets()),
+        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *HARNESS, *_deny_secrets()),
         "Permission preset: read-only. You may read files freely; every write, edit or command needs the "
         "user's approval. " + SANDBOX_TEXT.format(writable="only $TMPDIR is writable")),
     "workspace": Preset(
         "工作区", "workspace",
         (Rule("*", "*", "ask"), Rule("read", "*", "allow"), Rule("write", "{root}/*", "allow"),
-         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), *_ask_protected(), *_deny_secrets()),
+         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), *HARNESS, *_ask_protected(),
+         *_deny_secrets()),
         "Permission preset: workspace. Reading, and editing files inside the project ({root}), need no approval "
         "(except .git and .nwb). Changes outside the project need the user's approval. "
         + SANDBOX_TEXT.format(writable="the project directory and $TMPDIR are writable")),
@@ -109,10 +114,19 @@ def check(action: str, resource: str, rules: list[Rule], places: dict[str, str])
     return Check(action, resource, "ask", None)
 
 
+def _secret_paths(home: Path) -> tuple[Path, ...]:
+    return tuple(Path(os.path.expanduser(s.replace("{home}", str(home)))) for s in SECRETS)
+
+
 def sandbox_policy(preset: Preset, root: Path, tmp: Path, home: Path, spill: Path) -> SandboxPolicy | None:
     if preset.sandbox == "off":
         return None
-    secrets = tuple(Path(os.path.expanduser(s.replace("{home}", str(home)))) for s in SECRETS)
     writable = (root, tmp) if preset.sandbox == "workspace" else (tmp,)
-    return SandboxPolicy(writable=writable, protected=tuple(root / d for d in PROTECTED), deny_read=secrets,
-                         allow_read=(spill,), network=False)
+    return SandboxPolicy(writable=writable, protected=tuple(root / d for d in PROTECTED),
+                         deny_read=_secret_paths(home), allow_read=(spill,), network=False)
+
+
+def server_sandbox(writable: tuple[Path, ...], network: bool, home: Path) -> SandboxPolicy:
+    """For stdio MCP servers: they serve every session, so no project is writable by default."""
+    return SandboxPolicy(writable=writable, protected=(), deny_read=_secret_paths(home), allow_read=(),
+                         network=network)

@@ -19,7 +19,7 @@ from typing import Any
 import tomlkit
 from tomlkit.items import Table
 
-from .config import PROTOCOLS, Config, SecretStore, parse
+from .config import EXPOSURES, PROTOCOLS, Config, McpServer, SecretStore, parse
 
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -152,3 +152,93 @@ def set_default(home: Path, name: str) -> Config:
         doc["default_model"] = name
 
     return edit(home, change)
+
+
+REF = re.compile(r"^(env|keyring|secret):.+$")
+
+
+def put_mcp(home: Path, spec: McpServer, secret_keys: tuple[str, ...] = ()) -> Config:
+    """Create or replace [mcp.NAME]. Values of env/headers named in secret_keys are moved to secrets.json
+    as secret:mcp-NAME-KEY, so tokens never land in config.toml; key references are kept as they are."""
+    _check_name("MCP server", spec.name)
+    if bool(spec.command) == bool(spec.url):
+        raise SettingsError("set either a command (stdio) or a URL (Streamable HTTP)")
+    if spec.url and not spec.url.startswith(("http://", "https://")):
+        raise SettingsError("URL must start with http:// or https://")
+    if spec.exposure not in EXPOSURES:
+        raise SettingsError(f"exposure must be one of {', '.join(EXPOSURES)}")
+    store, moved = SecretStore(home), {}
+
+    def keep(values: dict[str, str]) -> dict[str, str]:
+        out = {}
+        for k, v in values.items():
+            if k in secret_keys and v and not REF.match(v):
+                moved[f"mcp-{spec.name}-{k}"] = v
+                v = f"secret:mcp-{spec.name}-{k}"
+            out[k] = v
+        return out
+
+    env, headers = keep(spec.env), keep(spec.headers)
+
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        table = tomlkit.table()
+        if spec.url:
+            table["url"] = spec.url
+            if headers:
+                table["headers"] = _inline(headers)
+        else:
+            table["command"] = spec.command
+            if spec.args:
+                table["args"] = list(spec.args)
+            if env:
+                table["env"] = _inline(env)
+            table["sandbox"] = spec.sandbox
+            table["network"] = spec.network
+            if spec.writable:
+                table["writable"] = list(spec.writable)
+        table["enabled"] = spec.enabled
+        table["exposure"] = spec.exposure
+        if spec.timeout != 300:
+            table["timeout"] = spec.timeout
+        if spec.description:
+            table["description"] = spec.description
+        table.add(tomlkit.nl())
+        _section(doc, "mcp")[spec.name] = table
+
+    cfg = edit(home, change)
+    for name, value in moved.items():
+        store.set(name, value.strip())
+    used = {v.removeprefix("secret:") for v in (*env.values(), *headers.values())}
+    for name in store.names():  # keys of variables that were renamed or removed
+        if name.startswith(f"mcp-{spec.name}-") and name not in used:
+            store.delete(name)
+    return cfg
+
+
+def _inline(values: dict[str, str]) -> Any:
+    t = tomlkit.inline_table()
+    t.update(values)
+    return t
+
+
+def set_mcp_enabled(home: Path, name: str, enabled: bool) -> Config:
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if name not in doc.get("mcp", {}):
+            raise SettingsError(f"no MCP server {name!r}")
+        doc["mcp"][name]["enabled"] = enabled
+
+    return edit(home, change)
+
+
+def delete_mcp(home: Path, name: str) -> Config:
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if name not in doc.get("mcp", {}):
+            raise SettingsError(f"no MCP server {name!r}")
+        del doc["mcp"][name]
+
+    cfg = edit(home, change)
+    store = SecretStore(home)
+    for key in store.names():
+        if key.startswith(f"mcp-{name}-"):
+            store.delete(key)
+    return cfg

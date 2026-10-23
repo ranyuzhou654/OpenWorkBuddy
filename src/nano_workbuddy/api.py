@@ -18,7 +18,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
 from . import llm, settings
-from .config import key_status, secret
+from .config import McpServer, key_status, secret
 from .log import entry_json
 from .policy import PRESETS
 from .runs import Busy, RunManager
@@ -80,6 +80,26 @@ class DefaultModel(BaseModel):
     name: str
 
 
+class McpBody(BaseModel):
+    command: str = ""
+    args: list[str] = []
+    env: dict[str, str] = {}
+    url: str = ""
+    headers: dict[str, str] = {}
+    secret_keys: list[str] = []  # env/header names whose values go to secrets.json
+    enabled: bool = True
+    exposure: Literal["auto", "direct", "deferred"] = "auto"
+    sandbox: bool = True
+    network: bool = True
+    writable: list[str] = []
+    timeout: int = 300
+    description: str = ""
+
+
+class Enabled(BaseModel):
+    enabled: bool
+
+
 class Decision(BaseModel):
     decision: Literal["once", "always", "reject"]
     feedback: str | None = None
@@ -95,6 +115,7 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
         runs.resume_all()
         yield
         await runs.shutdown()
+        await ws.mcp.close()
 
     app = FastAPI(title="nano-workbuddy", lifespan=lifespan)
     app.state.runs = runs
@@ -258,7 +279,11 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 "providers": [{"name": p.name, "protocol": p.protocol, "base_url": p.base_url,
                                "key": key_status(p.api_key, cfg.home)} for p in cfg.providers.values()],
                 "models": [{"name": m.name, "provider": m.provider.name, "id": m.id, "context_window": m.context_window,
-                            "max_output": m.max_output, "params": m.params} for m in cfg.models.values()]}
+                            "max_output": m.max_output, "params": m.params} for m in cfg.models.values()],
+                "mcp": [{**dataclasses.asdict(m), **status, "keys": {k: key_status(v, cfg.home)
+                                                                     for k, v in (*m.env.items(), *m.headers.items())
+                                                                     if v.startswith(("env:", "keyring:", "secret:"))}}
+                        for m, status in ((m, ws.mcp.status(cfg.mcp)[m.name]) for m in cfg.mcp.values())]}
 
     @app.get("/api/settings")
     async def settings_view() -> dict[str, Any]:
@@ -287,6 +312,31 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     @app.put("/api/settings/default-model")
     async def set_default(body: DefaultModel) -> dict[str, Any]:
         return apply(lambda: settings.set_default(ws.cfg.home, body.name))
+
+    @app.put("/api/settings/mcp/{name}")
+    async def put_mcp(name: str, body: McpBody) -> dict[str, Any]:
+        spec = McpServer(name, body.command.strip(), tuple(body.args), body.env, body.url.strip(), body.headers,
+                         body.enabled, body.exposure, body.sandbox, body.network, tuple(body.writable), body.timeout,
+                         body.description.strip())
+        return apply(lambda: settings.put_mcp(ws.cfg.home, spec, tuple(body.secret_keys)))
+
+    @app.patch("/api/settings/mcp/{name}")
+    async def enable_mcp(name: str, body: Enabled) -> dict[str, Any]:
+        return apply(lambda: settings.set_mcp_enabled(ws.cfg.home, name, body.enabled))
+
+    @app.delete("/api/settings/mcp/{name}")
+    async def delete_mcp(name: str) -> dict[str, Any]:
+        return apply(lambda: settings.delete_mcp(ws.cfg.home, name))
+
+    @app.post("/api/settings/mcp/{name}/connect")
+    async def connect_mcp(name: str) -> dict[str, Any]:
+        """Start (or restart) servers now instead of at the next run, to see their tools or error."""
+        if name not in ws.cfg.mcp:
+            raise HTTPException(404, "no such MCP server")
+        if srv := ws.mcp.servers.get(name):
+            await srv.stop()
+        await ws.mcp.connect(ws.cfg.mcp)
+        return settings_payload()
 
     @app.get("/api/settings/providers/{name}/models")
     async def remote_models(name: str) -> list[dict[str, Any]]:

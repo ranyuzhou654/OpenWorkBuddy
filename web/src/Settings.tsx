@@ -3,6 +3,7 @@ import {
   api, type ConnectionView, type KeyStatus, type ModelTest, type ModelView, type Protocol, type RemoteModel,
   type SettingsView,
 } from "./api";
+import { McpSection } from "./Mcp";
 
 // A connection is an endpoint plus one API key. Two keys for the same service = two connections.
 // Every model belongs to one connection; sessions pick a model, new sessions start on the default.
@@ -135,6 +136,8 @@ export function Settings({ onChanged, onError }: { onChanged: () => void; onErro
           ＋ 添加模型
         </button>
       )}
+
+      <McpSection view={view} save={save} onError={onError} />
     </div>
   );
 }

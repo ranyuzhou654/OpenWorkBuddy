@@ -12,7 +12,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .compaction import fit
-from .context import spill, to_messages, visible
+from .context import loaded_tools, spill, to_messages, visible
 from .llm import ContextOverflow, Delta, Model, Response
 from .log import SessionLog
 from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
@@ -116,6 +116,10 @@ class Run:
     gate: Gate | None = None  # permission check before any tool runs
     notices: dict[str, str] = field(default_factory=dict)  # kind -> text the model must currently see
 
+    def schemas(self) -> list[dict[str, Any]]:
+        """Tools declared in the next request: the direct ones plus whatever tool_search loaded."""
+        return self.tools.schemas(loaded_tools(self.log.path()))
+
 
 async def drive(run: Run) -> str:
     """Run until the log says there is nothing left to do. Returns "ok" or "limit"."""
@@ -174,7 +178,7 @@ async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
     try:
         for attempt in range(2):
             try:
-                async for item in run.model.stream(system, messages, run.tools.schemas(), tool_choice):
+                async for item in run.model.stream(system, messages, run.schemas(), tool_choice):
                     if isinstance(item, Delta):
                         if item.kind == "text":
                             partial.append(item.text)
@@ -246,8 +250,8 @@ async def _one(run: Run, c: ToolCall) -> None:
 
 def _finish(run: Run, c: ToolCall, r: Result) -> None:
     r = spill(r, run.ctx.spill_dir, c["id"])
-    run.log.append(TOOL_RESULT, {"call_id": c["id"], "name": c["name"], "content": r.content,
-                                 "is_error": r.is_error}, run_id=run.run_id)
+    data = {"call_id": c["id"], "name": c["name"], "content": r.content, "is_error": r.is_error}
+    run.log.append(TOOL_RESULT, data | ({"meta": r.meta} if r.meta else {}), run_id=run.run_id)
 
 
 def _recover(run: Run, c: ToolCall) -> Result | None:

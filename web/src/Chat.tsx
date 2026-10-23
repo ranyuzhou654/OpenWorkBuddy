@@ -52,7 +52,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
         if (e.type === "notice")
           return (
             <details key={e.id} className="divider">
-              <summary>{e.data.kind === "permissions" ? "已告知模型当前的权限设置" : "系统通知"}</summary>
+              <summary>{NOTICES[e.data.kind] ?? "系统通知"}</summary>
               <div className="note">{e.data.text}</div>
             </details>
           );
@@ -160,8 +160,20 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
+const NOTICES: Record<string, string> = {
+  permissions: "已告知模型当前的权限设置",
+  mcp: "已告知模型 MCP 服务器状态",
+};
+
+// mcp__github__create_issue → github › create_issue
+function toolLabel(name: string): string {
+  const m = name.match(/^mcp__(.+?)__(.+)$/);
+  return m ? `${m[1]} › ${m[2]}` : name;
+}
+
 function summary(name: string, args: Record<string, any>): string {
   if (name === "bash") return (args.unsandboxed ? "[沙箱外] " : "") + String(args.command ?? "");
+  if (name === "tool_search") return String(args.query ?? "");
   return String(args.path ?? JSON.stringify(args));
 }
 
@@ -189,7 +201,7 @@ function ToolCard({ call, result, running, waiting, output }: {
     <div className={`tool ${status}`}>
       <div className="tool-head" onClick={() => setOpen(!open)}>
         <span className="dot" />
-        <b>{call.name}</b>
+        <b>{toolLabel(call.name)}</b>
         <code>{summary(call.name, call.args)}</code>
         <span className="status">{label}</span>
       </div>
@@ -212,12 +224,13 @@ function ApprovalCard({ approval }: { approval: Approval }) {
   const decide = (d: "once" | "always" | "reject") => api.approve(approval.id, d, d === "reject" ? feedback || undefined : undefined);
   return (
     <div className="approval">
-      <div className="approval-title">需要你确认：<b>{approval.tool}</b></div>
+      <div className="approval-title">需要你确认：<b>{toolLabel(approval.tool)}</b></div>
       {approval.action === "bash.unsandboxed" && (
         <div className="warn-line">这条命令要求在沙箱外运行：可以联网，也可以写项目目录以外的文件。</div>
       )}
       <ToolArgs name={approval.tool} args={approval.args} />
-      {approval.tool !== "bash" && <div className="note">实际路径：{approval.resource}</div>}
+      {approval.resource && approval.tool !== "bash" && <div className="note">实际路径：{approval.resource}</div>}
+      {approval.tool.startsWith("mcp__") && <div className="note">来自 MCP 服务器的工具。“总是允许”会放行这个工具的所有调用（本会话内）。</div>}
       {rejecting ? (
         <div className="row">
           <input placeholder="告诉助手为什么拒绝、应该怎么做（可选）" value={feedback} onChange={(e) => setFeedback(e.target.value)} autoFocus
@@ -228,7 +241,8 @@ function ApprovalCard({ approval }: { approval: Approval }) {
         <div className="row">
           <button className="primary" onClick={() => decide("once")}>允许</button>
           <button onClick={() => decide("always")} title={`添加规则：${approval.always.action} ${approval.always.resource}`}>
-            本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}` : "这条命令"}
+            本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}`
+              : approval.always.resource ? "这条命令" : "此工具"}
           </button>
           <button className="danger" onClick={() => setRejecting(true)}>拒绝…</button>
         </div>

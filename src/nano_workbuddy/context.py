@@ -82,6 +82,13 @@ def visible(path: list[Entry]) -> list[Entry]:
     return [comp, *(e for e in body[start:] if e.type != COMPACTION)]
 
 
+def loaded_tools(path: list[Entry]) -> list[str]:
+    """Deferred tools that tool_search loaded on this path, in load order. The whole path counts, not just
+    what is visible: a compaction must not silently take tools away from the model."""
+    names = (n for e in path if e.type == TOOL_RESULT for n in e.data.get("meta", {}).get("load", ()))
+    return list(dict.fromkeys(names))
+
+
 def elided_file(spill_dir: str, entry_id: str) -> Path:
     return Path(spill_dir) / f"elided-{entry_id}.txt"
 
@@ -146,7 +153,7 @@ def spill(r: Result, spill_dir: Path, call_id: str) -> Result:
     note = (f"\n\n[... {omitted} characters omitted. Full output saved to {f} — "
             f"inspect it with read (offset/limit) or bash grep ...]\n\n")
     images = [b for b in r.content if b["type"] == "image"]
-    return Result([text(full[:KEEP_CHARS] + note + full[-KEEP_CHARS:]), *images], r.is_error)
+    return Result([text(full[:KEEP_CHARS] + note + full[-KEEP_CHARS:]), *images], r.is_error, r.meta)
 
 
 def write_private(directory: Path, name: str, content: str) -> Path:

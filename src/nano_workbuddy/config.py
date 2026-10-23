@@ -41,6 +41,7 @@ max_output = 32_000
 """
 
 PROTOCOLS = ("openai-chat", "anthropic")
+EXPOSURES = ("auto", "direct", "deferred")
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,26 @@ class ModelSpec:
 
 
 @dataclass(frozen=True)
+class McpServer:
+    """[mcp.NAME]: a stdio command or a Streamable HTTP url (D14). Values in env and headers may be
+    key references (env:/keyring:/secret:), resolved when the server starts."""
+
+    name: str
+    command: str = ""
+    args: tuple[str, ...] = ()
+    env: dict[str, str] = field(default_factory=dict)
+    url: str = ""
+    headers: dict[str, str] = field(default_factory=dict)
+    enabled: bool = True
+    exposure: str = "auto"  # auto: deferred when all MCP schemas would take more than 5% of the window
+    sandbox: bool = True  # stdio only: run inside the OS sandbox
+    network: bool = True
+    writable: tuple[str, ...] = ()  # extra writable paths inside the sandbox, e.g. "~/.npm"
+    timeout: int = 300  # seconds per tool call
+    description: str = ""  # one line shown to the model while the server's tools are deferred
+
+
+@dataclass(frozen=True)
 class Config:
     home: Path
     default_model: str
@@ -69,6 +90,7 @@ class Config:
     max_turns: int = 50
     rules: tuple[Rule, ...] = ()  # [[rules]] in config.toml, applied after the preset's own rules
     providers: dict[str, Provider] = field(default_factory=dict)
+    mcp: dict[str, McpServer] = field(default_factory=dict)
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -106,7 +128,19 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
     if raw.get("default_model") not in models:
         raise ValueError(f"default_model {raw.get('default_model')!r} is not a configured model")
     rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
-    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers)
+    mcp = {n: _mcp(n, m) for n, m in raw.get("mcp", {}).items()}
+    return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp)
+
+
+def _mcp(name: str, m: dict[str, Any]) -> McpServer:
+    if bool(m.get("command")) == bool(m.get("url")):
+        raise ValueError(f"mcp {name}: set exactly one of command (stdio) or url (Streamable HTTP)")
+    if m.get("exposure", "auto") not in EXPOSURES:
+        raise ValueError(f"mcp {name}: exposure must be one of {', '.join(EXPOSURES)}")
+    return McpServer(name, m.get("command", ""), tuple(m.get("args", ())), dict(m.get("env", {})), m.get("url", ""),
+                     dict(m.get("headers", {})), m.get("enabled", True), m.get("exposure", "auto"),
+                     m.get("sandbox", True), m.get("network", True), tuple(m.get("writable", ())),
+                     int(m.get("timeout", 300)), m.get("description", ""))
 
 
 class SecretStore:
@@ -120,6 +154,9 @@ class SecretStore:
 
     def get(self, name: str) -> str | None:
         return self._read().get(name)
+
+    def names(self) -> list[str]:
+        return list(self._read())
 
     def set(self, name: str, value: str) -> None:
         self._write({**self._read(), name: value})
@@ -154,6 +191,12 @@ def secret(ref: str, home: Path | None = None) -> str:
             return value
         raise LookupError(f"no key saved for {name!r}; add it on the model settings page")
     raise ValueError(f"secret reference must be env:NAME, keyring:NAME or secret:NAME, got {ref!r}")
+
+
+def resolve(value: str, home: Path) -> str:
+    """A value that is exactly a key reference is replaced by the key; anything else is literal."""
+    kind, sep, name = value.partition(":")
+    return secret(value, home) if sep and kind in ("env", "keyring", "secret") and name else value
 
 
 def key_status(ref: str, home: Path) -> dict[str, Any]:
