@@ -7,14 +7,14 @@ current log path, so a half-finished run continues from whatever was durably wri
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .context import spill, to_messages
 from .llm import Delta, Model, Response
 from .log import SessionLog
-from .tools.registry import Registry, Result, ToolCtx, ToolError, execute, parse_args
+from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
 from .types import ASSISTANT, STATE, TOOL_RESULT, TOOL_STARTED, USER, Entry, ToolCall, text
 
 TRUNCATED = ("Not executed: the response hit the output token limit, so the arguments may be incomplete. "
@@ -23,6 +23,8 @@ UNKNOWN = ("Execution was interrupted before its result was recorded; the outcom
            "Check the current state before deciding whether to retry.")
 RECOVERED = "This call completed before an interruption; recovery verified its effect."
 CANCELLED = "Cancelled by the user before completion."
+SHUTDOWN = "shutdown"  # cancel message used when the server stops; such runs resume on next start
+INTERRUPTED = "Interrupted by a server restart before completion."
 WRAP_UP = ("[Step limit reached] Stop working now and do not call tools. Report briefly: what is done, "
            "which files were actually created or changed, and where to resume.")
 
@@ -73,15 +75,28 @@ def next_step(path: list[Entry]) -> Step:
 
 
 @dataclass
+class Inbox:
+    """Messages the user sent while a run was active (D6 steer / queue)."""
+
+    steer: list[str] = field(default_factory=list)  # join this run before its next model call
+    queue: list[str] = field(default_factory=list)  # start their own run after this one ends
+
+
+type Gate = Callable[[Tool, ToolCall], Awaitable[Result | None]]  # None = go ahead, Result = blocked
+
+
+@dataclass
 class Run:
     log: SessionLog
     model: Model
     tools: Registry
     ctx: ToolCtx
     run_id: str
-    emit: Callable[[dict[str, Any]], None] = lambda event: None
+    emit: Callable[[dict[str, Any]], None] = lambda event: None  # ephemeral events; entries come from the log
     max_turns: int = 50
     usage: dict[str, int] = field(default_factory=dict)
+    inbox: Inbox = field(default_factory=Inbox)
+    gate: Gate | None = None  # permission check before any tool runs
 
 
 async def drive(run: Run) -> str:
@@ -90,8 +105,11 @@ async def drive(run: Run) -> str:
     while True:
         match next_step(run.log.path()):
             case Done():
-                return "ok"
+                if not _take_steer(run):
+                    return "ok"
             case CallModel():
+                if _take_steer(run):
+                    continue
                 if turns >= run.max_turns:
                     await wrap_up(run)
                     return "limit"
@@ -102,6 +120,15 @@ async def drive(run: Run) -> str:
             case FailCalls(calls, reason):
                 for c in calls:
                     _finish(run, c, Result.error(reason))
+
+
+def _take_steer(run: Run) -> bool:
+    msgs, run.inbox.steer = run.inbox.steer, []
+    for m in msgs:
+        run.log.append(USER, {"content": [text(m)]}, run_id=run.run_id)
+    if msgs:
+        run.emit({"type": "inbox", "steer": run.inbox.steer, "queue": run.inbox.queue})
+    return bool(msgs)
 
 
 async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
@@ -125,12 +152,23 @@ async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
                        run_id=run.run_id)
     for k, v in resp.usage.items():
         run.usage[k] = run.usage.get(k, 0) + v
-    run.emit({"type": "assistant.message", "entry": e.to_json()})
     return e
 
 
+def _this_turn(path: list[Entry], type: str) -> set[str]:
+    """call_ids of `type` entries after the latest assistant message. Providers may reuse ids across
+    turns (e.g. "call_0"), so looking further back would match calls from earlier turns."""
+    ids: set[str] = set()
+    for e in reversed(path):
+        if e.type == ASSISTANT:
+            break
+        if e.type == type:
+            ids.add(e.data["call_id"])
+    return ids
+
+
 async def run_tools(run: Run, calls: list[ToolCall]) -> None:
-    started = {e.data["call_id"] for e in run.log.path() if e.type == TOOL_STARTED}
+    started = _this_turn(run.log.path(), TOOL_STARTED)
     try:
         fresh = []
         for c in calls:
@@ -143,27 +181,29 @@ async def run_tools(run: Run, calls: list[ToolCall]) -> None:
         else:
             for c in fresh:  # a batch with any writer runs in order: order is part of its meaning
                 await _one(run, c)
-    except asyncio.CancelledError:
-        answered = {e.data["call_id"] for e in run.log.path() if e.type == TOOL_RESULT}
+    except asyncio.CancelledError as e:
+        reason = INTERRUPTED if SHUTDOWN in e.args else CANCELLED
+        answered = _this_turn(run.log.path(), TOOL_RESULT)
         for c in calls:
             if c["id"] not in answered:
-                _finish(run, c, Result.error(CANCELLED))
+                _finish(run, c, Result.error(reason))
         raise
 
 
 async def _one(run: Run, c: ToolCall) -> None:
-    run.log.append(TOOL_STARTED, {"call_id": c["id"], "name": c["name"]}, run_id=run.run_id)
-    run.emit({"type": "tool.started", "call_id": c["id"], "name": c["name"], "args": c["args"]})
     t = run.tools.get(c["name"])
-    r = await execute(t, c, replace(run.ctx, call_id=c["id"])) if t else Result.error(f"unknown tool {c['name']!r}")
-    _finish(run, c, r)
+    if t is None:
+        return _finish(run, c, Result.error(f"unknown tool {c['name']!r}"))
+    if run.gate and (blocked := await run.gate(t, c)):  # asked before tool_started: nothing has happened yet
+        return _finish(run, c, blocked)
+    run.log.append(TOOL_STARTED, {"call_id": c["id"], "name": c["name"]}, run_id=run.run_id)
+    _finish(run, c, await execute(t, c, replace(run.ctx, call_id=c["id"])))
 
 
 def _finish(run: Run, c: ToolCall, r: Result) -> None:
     r = spill(r, run.ctx.spill_dir, c["id"])
-    e = run.log.append(TOOL_RESULT, {"call_id": c["id"], "name": c["name"], "content": r.content,
-                                     "is_error": r.is_error}, run_id=run.run_id)
-    run.emit({"type": "tool.result", "entry": e.to_json()})
+    run.log.append(TOOL_RESULT, {"call_id": c["id"], "name": c["name"], "content": r.content,
+                                 "is_error": r.is_error}, run_id=run.run_id)
 
 
 def _recover(run: Run, c: ToolCall) -> Result | None:

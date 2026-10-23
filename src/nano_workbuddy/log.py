@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ class SessionLog:
         self.leaf_id: str | None = None
         self.lines = 1  # header occupies line 0
         self._fd: int | None = None
+        self.listeners: list[Callable[[dict[str, Any]], None]] = []  # told about every durable change
 
     @property
     def id(self) -> str:
@@ -79,13 +81,19 @@ class SessionLog:
         e.seq = self._write(e.to_json(), durable)
         self.entries[e.id] = e
         self.leaf_id = e.id
+        self._notify({"type": "entry", "seq": e.seq, "entry": entry_json(e)})
         return e
 
     def checkout(self, entry_id: str | None) -> None:
         if entry_id is not None and entry_id not in self.entries:
             raise KeyError(entry_id)
-        self._write({"type": "checkout", "leaf_id": entry_id, "ts": time.time()}, durable=False)
+        seq = self._write({"type": "checkout", "leaf_id": entry_id, "ts": time.time()}, durable=False)
         self.leaf_id = entry_id
+        self._notify({"type": "checkout", "seq": seq, "leaf_id": entry_id})
+
+    def _notify(self, event: dict[str, Any]) -> None:
+        for listener in self.listeners:
+            listener(event)
 
     def path(self, leaf_id: str | None = None) -> list[Entry]:
         """Entries from the root to leaf_id (default: the current leaf)."""
@@ -99,6 +107,18 @@ class SessionLog:
 
     def children(self, entry_id: str | None) -> list[Entry]:
         return [e for e in self.entries.values() if e.parent_id == entry_id]
+
+    def latest_leaf(self, entry_id: str) -> str:
+        """The most recently written entry in entry_id's subtree: where the user last was on that branch."""
+        kids: dict[str | None, list[Entry]] = {}
+        for e in self.entries.values():
+            kids.setdefault(e.parent_id, []).append(e)
+        best, stack = self.entries[entry_id], [self.entries[entry_id]]
+        while stack:
+            e = stack.pop()
+            best = e if e.seq > best.seq else best
+            stack.extend(kids.get(e.id, []))
+        return best.id
 
     def resolve(self, prefix: str) -> str:
         """Find an entry by id or unique id prefix."""
@@ -125,3 +145,8 @@ class SessionLog:
         if self._fd is not None:
             os.close(self._fd)
             self._fd = None
+
+
+def entry_json(e: Entry) -> dict[str, Any]:
+    """Wire form of an entry for clients: the stored form plus its seq."""
+    return {**e.to_json(), "seq": e.seq}

@@ -32,39 +32,58 @@ HELP = """\
 
 
 class Printer:
-    """Renders run events. Thinking is dimmed; tool results are abbreviated."""
+    """Renders events: durable ones come from the session log, ephemeral ones from the run."""
 
     def __init__(self) -> None:
         self.mode: str | None = None
+        self.calls: dict[str, dict[str, Any]] = {}
+        self.shown: set[str] = set()
+
+    def watch(self, log: SessionLog) -> SessionLog:
+        if self not in log.listeners:
+            log.listeners.append(self)
+        return log
+
+    def _end_stream(self) -> None:
+        if self.mode:
+            print(RESET)
+        self.mode = None
+
+    def _call_header(self, call_id: str) -> None:
+        if call_id in self.shown or call_id not in self.calls:
+            return
+        self.shown.add(call_id)
+        c = self.calls[call_id]
+        args = json.dumps(c["args"], ensure_ascii=False)
+        print(f"{CYAN}⏺ {c['name']}{RESET}({args[:120]}{'…' if len(args) > 120 else ''})")
 
     def __call__(self, ev: dict[str, Any]) -> None:
         match ev["type"]:
             case "assistant.delta":
                 if ev["kind"] != self.mode:
-                    if self.mode:
-                        print(RESET)
+                    self._end_stream()
                     self.mode = ev["kind"]
                     print(DIM if self.mode == "thinking" else "", end="")
                 print(ev["text"], end="", flush=True)
-            case "assistant.message":
-                if self.mode:
-                    print(RESET)
-                self.mode = None
-            case "tool.started":
-                args = json.dumps(ev["args"], ensure_ascii=False)
-                print(f"{CYAN}⏺ {ev['name']}{RESET}({args[:120]}{'…' if len(args) > 120 else ''})")
-            case "tool.result":
-                d = ev["entry"]["data"]
-                lines = text_of(d["content"]).splitlines() or [""]
-                color = RED if d["is_error"] else DIM
-                more = f" … (+{len(lines) - 3} lines)" if len(lines) > 3 else ""
-                print(color + "\n".join(f"  ⎿ {line[:160]}" for line in lines[:3]) + more + RESET)
+            case "entry":
+                e = ev["entry"]
+                if e["type"] == "assistant":
+                    self._end_stream()
+                    self.calls = {b["id"]: b for b in e["data"]["content"] if b["type"] == "tool_call"}
+                    self.shown = set()  # ids are per turn; providers may reuse them
+                elif e["type"] == "tool_started":
+                    self._call_header(e["data"]["call_id"])
+                elif e["type"] == "tool_result":
+                    d = e["data"]
+                    self._call_header(d["call_id"])  # calls blocked before starting still get a header
+                    lines = text_of(d["content"]).splitlines() or [""]
+                    more = f" … (+{len(lines) - 3} lines)" if len(lines) > 3 else ""
+                    color = RED if d["is_error"] else DIM
+                    print(color + "\n".join(f"  ⎿ {line[:160]}" for line in lines[:3]) + more + RESET)
             case "run.resumed":
                 print(f"{DIM}[resuming interrupted run {ev['run_id']}]{RESET}")
             case "run.finished":
-                if self.mode:
-                    print(RESET)
-                    self.mode = None
+                self._end_stream()
                 u = ev["usage"]
                 note = "" if ev["status"] == "ok" else f"{RED}[{ev['status']}]{RESET} "
                 print(f"{note}{DIM}[tokens in {u.get('input', 0)} (cached {u.get('cache_read', 0)}), "
@@ -124,13 +143,13 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
         case "/quit" | "/exit":
             return None
         case "/new":
-            log = ws.new_session(ws.root_of(log), ws.index.session(log.id)["model_ref"])
+            log = PRINTER.watch(ws.new_session(ws.root_of(log), ws.index.session(log.id)["model_ref"]))
             print(f"new session {log.id}")
         case "/sessions":
             for s in ws.index.sessions(log.header["project_id"]):
                 print(f"{'*' if s['id'] == log.id else ' '} {s['id']}  {s['title'] or '(empty)'}")
         case "/open":
-            log = ws.open_session(arg)
+            log = PRINTER.watch(ws.open_session(arg))
         case "/tree":
             print_tree(log)
         case "/checkout":
@@ -143,14 +162,14 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
                 log.checkout(e.parent_id)
                 print(f"{DIM}was: {text_of(e.data['content'])}{RESET}\ntype the new message:")
         case "/fork":
-            log = ws.fork(log, log.resolve(arg))
+            log = PRINTER.watch(ws.fork(log, log.resolve(arg)))
             print(f"forked into {log.id}")
         case "/model":
             if arg:
                 ws.set_model(log, arg)
             print(f"model: {ws.index.session(log.id)['model_ref']}  (configured: {', '.join(ws.cfg.models)})")
         case "/resume":
-            run(ws.resume(log, Printer()))
+            run(ws.resume(log, PRINTER))
         case _:
             print(HELP)
     return log
@@ -176,11 +195,14 @@ def repl(ws: Workspace, log: SessionLog) -> None:
                 return
             log = nxt
             continue
-        run(ws.submit(log, line, emit=Printer()))
+        run(ws.submit(log, line, emit=PRINTER))
 
 
 def main(argv: list[str] | None = None) -> None:
-    p = argparse.ArgumentParser(prog="nwb", description="nano-workbuddy developer CLI")
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["serve"]:
+        return serve_main(argv[1:])
+    p = argparse.ArgumentParser(prog="nwb", description="nano-workbuddy developer CLI (`nwb serve` starts the web UI)")
     p.add_argument("prompt", nargs="?", help="run one prompt and exit")
     p.add_argument("-C", "--project", type=Path, default=Path("."), help="project directory (default: cwd)")
     p.add_argument("-c", "--continue", dest="cont", action="store_true", help="continue the latest session")
@@ -197,14 +219,30 @@ def main(argv: list[str] | None = None) -> None:
         log = ws.open_session(recent[0]["id"])
     else:
         log = ws.new_session(root, args.model)
+    PRINTER.watch(log)
     if args.model:
         ws.set_model(log, args.model)
-    if ws.index.running_runs(log.id):  # D6: pick up where a crash left off
-        run(ws.resume(log, Printer()))
+    if ws.index.unfinished_runs(log.id):  # D6: pick up where a crash left off
+        run(ws.resume(log, PRINTER))
     if args.prompt:
-        sys.exit(0 if run(ws.submit(log, args.prompt, emit=Printer())) in ("ok", "limit") else 1)
+        sys.exit(0 if run(ws.submit(log, args.prompt, emit=PRINTER)) in ("ok", "limit") else 1)
     repl(ws, log)
 
+
+def serve_main(argv: list[str]) -> None:
+    p = argparse.ArgumentParser(prog="nwb serve", description="start the local web workbench")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--no-open", action="store_true", help="do not open a browser")
+    args = p.parse_args(argv)
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger("nano_workbuddy").setLevel(logging.INFO)
+    from .server import serve
+
+    serve(args.host, args.port, open_browser=not args.no_open)
+
+
+PRINTER = Printer()
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
-"""SQLite index: projects and runs are authoritative here; the sessions table is a cache
-that can always be rebuilt from the session JSONL files (D4)."""
+"""SQLite index (D4). Authoritative here: projects, runs, approvals, and each session's model and
+settings. Cache rebuilt from the JSONL files: session titles, leaves and indexed sizes."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from .log import SessionLog
 from .types import USER, new_id, text_of
 
 OWNER = "local"  # single-user for now; every query still scopes by owner (D16)
+DEFAULT_SETTINGS = {"mode": "confirm", "allow": []}
 
 SCHEMA = """
 create table if not exists projects(
@@ -21,12 +22,21 @@ create table if not exists projects(
   unique(owner_id, root_path));
 create table if not exists sessions(
   id text primary key, project_id text not null, title text, file_path text not null,
-  indexed_bytes integer not null default 0, leaf_id text, model_ref text, updated_at real not null);
+  indexed_bytes integer not null default 0, leaf_id text, model_ref text, settings_json text not null default '{}',
+  updated_at real not null);
 create table if not exists runs(
   id text primary key, session_id text not null, request_id text unique, status text not null,
   model_ref text, resume_count integer not null default 0, started_at real not null, ended_at real,
   usage_json text);
+create table if not exists approvals(
+  id text primary key, session_id text not null, run_id text, call_id text not null, tool text not null,
+  args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real);
 """
+
+# Append only: MIGRATIONS[i] upgrades schema version i to i + 1. SCHEMA always describes the latest shape.
+MIGRATIONS = [
+    "alter table sessions add column settings_json text not null default '{}'",  # phase 2
+]
 
 
 class Index:
@@ -35,7 +45,15 @@ class Index:
         self.db = sqlite3.connect(path, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self.db.execute("pragma journal_mode=wal")
-        self.db.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        existed = self._one("select 1 from sqlite_master where type='table' and name='sessions'") is not None
+        self.db.executescript(SCHEMA)  # creates whatever is missing, at the latest shape
+        version = self.db.execute("pragma user_version").fetchone()[0] if existed else len(MIGRATIONS)
+        for sql in MIGRATIONS[version:]:
+            self.db.execute(sql)
+        self.db.execute(f"pragma user_version={len(MIGRATIONS)}")
 
     def _one(self, sql: str, *args: Any) -> dict[str, Any] | None:
         row = self.db.execute(sql, args).fetchone()
@@ -52,8 +70,14 @@ class Index:
         if p := self._one(sql, OWNER, root_s):
             return p
         self.db.execute("insert into projects(id, owner_id, name, root_path, created_at) values (?,?,?,?,?)",
-                        (new_id("p"), OWNER, root.name, root_s, time.time()))
+                        (new_id("p"), OWNER, root.resolve().name, root_s, time.time()))
         return self._one(sql, OWNER, root_s)
+
+    def project(self, project_id: str) -> dict[str, Any] | None:
+        return self._one("select * from projects where id=? and owner_id=?", project_id, OWNER)
+
+    def projects(self) -> list[dict[str, Any]]:
+        return self._all("select * from projects where owner_id=? order by created_at", OWNER)
 
     # sessions
 
@@ -69,11 +93,23 @@ class Index:
             (log.id, log.header["project_id"], title, str(log.file), log.file.stat().st_size,
              log.leaf_id, model_ref, time.time()))
 
+    @staticmethod
+    def _session(row: dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is not None:
+            row["settings"] = {**DEFAULT_SETTINGS, **json.loads(row.pop("settings_json"))}
+        return row
+
     def session(self, session_id: str) -> dict[str, Any] | None:
-        return self._one("select * from sessions where id=?", session_id)
+        return self._session(self._one("select * from sessions where id=?", session_id))
 
     def sessions(self, project_id: str) -> list[dict[str, Any]]:
-        return self._all("select * from sessions where project_id=? order by updated_at desc", project_id)
+        rows = self._all("select * from sessions where project_id=? order by updated_at desc", project_id)
+        return [self._session(r) for r in rows]
+
+    def update_settings(self, session_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+        settings = {**self.session(session_id)["settings"], **patch}
+        self.db.execute("update sessions set settings_json=? where id=?", (json.dumps(settings), session_id))
+        return settings
 
     def reindex(self, sessions_dir: Path) -> int:
         """Bring the sessions table up to date with JSONL files written after the last sync."""
@@ -81,8 +117,7 @@ class Index:
         n = 0
         for f in sessions_dir.glob("*/*.jsonl"):
             if known.get(str(f)) != f.stat().st_size:
-                log = SessionLog.open(f)
-                self.sync_session(log)
+                self.sync_session(SessionLog.open(f))
                 n += 1
         return n
 
@@ -101,11 +136,29 @@ class Index:
         self.db.execute("update runs set status=?, ended_at=?, usage_json=? where id=?",
                         (status, time.time(), json.dumps(usage or {}), run_id))
 
-    def running_runs(self, session_id: str | None = None) -> list[dict[str, Any]]:
+    def unfinished_runs(self, session_id: str | None = None) -> list[dict[str, Any]]:
+        """Runs a crash ('running') or a server shutdown ('interrupted') left behind."""
+        sql = "select * from runs where status in ('running', 'interrupted')"
         if session_id:
-            return self._all("select * from runs where status='running' and session_id=?", session_id)
-        return self._all("select * from runs where status='running'")
+            return self._all(sql + " and session_id=? order by started_at", session_id)
+        return self._all(sql + " order by started_at")
 
     def bump_resume(self, run_id: str) -> int:
         self.db.execute("update runs set resume_count=resume_count+1 where id=?", (run_id,))
         return self._one("select resume_count from runs where id=?", run_id)["resume_count"]
+
+    # approvals
+
+    def add_approval(self, approval_id: str, session_id: str, run_id: str | None, call: dict[str, Any]) -> None:
+        self.db.execute("insert into approvals(id, session_id, run_id, call_id, tool, args_json, status, created_at)"
+                        " values (?,?,?,?,?,?,?,?)", (approval_id, session_id, run_id, call["id"], call["name"],
+                                                      json.dumps(call["args"], ensure_ascii=False), "pending",
+                                                      time.time()))
+
+    def resolve_approval(self, approval_id: str, status: str, feedback: str | None = None) -> None:
+        self.db.execute("update approvals set status=?, feedback=?, resolved_at=? where id=? and status='pending'",
+                        (status, feedback, time.time(), approval_id))
+
+    def expire_pending_approvals(self) -> None:
+        """At startup nobody is waiting on old approvals; resumed runs ask again."""
+        self.db.execute("update approvals set status='expired', resolved_at=? where status='pending'", (time.time(),))

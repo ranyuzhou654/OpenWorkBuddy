@@ -85,3 +85,20 @@ def test_resolve_by_prefix(tmp_path):
     assert log.resolve(root.id[:8]) == root.id
     with pytest.raises(KeyError):
         log.resolve("zzz")
+
+
+def test_index_migrates_a_phase1_database(tmp_path):
+    import sqlite3
+
+    from nano_workbuddy.index import Index
+
+    db = sqlite3.connect(tmp_path / "index.db")
+    db.executescript("""
+      create table sessions(id text primary key, project_id text not null, title text, file_path text not null,
+        indexed_bytes integer not null default 0, leaf_id text, model_ref text, updated_at real not null);
+      insert into sessions values ('s_1', 'p_1', 't', '/x', 0, null, 'm', 0);""")
+    db.close()
+    idx = Index(tmp_path / "index.db")
+    assert idx.session("s_1")["settings"] == {"mode": "confirm", "allow": []}
+    assert idx.db.execute("pragma user_version").fetchone()[0] == 1
+    Index(tmp_path / "index.db")  # reopening is a no-op

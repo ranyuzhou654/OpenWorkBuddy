@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ def reply(s: str | None = None, *calls: ToolCall, stop: str | None = None) -> Re
 
 
 class FakeModel:
-    """Plays a script of responses. Items may be Response, callable(messages) -> Response, an exception, or HANG."""
+    """Plays a script of responses. Items: Response, callable(messages) -> Response or awaitable, exception, HANG."""
 
     def __init__(self, *script: Any):
         self.script = list(script)
@@ -38,6 +39,8 @@ class FakeModel:
         item = self.script.pop(0)
         if callable(item):
             item = item(messages)
+        if inspect.isawaitable(item):  # async items let a test hold the model until it is ready
+            item = await item
         if isinstance(item, BaseException):
             raise item
         if item == HANG:

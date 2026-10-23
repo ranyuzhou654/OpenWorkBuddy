@@ -35,9 +35,8 @@ async def test_multi_step_file_task(make_ws, project):
     assert text_of(log.path()[-1].data["content"]) == "done: # hi"
     assert model.requests[0]["system"].startswith("You are nano-workbuddy")
     assert [t["name"] for t in model.requests[0]["tools"]] == ["read", "write", "edit", "bash"]
-    assert {"run.started", "assistant.delta", "tool.started", "tool.result", "run.finished"} <= {
-        e["type"] for e in events}
-    run = ws.index.running_runs(log.id)
+    assert {"run.started", "assistant.delta", "run.finished"} <= {e["type"] for e in events}
+    run = ws.index.unfinished_runs(log.id)
     assert run == []
     assert ws.index.session(log.id)["title"] == "make notes"
 
@@ -82,7 +81,7 @@ async def test_cancel_during_tool_answers_every_call(make_ws, project):
     await asyncio.gather(task, return_exceptions=True)
 
     assert [CANCELLED in text_of(r["content"]) for r in results(log)] == [True, True]
-    assert ws.index.running_runs(log.id) == []
+    assert ws.index.unfinished_runs(log.id) == []
     assert ws.index._one("select status from runs")["status"] == "cancelled"
 
 
@@ -159,7 +158,7 @@ async def test_resume_never_replays_bash(make_ws, project):
     assert await ws.resume(log) == "ok"
     assert not (project / "side_effect").exists()
     assert UNKNOWN in text_of(results(log)[0]["content"])
-    assert ws.index.running_runs(log.id) == []
+    assert ws.index.unfinished_runs(log.id) == []
 
 
 async def test_resume_verifies_edits_and_reruns_reads(make_ws, project):
@@ -186,18 +185,84 @@ async def test_resume_after_crash_before_the_model_answered(make_ws, project):
 async def test_resume_gives_up_after_repeated_crashes(make_ws, project):
     ws = make_ws(FakeModel())
     log = crashed_session(ws, project)
-    run_id = ws.index.running_runs(log.id)[0]["id"]
+    run_id = ws.index.unfinished_runs(log.id)[0]["id"]
     for _ in range(3):
         ws.index.bump_resume(run_id)
     assert await ws.resume(log) == "error"
-    assert ws.index.running_runs(log.id) == []
+    assert ws.index.unfinished_runs(log.id) == []
 
 
 async def test_new_message_closes_dangling_calls(make_ws, project):
     model = FakeModel(reply("fresh"))
     ws = make_ws(model)
     log = crashed_session(ws, project, call("bash", command="true"))
-    ws.index.finish_run(ws.index.running_runs(log.id)[0]["id"], "error")  # user declined to resume
+    ws.index.finish_run(ws.index.unfinished_runs(log.id)[0]["id"], "error")  # user declined to resume
     await ws.submit(log, "something else")
     msgs = model.requests[0]["messages"]
     assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "user"]
+
+
+# --- steer and gate (phase 2) ---
+
+
+async def test_steer_joins_the_run_before_the_next_model_call(make_ws, project):
+    from nano_workbuddy.loop import Inbox
+
+    inbox = Inbox()
+
+    def first(msgs):
+        inbox.steer.append("also do B")  # arrives while the model is answering
+        return reply(None, call("bash", command="true"))
+
+    model = FakeModel(first, reply("done A and B"))
+    ws = make_ws(model)
+    log = ws.new_session(project)
+    await ws.submit(log, "do A", inbox=inbox)
+    assert [m["role"] for m in model.requests[1]["messages"]] == ["user", "assistant", "tool", "user"]
+    assert text_of(model.requests[1]["messages"][-1]["content"]) == "also do B"
+
+
+async def test_steer_after_the_final_answer_continues_the_run(make_ws, project):
+    from nano_workbuddy.loop import Inbox
+
+    inbox = Inbox()
+
+    def first(msgs):
+        inbox.steer.append("one more thing")
+        return reply("first answer")
+
+    model = FakeModel(first, reply("second answer"))
+    ws = make_ws(model)
+    log = ws.new_session(project)
+    assert await ws.submit(log, "hi", inbox=inbox) == "ok"
+    assert [text_of(e.data["content"]) for e in log.path() if e.type in (USER, ASSISTANT)] == [
+        "hi", "first answer", "one more thing", "second answer"]
+
+
+async def test_gate_blocks_before_anything_happens(make_ws, project):
+    from nano_workbuddy.tools import Result
+
+    async def deny(tool, c):
+        return Result.error("The user denied this call.") if tool.effect != "read" else None
+
+    model = FakeModel(reply(None, call("write", path="x.txt", content="no")), reply("ok"))
+    ws = make_ws(model)
+    log = ws.new_session(project)
+    await ws.submit(log, "go", gate=deny)
+    assert not (project / "x.txt").exists()
+    assert TOOL_STARTED not in types(log)  # denied calls never reach tool_started: nothing to recover
+    assert "denied" in text_of(results(log)[0]["content"])
+
+
+async def test_reused_call_ids_across_turns_are_not_mistaken_for_interrupted_calls(make_ws, project):
+    def same_id(command):
+        return {"type": "tool_call", "id": "call_0", "name": "bash", "args": {"command": command}}
+
+    model = FakeModel(reply(None, same_id("echo one > one.txt")), reply("1"),
+                      reply(None, same_id("echo two > two.txt")), reply("2"))
+    ws = make_ws(model)
+    log = ws.new_session(project)
+    await ws.submit(log, "first")
+    await ws.submit(log, "second")
+    assert (project / "two.txt").exists()  # not answered with "outcome unknown"
+    assert all(not r["is_error"] for r in results(log))
