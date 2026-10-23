@@ -47,6 +47,10 @@ def connect(spec: ModelSpec, api_key: str) -> Model:
             from .anthropic import AnthropicMessages
 
             return AnthropicMessages(spec, api_key)
+        case "openai-responses":
+            from .openai_responses import OpenAIResponses
+
+            return OpenAIResponses(spec, api_key)
     raise ValueError(f"unsupported protocol {spec.provider.protocol!r}")
 
 

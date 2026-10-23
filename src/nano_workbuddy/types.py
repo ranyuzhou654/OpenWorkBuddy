@@ -58,6 +58,7 @@ STATE = "state"
 NOTICE = "notice"  # context the harness gives the model mid-session (permissions...), sent as user-role text
 PRUNE = "prune"  # old tool results up to a seq are shown as pointers to saved copies
 COMPACTION = "compaction"  # a summary that stands in for everything before first_kept_id
+BRANCH_SUMMARY = "branch_summary"  # what happened on the branch the user just left (Pi's branch summary)
 
 
 def text(s: str) -> Text:

@@ -13,7 +13,7 @@ const TEMPLATES: { label: string; name: string; protocol: Protocol; base_url: st
   { label: "OpenDesign Go", name: "opendesign", protocol: "openai-chat", base_url: "https://amr-link.open-design.ai/v1" },
   { label: "DeepSeek", name: "deepseek", protocol: "openai-chat", base_url: "https://api.deepseek.com" },
   { label: "Anthropic（Claude）", name: "anthropic", protocol: "anthropic", base_url: "https://api.anthropic.com" },
-  { label: "OpenAI", name: "openai", protocol: "openai-chat", base_url: "https://api.openai.com/v1" },
+  { label: "OpenAI", name: "openai", protocol: "openai-responses", base_url: "https://api.openai.com/v1" },
   { label: "OpenRouter", name: "openrouter", protocol: "openai-chat", base_url: "https://openrouter.ai/api/v1" },
   { label: "Kimi（Moonshot）", name: "moonshot", protocol: "openai-chat", base_url: "https://api.moonshot.cn/v1" },
   { label: "智谱 GLM", name: "zhipu", protocol: "openai-chat", base_url: "https://open.bigmodel.cn/api/paas/v4" },
@@ -21,7 +21,9 @@ const TEMPLATES: { label: string; name: string; protocol: Protocol; base_url: st
   { label: "本机 Ollama", name: "ollama", protocol: "openai-chat", base_url: "http://localhost:11434/v1" },
 ];
 
-const PROTOCOLS: Record<Protocol, string> = { "openai-chat": "OpenAI 兼容", anthropic: "Anthropic" };
+const PROTOCOLS: Record<Protocol, string> = {
+  "openai-chat": "OpenAI 兼容（Chat）", anthropic: "Anthropic", "openai-responses": "OpenAI Responses（GPT 推理模型）",
+};
 
 export function Settings({ onChanged, onError }: { onChanged: () => void; onError: (m: string) => void }) {
   const [view, setView] = useState<SettingsView | null>(null);

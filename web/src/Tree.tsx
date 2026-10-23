@@ -1,9 +1,11 @@
-import { api, type Entry } from "./api";
+import { useState } from "react";
+import { api, branchSummary, type Entry } from "./api";
 import { childrenOf, pathTo, textOf, type State } from "./session";
 
 // The whole conversation tree. Indentation grows only where the tree branches,
 // so a long linear conversation stays flat. Clicking a node moves the current position there.
 export function Tree({ sid, state, busy }: { sid: string; state: State; busy: boolean }) {
+  const [summarize, setSummarize] = useState(branchSummary.get());
   const kids = childrenOf(state.entries);
   const onPath = new Set(pathTo(state.entries, state.leaf).map((e) => e.id));
   const rows: { e: Entry; depth: number }[] = [];
@@ -18,6 +20,10 @@ export function Tree({ sid, state, busy }: { sid: string; state: State; busy: bo
   return (
     <aside className="tree">
       <div className="tree-title">会话树</div>
+      <label className="tree-option" title="离开一条分支时，让模型把它总结成一段摘要，挂到新位置，助手就知道那条分支上做过什么">
+        <input type="checkbox" checked={summarize} onChange={(e) => { branchSummary.set(e.target.checked); setSummarize(e.target.checked); }} />
+        切换分支时总结离开的分支
+      </label>
       {rows.map(({ e, depth }) => (
         <button key={e.id} className={`tree-node${onPath.has(e.id) ? " on" : ""}${e.id === state.leaf ? " leaf" : ""}`}
           style={{ paddingLeft: 8 + depth * 14 }} disabled={busy} onClick={() => api.checkout(sid, e.id)}

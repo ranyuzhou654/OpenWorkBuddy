@@ -55,6 +55,7 @@ function onEvent(s: State, ev: any): State {
     case "run.finished":
       return { ...s, live: null, usage: ev.usage };
     case "run.error":
+    case "hook.error":
       return { ...s, error: ev.message };
     case "assistant.delta":
       return { ...s, live: ev.kind === "text" ? { ...live, text: live.text + ev.text } : { ...live, thinking: live.thinking + ev.text } };

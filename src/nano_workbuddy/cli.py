@@ -27,6 +27,7 @@ HELP = """\
 /open ID             switch to a session
 /tree                show the conversation tree (* = current path)
 /checkout ID         move the current position to an entry
+/branch ID           switch to the branch under ID, summarising the branch you leave
 /edit ID             go back to before user message ID; your next input becomes a new branch
 /fork ID             copy the path up to ID into a new session
 /model [NAME]        show or set the model for the next run
@@ -81,6 +82,8 @@ class Printer:
                 elif e["type"] == "compaction":
                     self._end_stream()
                     print(f"{DIM}[context compacted: about {e['data']['tokens_before']} tokens summarised]{RESET}")
+                elif e["type"] == "branch_summary":
+                    print(f"{DIM}[summary of the branch you left]\n{e['data']['summary']}{RESET}")
                 elif e["type"] == "prune":
                     print(f"{DIM}[{e['data']['count']} old tool outputs cleared from context]{RESET}")
                 elif e["type"] == "tool_result":
@@ -92,10 +95,15 @@ class Printer:
                     print(color + "\n".join(f"  ⎿ {line[:160]}" for line in lines[:3]) + more + RESET)
             case "run.started" if ev.get("kind") == "compaction":
                 print(f"{DIM}[compacting…]{RESET}")
+            case "run.started" if ev.get("kind") == "branch_summary":
+                print(f"{DIM}[summarising the branch you are leaving…]{RESET}")
             case "context.overflow":
                 print(f"{DIM}[the model said the context is too long; compacting and retrying]{RESET}")
             case "run.resumed":
                 print(f"{DIM}[resuming interrupted run {ev['run_id']}]{RESET}")
+            case "run.error" | "hook.error":
+                self._end_stream()
+                print(f"{RED}{ev['message']}{RESET}")
             case "run.finished":
                 self._end_stream()
                 u = ev["usage"]
@@ -204,6 +212,8 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
             print_tree(log)
         case "/checkout":
             log.checkout(log.resolve(arg))
+        case "/branch":
+            run(ws, ws.switch_branch(log, log.latest_leaf(log.resolve(arg)), PRINTER))
         case "/edit":
             e = log.entries[log.resolve(arg)]
             if e.type != USER:

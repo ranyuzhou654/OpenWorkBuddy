@@ -18,7 +18,20 @@ from typing import Any
 
 from .config import ModelSpec
 from .tools.registry import Result
-from .types import ASSISTANT, COMPACTION, NOTICE, PRUNE, SYSTEM_PROMPT, TOOL_RESULT, USER, Block, Entry, Message, text
+from .types import (
+    ASSISTANT,
+    BRANCH_SUMMARY,
+    COMPACTION,
+    NOTICE,
+    PRUNE,
+    SYSTEM_PROMPT,
+    TOOL_RESULT,
+    USER,
+    Block,
+    Entry,
+    Message,
+    text,
+)
 
 SPILL_CHARS = 30_000  # roughly 8k tokens
 KEEP_CHARS = 4_000  # head and tail kept inline
@@ -152,6 +165,8 @@ def to_messages(path: list[Entry]) -> tuple[str, list[Message]]:
             messages.append(Message(role="user", content=[text(notice)]))
         elif e.type == COMPACTION:
             messages.append(Message(role="user", content=[text(summary_message(e.data))]))
+        elif e.type == BRANCH_SUMMARY:
+            messages.append(Message(role="user", content=[text(branch_message(e.data))]))
     return system, messages
 
 
@@ -161,6 +176,14 @@ def summary_message(d: dict[str, Any]) -> str:
                     ("modified", "Files modified")) if files.get(k))
     return ("<conversation-summary>\nThe earlier part of this conversation was compacted into this summary.\n\n"
             f"{d['summary']}{lists}\n</conversation-summary>")
+
+
+def branch_message(d: dict[str, Any]) -> str:
+    changed = d.get("files", {}).get("modified")
+    files = (f"\nFiles modified on that branch (still changed on disk unless reverted): {', '.join(changed)}"
+             if changed else "")
+    return ("<branch-summary>\nThe user went back to this point from another branch of the conversation. "
+            f"What happened on that branch:\n\n{d['summary']}{files}\n</branch-summary>")
 
 
 # --- tier 1 ---

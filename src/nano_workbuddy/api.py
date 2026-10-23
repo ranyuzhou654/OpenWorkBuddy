@@ -56,6 +56,7 @@ class SendMessage(BaseModel):
 class Checkout(BaseModel):
     entry_id: str
     descend: bool = False  # jump to the latest entry under entry_id (switching branches)
+    summarize: bool = False  # first summarise the branch being left, and attach the summary at the new position
 
 
 class Fork(BaseModel):
@@ -63,7 +64,7 @@ class Fork(BaseModel):
 
 
 class ProviderBody(BaseModel):
-    protocol: Literal["openai-chat", "anthropic"]
+    protocol: Literal["openai-chat", "anthropic", "openai-responses"]
     base_url: str
     api_key: str | None = None  # a new key to store; omitted keeps the current one
     key_ref: str | None = None  # or point at env:NAME / keyring:NAME instead
@@ -238,7 +239,11 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
             raise HTTPException(409, "cannot switch branches while a run is active")
         if body.entry_id not in log.entries:
             raise HTTPException(404, "no such entry")
-        log.checkout(log.latest_leaf(body.entry_id) if body.descend else body.entry_id)
+        target = log.latest_leaf(body.entry_id) if body.descend else body.entry_id
+        if body.summarize:  # needs a model call: runs in the background, the new leaf arrives as events
+            runs.switch_branch(log, target)
+            return {"leaf_id": None}
+        log.checkout(target)
         ws.index.sync_session(log)
         return {"leaf_id": log.leaf_id}
 

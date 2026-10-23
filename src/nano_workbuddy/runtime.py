@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import compaction, llm, policy, prompt, skills
+from . import compaction, hooks, llm, policy, prompt, skills
 from .config import Config, ModelSpec, load, secret
 from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
@@ -153,15 +154,32 @@ class Workspace:
         run, created = self.index.start_run(log.id, request_id, self.model_ref(log))
         if not created:  # a retried request: never start the same work twice
             return run["status"]
+        hook = await self._hook(log, "UserPromptSubmit", {"prompt": content}, emit)
+        if hook.block:  # the message is refused before anything is written; the text goes back to the composer
+            self.index.finish_run(run["id"], "blocked")
+            emit({"type": "run.error", "message": f"A UserPromptSubmit hook refused this message: {hook.reason}"})
+            emit({"type": "inbox", "steer": [], "queue": [], "dropped": [content]})
+            return "blocked"
         if parent_id is not None:
             log.checkout(parent_id)
         close_pending(log, run["id"], "Interrupted; the user sent a new message instead.")
+        if hook.context:
+            log.append(NOTICE, {"kind": "hook", "text": "\n".join(hook.context)}, run_id=run["id"])
         if forced := self._invoked_skill(log, content):  # "/name ...": load the skill for the model (D15)
             body, key = skills.render(forced), f"skill:{forced.name}"
             if in_view(log.path()).get(key) != body:  # unless the model already sees this exact text
                 log.append(NOTICE, {"kind": key, "text": body, "pin": True}, run_id=run["id"])
         log.append(USER, {"content": [text(content)]}, run_id=run["id"])
         return await self._drive(log, run, emit, inbox, ask)
+
+    async def _hook(self, log: SessionLog, event: str, payload: dict[str, Any], emit: Emit,
+                    tool: str | None = None) -> hooks.Outcome:
+        """Run the configured hooks for an event; their failures are shown to the user, not the model."""
+        base = {"session_id": log.id, "transcript_path": str(log.file), "permission_mode": self.preset(log)}
+        out = await hooks.run(self.cfg.hooks, event, base | payload, self.root_of(log), tool)
+        for message in out.errors:
+            emit({"type": "hook.error", "message": message})
+        return out
 
     def _invoked_skill(self, log: SessionLog, content: str) -> skills.Skill | None:
         if not content.startswith("/"):
@@ -192,6 +210,18 @@ class Workspace:
             emit({"type": "run.finished", "run_id": None, "status": status, "usage": run.usage})
         return status
 
+    async def switch_branch(self, log: SessionLog, target_id: str, emit: Emit = lambda e: None) -> str:
+        """Checkout with a summary of the branch being left (Pi's branch summary)."""
+        run = self.make_run(log, self.model_ref(log), None, emit)
+        emit({"type": "run.started", "run_id": None, "kind": "branch_summary"})
+        status = "error"
+        try:
+            status = "ok" if await compaction.summarize_branch(run, target_id) else "nothing"
+        finally:
+            self.index.sync_session(log)
+            emit({"type": "run.finished", "run_id": None, "status": status, "usage": run.usage})
+        return status
+
     def make_run(self, log: SessionLog, model_ref: str, run_id: str | None, emit: Emit,
                  inbox: Inbox | None = None, ask: Ask | None = None, tools: Registry | None = None,
                  notices: dict[str, str] | None = None) -> Run:
@@ -214,18 +244,41 @@ class Workspace:
                 return None  # execute() reports the invalid arguments
             action, resource = tool.permission_scope(args, ctx)
             check = policy.check(action, resource, self.rules(log, preset_name), places)
-            if check.effect == "allow":
-                return None
             if check.effect == "deny":
                 return Result.error(f"Blocked by a permission rule: {action} on {resource} is not allowed.")
+            if self.cfg.hooks:  # a PreToolUse hook can block, or turn ask into allow and allow into ask
+                hook = await self._hook(log, "PreToolUse", {**hooks.tool_payload(tool.name, call["args"]),
+                                                            "tool_use_id": call["id"]}, emit, tool.name)
+                if hook.block:
+                    return Result.error(f"Blocked by a PreToolUse hook: {hook.reason}")
+                if hook.decision in ("allow", "ask"):
+                    check = dataclasses.replace(check, effect=hook.decision)
+            if check.effect == "allow":
+                return None
             if ask is None:
                 return Result.error(f"{action} on {resource} needs the user's approval, which this client "
                                     "cannot ask for.")
             return await ask(check, tool, call)
 
+        async def after_tool(tool: Tool, call: ToolCall, r: Result) -> Result:
+            response = {"content": "".join(b["text"] for b in r.content if b["type"] == "text"), "is_error": r.is_error}
+            hook = await self._hook(log, "PostToolUse", {**hooks.tool_payload(tool.name, call["args"]),
+                                                         "tool_use_id": call["id"], "tool_response": response},
+                                    emit, tool.name)
+            if feedback := (hook.reasons if hook.block else []) + hook.context:
+                return dataclasses.replace(r, content=[*r.content, text("[Hook feedback]\n" + "\n".join(feedback))])
+            return r
+
+        async def on_stop(asked: bool) -> str | None:
+            hook = await self._hook(log, "Stop", {"stop_hook_active": asked}, emit)
+            return f"[Stop hook] {hook.reason}" if hook.block else None
+
+        has = {h.event for h in self.cfg.hooks}
         model_ref = model_ref if model_ref in self.cfg.models else self.cfg.default_model
         return Run(log=log, model=self.connect(self.cfg.model(model_ref)), tools=tools, ctx=ctx, run_id=run_id,
                    emit=emit, max_turns=self.cfg.max_turns, inbox=inbox or Inbox(), gate=gate,
+                   after_tool=after_tool if "PostToolUse" in has else None,
+                   on_stop=on_stop if "Stop" in has else None,
                    notices={"permissions": preset.notice.format(root=root), **(notices or {})})
 
     async def _drive(self, log: SessionLog, run_row: dict[str, Any], emit: Emit,

@@ -147,6 +147,11 @@ class RunManager:
             raise Busy("cannot compact while a run is active")
         self._start(log, lambda emit, inbox, ask: self.ws.compact(log, instructions, emit))
 
+    def switch_branch(self, log: SessionLog, target_id: str) -> None:
+        if log.id in self.live:
+            raise Busy("cannot switch branches while a run is active")
+        self._start(log, lambda emit, inbox, ask: self.ws.switch_branch(log, target_id, emit))
+
     def cancel(self, session_id: str) -> None:
         if (live := self.live.get(session_id)) is None or live.task is None:
             raise KeyError(f"no active run in {session_id}")

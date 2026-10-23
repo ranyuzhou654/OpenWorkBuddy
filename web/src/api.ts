@@ -79,7 +79,7 @@ export interface Info {
   presets: Record<Preset, string>;
 }
 
-export type Protocol = "openai-chat" | "anthropic";
+export type Protocol = "openai-chat" | "anthropic" | "openai-responses";
 
 export interface KeyStatus {
   source: string; // env | keyring | secret
@@ -200,8 +200,9 @@ export const api = {
   patch: (sid: string, body: { model?: string; preset?: string }) => call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
   send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue" }) =>
     call<{ delivery: string }>("POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
-  checkout: (sid: string, entry_id: string, descend = false) =>
-    call<{ leaf_id: string }>("POST", `/api/sessions/${sid}/checkout`, { entry_id, descend }),
+  // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
+  checkout: (sid: string, entry_id: string, descend = false, summarize = branchSummary.get()) =>
+    call<{ leaf_id: string | null }>("POST", `/api/sessions/${sid}/checkout`, { entry_id, descend, summarize }),
   fork: (sid: string, entry_id: string) => call<SessionInfo>("POST", `/api/sessions/${sid}/fork`, { entry_id }),
   cancel: (sid: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/cancel`),
   compact: (sid: string, instructions?: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/compact`, { instructions }),
@@ -229,4 +230,22 @@ export const api = {
   putMemory: (key: string, text: string) => call<MemoryFile[]>("PUT", `/api/memory/${encodeURIComponent(key)}`, { text }),
   approve: (aid: string, decision: "once" | "always" | "reject", feedback?: string) =>
     call<{ ok: boolean }>("POST", `/api/approvals/${aid}`, { decision, feedback }),
+};
+
+// Per-browser preference: summarise the branch you leave when switching branches.
+export const branchSummary = {
+  get(): boolean {
+    try {
+      return localStorage.getItem("nwb.branchSummary") === "1";
+    } catch {
+      return false;
+    }
+  },
+  set(on: boolean): void {
+    try {
+      localStorage.setItem("nwb.branchSummary", on ? "1" : "0");
+    } catch {
+      // storage unavailable: the choice lasts until reload
+    }
+  },
 };

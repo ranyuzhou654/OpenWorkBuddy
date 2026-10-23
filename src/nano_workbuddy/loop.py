@@ -18,6 +18,7 @@ from .log import SessionLog
 from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
 from .types import (
     ASSISTANT,
+    BRANCH_SUMMARY,
     COMPACTION,
     NOTICE,
     PRUNE,
@@ -67,7 +68,8 @@ class Done:
 type Step = CallModel | RunTools | FailCalls | Done
 
 
-TRANSPARENT = (TOOL_STARTED, STATE, NOTICE, PRUNE, COMPACTION)  # bookkeeping: never decides the next step
+# bookkeeping: never decides the next step
+TRANSPARENT = (TOOL_STARTED, STATE, NOTICE, PRUNE, COMPACTION, BRANCH_SUMMARY)
 
 
 def next_step(path: list[Entry]) -> Step:
@@ -100,6 +102,8 @@ class Inbox:
 
 
 type Gate = Callable[[Tool, ToolCall], Awaitable[Result | None]]  # None = go ahead, Result = blocked
+type AfterTool = Callable[[Tool, ToolCall, Result], Awaitable[Result]]  # may add to a result before it is logged
+type OnStop = Callable[[bool], Awaitable[str | None]]  # a message to keep going with, or None to stop
 
 
 @dataclass
@@ -114,6 +118,8 @@ class Run:
     usage: dict[str, int] = field(default_factory=dict)
     inbox: Inbox = field(default_factory=Inbox)
     gate: Gate | None = None  # permission check before any tool runs
+    after_tool: AfterTool | None = None
+    on_stop: OnStop | None = None  # asked when the model is done (Stop hooks); argument: asked before in this run
     notices: dict[str, str] = field(default_factory=dict)  # kind -> text the model must currently see
 
     def schemas(self) -> list[dict[str, Any]]:
@@ -123,12 +129,17 @@ class Run:
 
 async def drive(run: Run) -> str:
     """Run until the log says there is nothing left to do. Returns "ok" or "limit"."""
-    turns = 0
+    turns, stop_asked = 0, False
     while True:
         match next_step(run.log.path()):
             case Done():
-                if not _take_steer(run):
-                    return "ok"
+                if _take_steer(run):
+                    continue
+                if run.on_stop and (more := await run.on_stop(stop_asked)):
+                    stop_asked = True
+                    run.log.append(USER, {"content": [text(more)], "synthetic": True}, run_id=run.run_id)
+                    continue
+                return "ok"
             case CallModel():
                 if _take_steer(run):
                     continue
@@ -247,7 +258,8 @@ async def _one(run: Run, c: ToolCall) -> None:
     if run.gate and (blocked := await run.gate(t, c)):  # asked before tool_started: nothing has happened yet
         return _finish(run, c, blocked)
     run.log.append(TOOL_STARTED, {"call_id": c["id"], "name": c["name"]}, run_id=run.run_id)
-    _finish(run, c, await execute(t, c, replace(run.ctx, call_id=c["id"])))
+    r = await execute(t, c, replace(run.ctx, call_id=c["id"]))
+    _finish(run, c, await run.after_tool(t, c, r) if run.after_tool else r)
 
 
 def _finish(run: Run, c: ToolCall, r: Result) -> None:

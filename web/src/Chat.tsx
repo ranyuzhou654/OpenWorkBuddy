@@ -47,6 +47,13 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
               <Markdown text={e.data.summary} />
             </details>
           );
+        if (e.type === "branch_summary")
+          return (
+            <details key={e.id} className="divider">
+              <summary>已总结离开的分支，助手会参考这段摘要</summary>
+              <Markdown text={e.data.summary} />
+            </details>
+          );
         if (e.type === "prune")
           return <div key={e.id} className="divider">已从上下文中清理 {e.data.count} 条旧工具输出（全文已另存）</div>;
         if (e.type === "notice")

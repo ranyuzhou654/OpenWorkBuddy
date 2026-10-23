@@ -22,7 +22,18 @@ from .context import (
     write_private,
 )
 from .llm import Model, Response
-from .types import ASSISTANT, COMPACTION, NOTICE, PRUNE, TOOL_RESULT, USER, Entry, Message, text, text_of
+from .types import (
+    ASSISTANT,
+    BRANCH_SUMMARY,
+    COMPACTION,
+    PRUNE,
+    TOOL_RESULT,
+    USER,
+    Entry,
+    Message,
+    text,
+    text_of,
+)
 
 if TYPE_CHECKING:
     from .loop import Run
@@ -150,8 +161,34 @@ def choose_cut(body: list[Entry], keep: int) -> int | None:
     return cuts[0] if cuts else None
 
 
+BRANCH = """The user abandoned the branch of a conversation shown below and went back to an earlier point.
+Summarise what happened on that branch so the conversation can continue from the earlier point with that
+knowledge: what was attempted, what was changed (files, commands with side effects), what was learned or
+decided, and why it seems to have been abandoned. Be brief and factual; use short bullet points."""
+
+
+async def summarize_branch(run: Run, target_id: str) -> Entry | None:
+    """Move to target_id; if that leaves conversation behind, attach a summary of it there first.
+    The summary is a child of target_id, so the next message continues from it (D5)."""
+    log = run.log
+    keep = {e.id for e in log.path(target_id)}
+    left = [e for e in log.path() if e.id not in keep]
+    if not any(e.type in (USER, ASSISTANT) for e in left):
+        log.checkout(target_id)
+        return None
+    resp = await complete(run.model, SUMMARIZER, f"{BRANCH}\n\n<branch>\n{serialize(left)}\n</branch>")
+    if not (summary := text_of(resp.content).strip()):
+        raise RuntimeError("the model returned an empty summary; the branch was not switched")
+    for k, v in resp.usage.items():
+        run.usage[k] = run.usage.get(k, 0) + v
+    log.checkout(target_id)
+    return log.append(BRANCH_SUMMARY, {"summary": summary, "files": file_ops(left, {}), "from_leaf": left[-1].id,
+                                       "usage": resp.usage})
+
+
 def serialize(entries: list[Entry]) -> str:
-    """Plain text, so the summariser reads a transcript instead of continuing a conversation."""
+    """Plain text, so the summariser reads a transcript instead of continuing a conversation.
+    Notices are left out: the harness puts back the current ones (and pinned skills) by itself."""
     lines = []
     for e in entries:
         if e.type == USER:
@@ -166,8 +203,8 @@ def serialize(entries: list[Entry]) -> str:
             body = result_text(e)
             more = f" ...[{len(body) - RESULT_PREVIEW} more characters]" if len(body) > RESULT_PREVIEW else ""
             lines.append(f"[Tool result{' (error)' if e.data['is_error'] else ''}]: {body[:RESULT_PREVIEW]}{more}")
-        elif e.type == NOTICE:
-            lines.append(f"[Notice]: {e.data['text']}")
+        elif e.type in (COMPACTION, BRANCH_SUMMARY):
+            lines.append(f"[Earlier summary]: {e.data['summary']}")
     return "\n".join(lines)
 
 

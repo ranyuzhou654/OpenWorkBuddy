@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .hooks import Hook
+from .hooks import parse as parse_hooks
 from .policy import Rule
 
 DEFAULT_CONFIG = """\
@@ -40,7 +42,7 @@ context_window = 1_000_000
 max_output = 32_000
 """
 
-PROTOCOLS = ("openai-chat", "anthropic")
+PROTOCOLS = ("openai-chat", "anthropic", "openai-responses")
 EXPOSURES = ("auto", "direct", "deferred")
 
 
@@ -93,6 +95,7 @@ class Config:
     mcp: dict[str, McpServer] = field(default_factory=dict)
     skills_disabled: tuple[str, ...] = ()  # [skills] disabled = [...]
     skill_dirs: tuple[str, ...] = ()  # [skills] dirs = [...]: more places to look for skills
+    hooks: tuple[Hook, ...] = ()  # [[hooks.EVENT]] tables, Claude Code's events
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -132,7 +135,8 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
     rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
     mcp = {n: _mcp(n, m) for n, m in raw.get("mcp", {}).items()}
     return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
-                  tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())))
+                  tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())),
+                  parse_hooks(raw.get("hooks", {})))
 
 
 def _mcp(name: str, m: dict[str, Any]) -> McpServer:
