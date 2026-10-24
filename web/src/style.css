@@ -530,3 +530,20 @@ button.attach { cursor: pointer; }
 .source-snippet { font-size: 12px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .md a.cite { font-family: var(--mono); font-size: 0.78em; vertical-align: 0.25em; text-decoration: none; color: var(--clay-text);
   background: var(--clay-soft); border-radius: 4px; padding: 0 3px; margin: 0 1px; }
+
+/* --- connectors (M2) --- */
+.feishu-approval { display: grid; gap: 4px; background: var(--panel); border: 1px solid var(--warn-line); border-radius: var(--r-sm); padding: 8px 10px; }
+.feishu-approval .kv { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: baseline; font-size: 12.5px; }
+.feishu-approval .kv > span { color: var(--muted); }
+.feishu-approval pre { margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+.feishu-approval details pre { background: var(--sunk); padding: 6px 8px; border-radius: var(--r-sm); font-size: 11.5px; }
+.receipt { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); padding: 8px 12px; display: grid; gap: 4px; }
+.receipt-head { display: flex; align-items: center; gap: 8px; }
+.receipt-head .ic { width: 22px; height: 22px; border-radius: var(--r-sm); background: var(--clay-soft); color: var(--clay-text);
+  display: grid; place-items: center; font-size: 12px; }
+.receipt-head code { color: var(--muted); font-size: 12px; }
+.receipt a { font-size: 12px; word-break: break-all; }
+.receipt pre { margin: 0; font-size: 11.5px; white-space: pre-wrap; max-height: 260px; overflow: auto; }
+.card-head .grow { flex: 1; }
+.card .note code { word-break: break-all; }
+.card-head label.check { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }

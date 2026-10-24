@@ -16,7 +16,7 @@ import os
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from .sandbox import SandboxPolicy
@@ -62,6 +62,20 @@ def _deny_secrets(memory: Effect) -> tuple[Rule, ...]:
 HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"), Rule("todo", "*", "allow"),
            Rule("ask_user", "*", "allow"))
 
+# Reading through connectors (M2): Feishu read commands, and the browser tools that only look at the page.
+BROWSER_READ = ("snapshot", "find", "take_screenshot", "console_messages", "network_requests", "network_request",
+                "wait_for", "tabs", "navigate_back", "resize", "emulate_media", "close", "hover")
+CONNECTOR_READS = (Rule("feishu", "*", "allow"),
+                   *(Rule(f"mcp__browser__browser_{t}", "*", "allow") for t in BROWSER_READ))
+
+# Approved per call and never "always": writes to the user's Feishu send or publish as the user.
+ONCE_ONLY = ("feishu.write",)
+
+# Appended after every other rule (last match wins), so no preset, config rule or session approval loosens
+# them: Feishu writes always ask, and lark-cli through bash (which would bypass the connector) asks too.
+FIXED = (Rule("feishu.write", "*", "ask"), Rule("bash", "*lark-cli*", "ask"),
+         Rule("bash.unsandboxed", "*lark-cli*", "ask"))
+
 
 def _ask_protected() -> tuple[Rule, ...]:
     return tuple(Rule(a, f"{{root}}/{d}/*", "ask") for a in ("write", "edit") for d in PROTECTED)
@@ -75,14 +89,14 @@ SANDBOX_TEXT = ("Shell commands run in a sandbox: {writable}; everything else is
 PRESETS: dict[str, Preset] = {
     "readonly": Preset(
         "只读", "read-only",
-        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *HARNESS, *_deny_secrets("ask")),
+        (Rule("*", "*", "ask"), Rule("read", "*", "allow"), *HARNESS, *CONNECTOR_READS, *_deny_secrets("ask")),
         "Permission preset: read-only. You may read files freely; every write, edit or command needs the "
         "user's approval. " + SANDBOX_TEXT.format(writable="only $TMPDIR is writable")),
     "workspace": Preset(
         "工作区", "workspace",
         (Rule("*", "*", "ask"), Rule("read", "*", "allow"), Rule("write", "{root}/*", "allow"),
          Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), Rule("memory", "*", "allow"),
-         Rule("web_search", "*", "allow"), *HARNESS,
+         Rule("web_search", "*", "allow"), *HARNESS, *CONNECTOR_READS,
          *_ask_protected(), *_deny_secrets("allow")),
         "Permission preset: workspace. Reading, and editing files inside the project ({root}), need no approval "
         "(except .git and .nwb). Changes outside the project need the user's approval. "
@@ -101,6 +115,11 @@ class Check:
     resource: str
     effect: Effect
     rule: Rule | None  # the rule that decided; None means the built-in default (ask)
+    preview: Any = None  # what the approval card shows besides the call (a connector's dry run)
+
+    @property
+    def once_only(self) -> bool:
+        return self.action in ONCE_ONLY
 
     def suggestion(self) -> Rule:
         """What "always allow" adds: the containing directory for paths, the exact command otherwise.

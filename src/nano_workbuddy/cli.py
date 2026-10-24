@@ -118,7 +118,10 @@ def terminal_ask(ws: Workspace, log: SessionLog) -> Ask:
     async def ask(check: Check, tool: Tool, call: ToolCall) -> Result | None:
         PRINTER._end_stream()
         always = check.suggestion()
-        print(f"{YELLOW}? {check.action}: {check.resource[:400]}{RESET}\n"
+        print(f"{YELLOW}? {check.action}: {check.resource[:400]}{RESET}")
+        if check.preview:
+            print(f"{DIM}{json.dumps(check.preview, ensure_ascii=False, indent=2)[:1500]}{RESET}")
+        print("  y = allow once · n [reason] = deny" if check.once_only else
               f"  y = allow once · a = always allow {always.action} {always.resource[:80]} · n [reason] = deny")
         loop, task = asyncio.get_running_loop(), asyncio.current_task()
         loop.remove_signal_handler(signal.SIGINT)  # so Ctrl-C interrupts input() instead of waiting for Enter
@@ -132,7 +135,8 @@ def terminal_ask(ws: Workspace, log: SessionLog) -> Ask:
         if answer.lower() in ("y", "yes"):
             return None
         if answer.lower() in ("a", "always"):
-            ws.index.add_rule(log.id, always)
+            if not check.once_only:  # a Feishu write is approved per call: "a" counts as once
+                ws.index.add_rule(log.id, always)
             return None
         feedback = answer[1:].strip() if answer[:1].lower() == "n" else answer
         return Result.error("The user denied this call." + (f" Their feedback: {feedback}" if feedback else ""))

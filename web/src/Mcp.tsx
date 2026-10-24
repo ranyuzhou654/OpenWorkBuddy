@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, type Exposure, type KeyStatus, type McpSpec, type McpView, type SettingsView } from "./api";
+import { useEffect, useState } from "react";
+import { api, type Exposure, type FeishuStatus, type KeyStatus, type McpSpec, type McpView, type SettingsView } from "./api";
 
 // MCP servers live in [mcp.NAME] of config.toml and are shared by all projects. stdio servers run in
 // the sandbox: they may use the network, but write only to a temp dir and the paths listed here.
@@ -25,6 +25,65 @@ const EMPTY: McpSpec = {
 };
 
 const isRef = (v: string) => /^(env|keyring|secret):.+$/.test(v);
+
+// Feishu through the official lark-cli, as the user. Reads run freely; the listed writes are approved per call.
+function FeishuCard({ view, save }: { view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean> }) {
+  const [status, setStatus] = useState<FeishuStatus | "loading" | null>(null);
+  const check = () => {
+    setStatus("loading");
+    api.feishuStatus().then(setStatus).catch((e) => setStatus({ available: false, cli: view.feishu.cli, error: String(e) }));
+  };
+  useEffect(check, [view.feishu.cli]); // eslint-disable-line react-hooks/exhaustive-deps
+  const s = status === "loading" ? null : status;
+  return (
+    <div className="card">
+      <div className="card-head">
+        <b>飞书</b>
+        <span className="tag">官方 lark-cli · 以你本人身份</span>
+        {status === "loading" ? <span className="note">检查中…</span>
+          : !s?.available ? <span className="key missing">未找到 {view.feishu.cli}</span>
+          : s.user?.available ? <span className="key ok">✓ {s.user.name} · {s.version}</span>
+          : <span className="key missing">未授权：需要在终端运行 lark-cli auth login</span>}
+        <span className="grow" />
+        <label className="check"><input type="checkbox" checked={view.feishu.enabled}
+          onChange={(e) => save(api.putFeishu({ enabled: e.target.checked }))} />启用</label>
+      </div>
+      <p className="note">
+        助手可以直接搜索和阅读你有权限的文档、知识库、表格，查看日程和任务，读取群聊；发送/回复消息、新建/修改文档、导入文件这几类写操作
+        每次都会弹出审批卡，显示账户、目标、内容和 dry-run 预览，不能“总是允许”。删除、改权限等高风险操作不开放。令牌由 lark-cli 存在系统钥匙串里，助手和模型拿不到。
+      </p>
+      {s?.available && !s.user?.available && (
+        <div className="note warn-line">在终端里运行 <code>lark-cli auth login</code>，按提示在飞书里确认授权后，点“重新检查”。</div>
+      )}
+      <div className="row"><button onClick={check}>重新检查</button></div>
+    </div>
+  );
+}
+
+// A browser with its own profile, through the official Playwright MCP server.
+function BrowserCard({ view, save }: { view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean> }) {
+  const b = view.browser;
+  const state = { connected: "运行中", error: "启动失败", idle: "下次运行时启动", disabled: "未启用" }[b.status];
+  return (
+    <div className="card">
+      <div className="card-head">
+        <b>浏览器</b>
+        <span className="tag">Playwright · 独立配置</span>
+        <span className={`key ${b.status === "error" ? "missing" : b.status === "connected" ? "ok" : ""}`} title={b.error}>{state}</span>
+        <span className="grow" />
+        <label className="check"><input type="checkbox" checked={b.headless} disabled={!b.enabled}
+          onChange={(e) => save(api.putBrowser({ headless: e.target.checked }))} />不显示窗口</label>
+        <label className="check"><input type="checkbox" checked={b.enabled}
+          onChange={(e) => save(api.putBrowser({ enabled: e.target.checked }))} />启用</label>
+      </div>
+      <p className="note">
+        助手使用一个单独的浏览器配置（<code>{b.profile}</code>），不碰你日常 Chrome 的 cookie；需要登录的网站，在它弹出的窗口里手动登录一次即可。
+        读取页面不询问；打开网站按站点确认；点击、输入、上传、运行页面脚本每次确认。同一时间只有一个会话能操作浏览器。
+      </p>
+      {b.error && <div className="note warn-line">{b.error}</div>}
+    </div>
+  );
+}
 
 export function McpSection({ view, save, onError }: {
   view: SettingsView;
@@ -52,6 +111,9 @@ export function McpSection({ view, save, onError }: {
 
   return (
     <>
+      <h2>飞书与浏览器</h2>
+      <FeishuCard view={view} save={save} />
+      <BrowserCard view={view} save={save} />
       <h2>连接器（MCP 服务器）</h2>
       <p className="note">
         所有项目共用。每次运行开始时连接已启用的服务器，关掉的服务器从下一次运行起不再出现。MCP 工具和内置工具走同一套权限：

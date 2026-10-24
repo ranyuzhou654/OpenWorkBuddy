@@ -258,7 +258,9 @@ def _this_turn(path: list[Entry], type: str) -> set[str]:
 
 
 async def run_tools(run: Run, calls: list[ToolCall]) -> None:
-    started = _this_turn(run.log.path(), TOOL_STARTED)
+    path = run.log.path()
+    started = _this_turn(path, TOOL_STARTED)
+    turn = next((e.id for e in reversed(path) if e.type == ASSISTANT), "")
     try:
         fresh = []
         for c in calls:
@@ -267,10 +269,10 @@ async def run_tools(run: Run, calls: list[ToolCall]) -> None:
             else:
                 fresh.append(c)
         if len(fresh) > 1 and all((t := run.tools.get(c["name"])) and t.parallel for c in fresh):
-            await asyncio.gather(*(_one(run, c) for c in fresh))
+            await asyncio.gather(*(_one(run, c, turn) for c in fresh))
         else:
             for c in fresh:  # a batch with any writer runs in order: order is part of its meaning
-                await _one(run, c)
+                await _one(run, c, turn)
     except asyncio.CancelledError as e:
         reason = INTERRUPTED if SHUTDOWN in e.args else CANCELLED
         answered = _this_turn(run.log.path(), TOOL_RESULT)
@@ -280,14 +282,14 @@ async def run_tools(run: Run, calls: list[ToolCall]) -> None:
         raise
 
 
-async def _one(run: Run, c: ToolCall) -> None:
+async def _one(run: Run, c: ToolCall, turn: str = "") -> None:
     t = run.tools.get(c["name"])
     if t is None:
         return _finish(run, c, Result.error(f"unknown tool {c['name']!r}"))
     if run.gate and (blocked := await run.gate(t, c)):  # asked before tool_started: nothing has happened yet
         return _finish(run, c, blocked)
     run.log.append(TOOL_STARTED, {"call_id": c["id"], "name": c["name"]}, run_id=run.run_id)
-    r = await execute(t, c, replace(run.ctx, call_id=c["id"]))
+    r = await execute(t, c, replace(run.ctx, call_id=c["id"], call_key=f"{turn}:{c['id']}"))
     _finish(run, c, await run.after_tool(t, c, r) if run.after_tool else r)
 
 

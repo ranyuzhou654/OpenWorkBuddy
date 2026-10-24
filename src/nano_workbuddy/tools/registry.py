@@ -38,6 +38,8 @@ class ToolCtx:
     search: Any = None  # the web_search backend (search.SearchProvider); None: not configured
     sources: dict[str, dict[str, Any]] = field(default_factory=dict)  # url -> source record [S#] in this session
     versions: dict[str, list[str]] = field(default_factory=dict)  # path -> sha256 of each delivered version
+    feishu: Any = None  # connectors.feishu.Feishu, or None: not enabled
+    call_key: str = ""  # this call, stable across a crash and replay: "<assistant entry id>:<call id>"
 
 
 @dataclass(slots=True)
@@ -70,6 +72,7 @@ class Tool:
     recover: Callable[[Any, ToolCtx], Verdict] | None  # after a crash: did the call already take effect?
     scope: Callable[[Any, ToolCtx], tuple[str, str]] | None  # (action, resource) for permission rules
     input_schema: dict[str, Any] | None = None  # given by the tool's owner (MCP) instead of derived from args
+    preview: Callable[[Any, ToolCtx], Awaitable[dict[str, Any] | None]] | None = None  # for the approval card
 
     def permission_scope(self, args: Any, ctx: ToolCtx) -> tuple[str, str]:
         return self.scope(args, ctx) if self.scope else (self.name, "")

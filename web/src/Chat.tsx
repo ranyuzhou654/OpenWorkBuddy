@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, type Approval, type Artifact, type Attachment, type Block, type Entry, type Question, type Source, type Todo } from "./api";
+import {
+  api, type Approval, type Artifact, type Attachment, type Block, type Entry, type FeishuPreview, type Question, type Receipt,
+  type Source, type Todo,
+} from "./api";
 import { ArtifactCard, AttachmentChips } from "./Files";
 import { childrenOf, pathTo, sourcesOf, textOf, type State } from "./session";
 
@@ -13,7 +16,8 @@ type Item =
   | { kind: "entry"; e: Entry }
   | { kind: "say"; key: string; blocks: Block[]; stop?: string }
   | { kind: "steps"; key: string; calls: Step[] }
-  | { kind: "artifact"; key: string; a: Artifact };
+  | { kind: "artifact"; key: string; a: Artifact }
+  | { kind: "receipt"; key: string; r: Receipt };
 
 type Thought = Extract<Block, { type: "thinking" }>;
 type Step = ToolCall | Thought; // thinking that only leads into tool calls stays inside the group
@@ -53,6 +57,9 @@ function toItems(path: Entry[]): Item[] {
     } else if (e.type === "tool_result" && e.data.meta?.artifact) { // a delivered file is an event the user sees
       flush();
       items.push({ kind: "artifact", key: e.id, a: e.data.meta.artifact });
+    } else if (e.type === "tool_result" && e.data.meta?.receipt) { // so is a message sent or a document written
+      flush();
+      items.push({ kind: "receipt", key: e.id, r: e.data.meta.receipt });
     }
   }
   flush();
@@ -91,6 +98,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
         if (it.kind === "steps")
           return <StepGroup key={it.key} calls={it.calls} runs={runs} last={n === items.length - 1} />;
         if (it.kind === "artifact") return <ArtifactCard key={it.key} sid={sid} a={it.a} />;
+        if (it.kind === "receipt") return <ReceiptCard key={it.key} r={it.r} />;
         if (it.kind === "say")
           return (
             <div key={it.key} className="msg assistant">
@@ -240,6 +248,8 @@ function summary(name: string, args: Record<string, any>): string {
   if (name === "glob") return `${args.pattern ?? ""}${args.path && args.path !== "." ? `  in ${args.path}` : ""}`;
   if (name === "web_fetch") return String(args.url ?? "");
   if (name === "web_search") return String(args.query ?? "");
+  if (name === "feishu") return Array.isArray(args.command) ? args.command.join(" ") : "";
+  if (name.startsWith("mcp__browser__")) return String(args.url ?? args.element ?? args.text ?? args.key ?? "");
   if (name === "create_document" || name === "present") return String(args.path ?? "");
   if (name === "ask_user") return String(args.question ?? "");
   if (name === "todo") {
@@ -337,7 +347,7 @@ function StepGroup({ calls: steps, runs, last }: { calls: Step[]; runs: Runs; la
 
 const ICONS: Record<string, string> = {
   read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", web_search: "⌕", todo: "✓", ask_user: "?",
-  create_document: "D", present: "⇪",
+  create_document: "D", present: "⇪", feishu: "飞",
   skill: "S", memory: "M", tool_search: "⌕",
 };
 
@@ -404,8 +414,9 @@ function ApprovalCard({ approval }: { approval: Approval }) {
       {approval.action === "bash.unsandboxed" && (
         <div className="warn-line">这条命令要求在沙箱外运行：可以联网，也可以写项目目录以外的文件。</div>
       )}
-      <ToolArgs name={approval.tool} args={approval.args} />
-      {approval.resource && approval.tool !== "bash" && (
+      {approval.tool === "feishu" ? <FeishuApproval args={approval.args} preview={approval.preview ?? null} />
+        : <ToolArgs name={approval.tool} args={approval.args} />}
+      {approval.resource && approval.tool !== "bash" && approval.tool !== "feishu" && (
         <div className="note">{approval.resource.startsWith("http") ? "地址" : "实际路径"}：{approval.resource}</div>
       )}
       {approval.tool.startsWith("mcp__") && <div className="note">来自 MCP 服务器的工具。“总是允许”会放行这个工具的所有调用（本会话内）。</div>}
@@ -418,13 +429,53 @@ function ApprovalCard({ approval }: { approval: Approval }) {
       ) : (
         <div className="row">
           <button className="primary" onClick={() => decide("once")}>允许</button>
-          <button onClick={() => decide("always")} title={`添加规则：${approval.always.action} ${approval.always.resource}`}>
-            本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}`
-              : approval.always.resource ? "这条命令" : "此工具"}
-          </button>
+          {approval.always ? (
+            <button onClick={() => decide("always")} title={`添加规则：${approval.always.action} ${approval.always.resource}`}>
+              本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}`
+                : approval.always.resource ? "这条命令" : "此工具"}
+            </button>
+          ) : <span className="note">这类操作每次单独确认</span>}
           <button className="danger" onClick={() => setRejecting(true)}>拒绝…</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// What a Feishu write will do: who, what, to which object, the content, and the CLI's own dry run.
+const CONTENT_FLAGS = ["--markdown", "--text", "--content", "--title", "--name", "--pattern", "--command", "--file"];
+const FEISHU_ACTIONS: Record<string, string> = {
+  "send a message": "发送消息", "reply to a message": "回复消息", "create a document": "创建文档",
+  "change a document": "修改文档", "import a local file as a cloud document": "导入文件为云文档",
+};
+
+function FeishuApproval({ args, preview }: { args: Record<string, any>; preview: FeishuPreview | null }) {
+  const argv: string[] = Array.isArray(args.command) ? args.command.map(String) : [];
+  const flag = (f: string) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
+  return (
+    <div className="feishu-approval">
+      <div className="kv"><span>账户</span><b>{preview?.account ?? "（未知）"}</b></div>
+      <div className="kv"><span>操作</span><b>{FEISHU_ACTIONS[preview?.action ?? ""] ?? argv.slice(0, 2).join(" ")}</b></div>
+      <div className="kv"><span>对象</span><code>{preview?.target ?? "—"}</code></div>
+      {CONTENT_FLAGS.filter((f) => flag(f) !== undefined).map((f) => (
+        <div key={f} className="kv"><span>{f.slice(2)}</span><pre>{flag(f)}</pre></div>
+      ))}
+      {preview?.error && <div className="note warn-line">预览失败：{preview.error}</div>}
+      {preview?.dry_run !== undefined && (
+        <details><summary>dry-run 预览（将发出的请求）</summary><pre>{JSON.stringify(preview.dry_run, null, 2)}</pre></details>
+      )}
+      <details><summary>完整命令</summary><pre>lark-cli {argv.join(" ")} --as user</pre></details>
+    </div>
+  );
+}
+
+function ReceiptCard({ r }: { r: Receipt }) {
+  return (
+    <div className="receipt">
+      <div className="receipt-head"><span className="ic">飞</span><b>已在飞书{FEISHU_ACTIONS[r.what] ?? r.command}</b>
+        <code>{r.target}</code></div>
+      {r.links.map((l) => <a key={l} href={l} target="_blank" rel="noreferrer">{l}</a>)}
+      <details><summary>回执</summary><pre>{JSON.stringify(r.result, null, 2).slice(0, 4000)}</pre></details>
     </div>
   );
 }

@@ -9,6 +9,7 @@ connections. Keys are never written to config.toml, only references:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import tempfile
@@ -83,6 +84,22 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class FeishuConfig:
+    """[feishu]: Feishu through the official lark-cli (connectors/feishu.py), as the user."""
+
+    enabled: bool = False
+    cli: str = "lark-cli"
+
+
+@dataclass(frozen=True)
+class BrowserConfig:
+    """[browser]: a browser with its own profile through Playwright MCP (connectors/browser.py)."""
+
+    enabled: bool = False
+    headless: bool = False  # with a window by default, so the user can watch and log in
+
+
+@dataclass(frozen=True)
 class McpServer:
     """[mcp.NAME]: a stdio command or a Streamable HTTP url (D14). Values in env and headers may be
     key references (env:/keyring:/secret:), resolved when the server starts."""
@@ -116,6 +133,8 @@ class Config:
     hooks: tuple[Hook, ...] = ()  # [[hooks.EVENT]] tables, Claude Code's events
     scratch_dir: Path = field(default_factory=lambda: default_scratch())  # where chats without a project work
     search: SearchConfig = field(default_factory=SearchConfig)
+    feishu: FeishuConfig = field(default_factory=FeishuConfig)
+    browser: BrowserConfig = field(default_factory=BrowserConfig)
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -166,7 +185,18 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
     return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
                   tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())),
                   parse_hooks(raw.get("hooks", {})),
-                  Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch(), search)
+                  Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch(), search,
+                  _table(FeishuConfig, raw.get("feishu", {})), _table(BrowserConfig, raw.get("browser", {})))
+
+
+def _table(kind: type, values: dict[str, Any]) -> Any:
+    """A small config table into its dataclass; unknown keys are ignored, wrong types are an error."""
+    known = {f.name: f for f in dataclasses.fields(kind)}
+    picked = {k: v for k, v in values.items() if k in known}
+    for k, v in picked.items():
+        if type(v) is not type(known[k].default):
+            raise ValueError(f"{kind.__name__}: {k} must be a {type(known[k].default).__name__}")
+    return kind(**picked)
 
 
 def _mcp(name: str, m: dict[str, Any]) -> McpServer:

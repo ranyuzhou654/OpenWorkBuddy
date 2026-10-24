@@ -165,6 +165,18 @@ def put_search(home: Path, provider: str, api_key: str | None = None, key_ref: s
     return cfg
 
 
+def put_table(home: Path, key: str, values: dict[str, Any]) -> Config:
+    """Set keys of a small table such as [feishu] or [browser]; parse() validates them."""
+
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if key not in doc:
+            doc[key] = tomlkit.table()
+        for k, v in values.items():
+            doc[key][k] = v
+
+    return edit(home, change)
+
+
 def delete_model(home: Path, name: str) -> Config:
     def change(doc: tomlkit.TOMLDocument) -> None:
         if doc.get("default_model") == name:

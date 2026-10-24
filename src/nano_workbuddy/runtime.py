@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from . import artifacts, compaction, hooks, llm, policy, prompt, search, skills
-from .config import Config, ModelSpec, load, secret
+from .config import Config, McpServer, ModelSpec, load, secret
+from .connectors import browser
+from .connectors.feishu import Feishu, feishu
+from .connectors.feishu import notice as feishu_notice
 from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
 from .log import SessionBusy, SessionLog
@@ -47,6 +50,9 @@ class Workspace:
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
         self._stamps: dict[str, dict[str, tuple[int, int]]] = {}  # per-session read stamps survive across runs
         self._records: dict[str, tuple[dict, dict]] = {}  # per session: sources by url, delivered versions by path
+        self._feishu: Feishu | None = None
+        self.browser_lease = browser.Lease()
+        self.running: set[str] = set()  # sessions with a run in progress (the browser lease needs to know)
         self.index.reindex(self.sessions_dir)
 
     @classmethod
@@ -95,6 +101,21 @@ class Workspace:
         files = [artifacts.find_upload(self.uploads_dir(log.id), i, self.store) for i in dict.fromkeys(ids)]
         vision = self.cfg.model(self.model_ref(log)).sees_images
         return files, [b for f in files for b in artifacts.upload_blocks(f, self.store, vision)]
+
+    def feishu(self) -> Feishu | None:
+        """The Feishu connector when enabled in the settings (whether or not lark-cli is installed)."""
+        if not self.cfg.feishu.enabled:
+            return None
+        if self._feishu is None or self._feishu.cli != (Feishu(self.cfg.feishu.cli).cli):
+            self._feishu = Feishu(self.cfg.feishu.cli)
+        return self._feishu
+
+    def mcp_specs(self) -> dict[str, McpServer]:
+        """Configured MCP servers plus the built-in browser when it is enabled."""
+        specs = dict(self.cfg.mcp)
+        if self.cfg.browser.enabled:
+            specs[browser.NAME] = browser.spec(self.cfg.home.resolve(), self.cfg.browser.headless)
+        return specs
 
     def records(self, log: SessionLog) -> tuple[dict, dict]:
         """The session's numbered sources and delivered versions, rebuilt from its log once per process."""
@@ -201,19 +222,36 @@ class Workspace:
             enabled = {n: s for n, s in found.items() if n not in self.cfg.skills_disabled}
             notices["skills"] = skills.listing(enabled) or "No skills are enabled."
             base += [skills.skill_tool(enabled)] if enabled else []
-        if not self.cfg.mcp:
+        if (lark := self.feishu()) is not None:
+            if lark.available:
+                base.append(feishu)
+                notices["feishu"] = feishu_notice(await lark.status())
+            else:
+                notices["feishu"] = (f"Feishu is enabled in the settings but {self.cfg.feishu.cli} was not found, so "
+                                     "Feishu cannot be used now. Tell the user if they ask for it.")
+        specs = self.mcp_specs()
+        if not specs:
             return Registry(base), notices
-        servers = await self.mcp.connect(self.cfg.mcp)
+        servers = await self.mcp.connect(specs)
         live = [s for s in servers if s.client]
-        auto = sum(estimate_tokens(json.dumps([t.schema() for t in s.as_tools()])) for s in live
+        mcp_tools = {s.spec.name: s.as_tools() for s in live}
+        if browser.NAME in mcp_tools and self.cfg.browser.enabled:
+            mcp_tools[browser.NAME] = browser.wrap(mcp_tools[browser.NAME], self.browser_lease, self.running)
+        auto = sum(estimate_tokens(json.dumps([t.schema() for t in mcp_tools[s.spec.name]])) for s in live
                    if s.spec.exposure == "auto")
         lazy = {s.spec.name for s in live
                 if s.spec.exposure == "deferred" or (s.spec.exposure == "auto" and auto > DEFER_SHARE *
                                                      spec.context_window)}
-        mcp_tools = {s.spec.name: s.as_tools() for s in live}
         deferred = [t.name for s in live if s.spec.name in lazy for t in mcp_tools[s.spec.name]]
         tools = [*base, *([tool_search] if deferred else []), *(t for ts in mcp_tools.values() for t in ts)]
-        return Registry(tools, deferred), notices | {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
+        if self.cfg.browser.enabled:
+            srv = next((s for s in servers if s.spec.name == browser.NAME), None)
+            notices["browser"] = browser.NOTICE if srv and srv.client else (
+                f"The browser is enabled but could not start ({srv.error if srv else 'not started'}); it cannot be "
+                "used now.")
+        if self.cfg.mcp:
+            notices["mcp"] = mcp_notice(self.cfg.mcp, [s for s in servers if s.spec.name in self.cfg.mcp], lazy)
+        return Registry(tools, deferred), notices
 
     def tools_of(self, log: SessionLog) -> Registry:
         """The tools of the session's latest run; built-in tools if it has not run since the server started."""
@@ -225,8 +263,8 @@ class Workspace:
         return self.index.session(log.id)["settings"]["preset"]
 
     def rules(self, log: SessionLog, preset: str) -> list[policy.Rule]:
-        """Last match wins: preset defaults < config.toml < approved for this session."""
-        return [*policy.PRESETS[preset].rules, *self.cfg.rules, *self.index.session_rules(log.id)]
+        """Last match wins: preset defaults < config.toml < approved for this session < fixed rules."""
+        return [*policy.PRESETS[preset].rules, *self.cfg.rules, *self.index.session_rules(log.id), *policy.FIXED]
 
     # runs
 
@@ -350,7 +388,7 @@ class Workspace:
                       sandbox=policy.sandbox_policy(preset, root, tmp_dir(log.id), home, spill),
                       tmp=tmp_dir(log.id), tools=tools, question=question, store=self.store,
                       vision=self.cfg.model(model_ref).sees_images, search=self.search_provider(),
-                      sources=sources, versions=versions)
+                      sources=sources, versions=versions, feishu=self.feishu())
         places = {"root": str(root), "home": str(home), "spill": str(spill)}
 
         async def gate(tool: Tool, call: ToolCall) -> Result | None:
@@ -374,6 +412,11 @@ class Workspace:
             if ask is None:
                 return Result.error(f"{action} on {resource} needs the user's approval, which this client "
                                     "cannot ask for.")
+            if tool.preview:  # e.g. the connector's dry run of the exact request
+                try:
+                    check = dataclasses.replace(check, preview=await asyncio.wait_for(tool.preview(args, ctx), 40))
+                except Exception as e:  # a preview is a courtesy: the approval is still asked without it
+                    check = dataclasses.replace(check, preview={"error": f"{type(e).__name__}: {e}"})
             return await ask(check, tool, call)
 
         async def after_tool(tool: Tool, call: ToolCall, r: Result) -> Result:
@@ -401,6 +444,7 @@ class Workspace:
         """Unknown errors propagate to the caller; the run is still marked so it is not resumed."""
         status, usage = "error", {}
         emit({"type": "run.started", "run_id": run_row["id"]})
+        self.running.add(log.id)
         try:
             ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
             tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log))
@@ -412,6 +456,8 @@ class Workspace:
             status = "interrupted" if SHUTDOWN in e.args else "cancelled"  # interrupted runs resume on restart
             raise
         finally:
+            self.running.discard(log.id)
+            self.browser_lease.release(log.id)
             self.index.finish_run(run_row["id"], status, usage)
             self.index.sync_session(log)
             emit({"type": "run.finished", "run_id": run_row["id"], "status": status, "usage": usage})

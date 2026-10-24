@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from . import artifacts, documents, llm, sandbox, search, settings, skills
 from .config import McpServer, key_status, secret
+from .connectors.feishu import Feishu
 from .log import SessionBusy, entry_json
 from .memory import project_file
 from .policy import PRESETS
@@ -103,6 +104,16 @@ class SearchBody(BaseModel):
     api_key: str | None = None  # plaintext, stored in secrets.json
     key_ref: str | None = None  # or env:NAME / keyring:NAME
     clear: bool = False  # remove the key: web_search is no longer offered
+
+
+class FeishuBody(BaseModel):
+    enabled: bool | None = None
+    cli: str | None = None
+
+
+class BrowserBody(BaseModel):
+    enabled: bool | None = None
+    headless: bool | None = None
 
 
 class DefaultModel(BaseModel):
@@ -480,6 +491,11 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 "models": [{"name": m.name, "provider": m.provider.name, "id": m.id, "context_window": m.context_window,
                             "max_output": m.max_output, "params": m.params, "vision": m.vision,
                             "sees_images": m.sees_images} for m in cfg.models.values()],
+                "feishu": {"enabled": cfg.feishu.enabled, "cli": cfg.feishu.cli},
+                "browser": {"enabled": cfg.browser.enabled, "headless": cfg.browser.headless,
+                            "profile": str(cfg.home / "browser" / "profile"),
+                            **(ws.mcp.status({"browser": ws.mcp_specs()["browser"]})["browser"]
+                               if cfg.browser.enabled else {"status": "disabled", "error": "", "tools": []})},
                 "search": {"provider": cfg.search.provider,
                            "key": key_status(cfg.search.api_key, cfg.home) if cfg.search.api_key else None},
                 "mcp": [{**dataclasses.asdict(m), **status, "keys": {k: key_status(v, cfg.home)
@@ -521,6 +537,28 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     async def put_model(name: str, body: ModelBody) -> dict[str, Any]:
         return apply(lambda: settings.put_model(ws.cfg.home, name, body.provider, body.id, body.context_window,
                                                 body.max_output, body.params, body.vision))
+
+    @app.put("/api/settings/feishu")
+    async def put_feishu(body: FeishuBody) -> dict[str, Any]:
+        return apply(lambda: settings.put_table(ws.cfg.home, "feishu", body.model_dump(exclude_none=True)))
+
+    @app.put("/api/settings/browser")
+    async def put_browser(body: BrowserBody) -> dict[str, Any]:
+        return apply(lambda: settings.put_table(ws.cfg.home, "browser", body.model_dump(exclude_none=True)))
+
+    @app.get("/api/connectors/feishu")
+    async def feishu_status() -> dict[str, Any]:
+        """Whether lark-cli is installed, its version, the app and whether the user identity is logged in.
+        Never the tokens: `auth status` does not print them."""
+        lark = Feishu(ws.cfg.feishu.cli)
+        if not lark.available:
+            return {"available": False, "cli": ws.cfg.feishu.cli}
+        status = await lark.status(max_age=0)
+        user = status.get("identities", {}).get("user", {})
+        return {"available": True, "cli": lark.cli, "version": await lark.version(), "app_id": status.get("appId"),
+                "brand": status.get("brand"), "user": {"available": bool(user.get("available")),
+                                                       "name": user.get("userName"), "message": user.get("message")},
+                "error": status.get("error")}
 
     @app.put("/api/settings/search")
     async def put_search(body: SearchBody) -> dict[str, Any]:

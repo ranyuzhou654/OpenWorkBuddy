@@ -99,7 +99,36 @@ export interface Approval {
   args: Record<string, any>;
   action: string; // e.g. "write", "bash.unsandboxed"
   resource: string; // the path or command the permission check saw
-  always: { action: string; resource: string }; // the rule "always allow" would add
+  always: { action: string; resource: string } | null; // the rule "always allow" would add; null: approve each call
+  preview?: FeishuPreview | null; // a connector's dry run of the exact request
+}
+
+export interface FeishuPreview {
+  account?: string;
+  action?: string;
+  target?: string;
+  dry_run?: unknown;
+  error?: string;
+}
+
+// The result of a write through a connector, kept with the tool result.
+export interface Receipt {
+  command: string;
+  target: string;
+  what: string;
+  result: unknown;
+  links: string[];
+  at: number;
+}
+
+export interface FeishuStatus {
+  available: boolean;
+  cli: string;
+  version?: string;
+  app_id?: string;
+  brand?: string;
+  user?: { available: boolean; name?: string; message?: string };
+  error?: string;
 }
 
 export interface Question {
@@ -245,6 +274,9 @@ export interface SettingsView {
   skills: SkillView[];
   skill_dirs: string[];
   search: SearchView;
+  feishu: { enabled: boolean; cli: string };
+  browser: { enabled: boolean; headless: boolean; profile: string; status: McpView["status"]; error: string;
+    tools: { name: string; description: string }[] };
 }
 
 export interface RemoteModel {
@@ -320,6 +352,9 @@ export const api = {
   reveal: (sid: string, path: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/reveal`, { path }),
   putSearch: (body: { provider?: string; api_key?: string; key_ref?: string; clear?: boolean }) =>
     call<SettingsView>("PUT", "/api/settings/search", { provider: "tavily", ...body }),
+  putFeishu: (body: { enabled?: boolean; cli?: string }) => call<SettingsView>("PUT", "/api/settings/feishu", body),
+  putBrowser: (body: { enabled?: boolean; headless?: boolean }) => call<SettingsView>("PUT", "/api/settings/browser", body),
+  feishuStatus: () => call<FeishuStatus>("GET", "/api/connectors/feishu"),
   testSearch: () => call<{ ok: boolean; seconds?: number; results?: number; error?: string }>("POST", "/api/settings/search/test"),
   // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
   checkout: (sid: string, entry_id: string, descend = false, summarize = branchSummary.get()) =>

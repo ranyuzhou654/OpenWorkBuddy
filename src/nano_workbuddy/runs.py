@@ -285,7 +285,8 @@ class RunManager:
             aid = new_id("a")
             always = check.suggestion()
             view = {"id": aid, "call_id": call["id"], "tool": tool.name, "args": call["args"], "action": check.action,
-                    "resource": check.resource, "always": {"action": always.action, "resource": always.resource}}
+                    "resource": check.resource, "preview": check.preview,
+                    "always": None if check.once_only else {"action": always.action, "resource": always.resource}}
             fut: asyncio.Future[tuple[str, str | None]] = asyncio.get_running_loop().create_future()
             live.approvals[aid] = (view, fut)
             self.ws.index.add_approval(aid, log.id, live.run_id, call)
@@ -298,7 +299,7 @@ class RunManager:
                 raise
             finally:
                 live.approvals.pop(aid, None)
-            if decision == "always":
+            if decision == "always" and not check.once_only:
                 self.ws.index.add_rule(log.id, always)
             if decision == "reject":
                 return Result.error("The user denied this call." + (f" Their feedback: {feedback}" if feedback else ""))
