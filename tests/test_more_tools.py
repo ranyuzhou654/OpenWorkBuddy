@@ -209,3 +209,24 @@ async def test_ask_user_without_a_ui(make_ws, project):
     await asyncio.wait_for(ws.submit(log, "go"), 5)
     result = next(e.data for e in log.path() if e.type == TOOL_RESULT)
     assert result["is_error"] and "cannot ask questions" in text_of(result["content"])
+
+
+async def test_grep_long_lines_are_previewed(project, tmp_path, engine):
+    (project / "min.js").write_text("var a=1;" * 100 + "NEEDLE" + "x" * 500 + "\n")
+    (project / "short.txt").write_text("NEEDLE here\n")
+    _, out = await run("grep", project, tmp_path, pattern="NEEDLE", mode="content")
+    long, short = out.splitlines()
+    assert long.startswith("min.js:1:var a=1;") and len(long) < 400  # cut, not dropped
+    assert short == "short.txt:1:NEEDLE here"
+
+
+async def test_rg_honours_gitignore(project, tmp_path):
+    if not shutil.which("rg"):
+        pytest.skip("ripgrep is not installed")
+    (project / ".gitignore").write_text("build/\n")
+    (project / ".git").mkdir()  # ripgrep reads .gitignore only inside a repository
+    (project / "build").mkdir()
+    (project / "build" / "out.js").write_text("NEEDLE\n")
+    (project / "src.py").write_text("NEEDLE\n")
+    _, out = await run("grep", project, tmp_path, pattern="NEEDLE")
+    assert out == "src.py"

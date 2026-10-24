@@ -137,7 +137,8 @@ def _py(args: GrepArgs, base: Path, ctx: ToolCtx) -> list[str]:
 
 async def _rg(rg: str, args: GrepArgs, base: Path, ctx: ToolCtx) -> list[str]:
     mode = {"files": ["--files-with-matches"], "count": ["--count"], "content": ["--line-number", "--no-heading",
-                                                                                   f"--max-columns={MAX_LINE}"]}
+                                                                                   f"--max-columns={MAX_LINE}",
+                                                                                   "--max-columns-preview"]}
     argv = [rg, "--color=never", "--sort=path", "--with-filename", *mode[args.mode], f"--max-filesize={MAX_FILE_BYTES}",
             *(["-i"] if args.ignore_case else []), *(["--glob", args.glob] if args.glob else []),
             "--glob", "!node_modules", "--", args.pattern, str(base)]
