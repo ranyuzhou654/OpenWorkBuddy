@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
-from . import llm, sandbox, settings, skills
+from . import artifacts, documents, llm, sandbox, search, settings, skills
 from .config import McpServer, key_status, secret
 from .log import SessionBusy, entry_json
 from .memory import project_file
@@ -62,9 +62,14 @@ class Compact(BaseModel):
 
 class SendMessage(BaseModel):
     text: str
+    attachments: list[str] = []  # ids from PUT /api/sessions/{sid}/attachments
     request_id: str | None = None
     parent_id: str | None = None  # set when editing an earlier message: the new message branches from here
     delivery: Literal["auto", "steer", "queue"] = "auto"
+
+
+class Reveal(BaseModel):
+    path: str
 
 
 class Checkout(BaseModel):
@@ -90,6 +95,14 @@ class ModelBody(BaseModel):
     context_window: int
     max_output: int
     params: dict[str, Any] = {}
+    vision: bool | None = None  # None: guess from the protocol
+
+
+class SearchBody(BaseModel):
+    provider: str = "tavily"
+    api_key: str | None = None  # plaintext, stored in secrets.json
+    key_ref: str | None = None  # or env:NAME / keyring:NAME
+    clear: bool = False  # remove the key: web_search is no longer offered
 
 
 class DefaultModel(BaseModel):
@@ -332,11 +345,67 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
         log = session_log(sid)
         if body.parent_id is not None and body.parent_id not in log.entries:
             raise HTTPException(400, "unknown parent_id")
+        if not body.text.strip() and not body.attachments:
+            raise HTTPException(400, "empty message")
         try:
             return {"delivery": runs.send(log, body.text, request_id=body.request_id, parent_id=body.parent_id,
-                                          delivery=body.delivery)}
+                                          delivery=body.delivery, attachments=body.attachments)}
         except Busy as e:
             raise HTTPException(409, str(e)) from e
+        except KeyError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.put("/api/sessions/{sid}/attachments")
+    async def upload(sid: str, request: Request, name: str = Query(..., min_length=1)) -> dict[str, Any]:
+        """The raw file as the request body (no multipart parser needed); returns the attachment to send."""
+        log = session_log(sid)
+        if int(request.headers.get("content-length") or 0) > artifacts.MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "file is larger than 50 MB")
+        data = await request.body()
+        try:
+            return await asyncio.to_thread(ws.upload, log, name, data)
+        except ValueError as e:
+            raise HTTPException(413, str(e)) from e
+
+    @app.get("/api/sessions/{sid}/files/{digest}")
+    async def file(sid: str, digest: str, name: str = "file", download: bool = False) -> FileResponse:
+        """A kept version of a delivered file, or an attachment: only those this session's log refers to."""
+        log = session_log(sid)
+        if digest not in artifacts.files_of(log):
+            raise HTTPException(404, "no such file in this session")
+        name = artifacts.safe_name(name)
+        return FileResponse(artifacts.blob(ws.store, digest), media_type=artifacts.mime_of(Path(name)),
+                            filename=name, content_disposition_type="attachment" if download else "inline")
+
+    @app.get("/api/sessions/{sid}/files/{digest}/text")
+    async def file_text(sid: str, digest: str, name: str) -> dict[str, Any]:
+        """The text of a kept document, for previewing Word, PowerPoint and Excel files in the browser."""
+        log = session_log(sid)
+        if digest not in artifacts.files_of(log):
+            raise HTTPException(404, "no such file in this session")
+        kind = documents.KINDS.get(Path(name).suffix.lower())
+        if kind is None:
+            raise HTTPException(400, "not a document type with a text preview")
+        try:
+            doc = await asyncio.to_thread(documents.parse, artifacts.blob(ws.store, digest), kind)
+        except documents.DocumentError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"description": doc.describe(), "notes": doc.notes, "text": doc.text()}
+
+    @app.post("/api/sessions/{sid}/reveal")
+    async def reveal(sid: str, body: Reveal) -> dict[str, bool]:
+        """Show a delivered file in Finder (or the file manager): the server runs on the user's own machine."""
+        log = session_log(sid)
+        if body.path not in artifacts.session_records(log)[1]:
+            raise HTTPException(404, "not a file delivered in this session")
+        if not Path(body.path).exists():
+            raise HTTPException(410, "the file no longer exists at that path; download the kept version instead")
+        argv = (["open", "-R", body.path] if sys.platform == "darwin"
+                else ["xdg-open", str(Path(body.path).parent)])
+        if not shutil.which(argv[0]):
+            raise HTTPException(501, f"{argv[0]} is not available")
+        await asyncio.create_subprocess_exec(*argv)
+        return {"ok": True}
 
     @app.post("/api/sessions/{sid}/checkout")
     async def checkout(sid: str, body: Checkout) -> dict[str, str | None]:
@@ -409,7 +478,10 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 "providers": [{"name": p.name, "protocol": p.protocol, "base_url": p.base_url,
                                "key": key_status(p.api_key, cfg.home)} for p in cfg.providers.values()],
                 "models": [{"name": m.name, "provider": m.provider.name, "id": m.id, "context_window": m.context_window,
-                            "max_output": m.max_output, "params": m.params} for m in cfg.models.values()],
+                            "max_output": m.max_output, "params": m.params, "vision": m.vision,
+                            "sees_images": m.sees_images} for m in cfg.models.values()],
+                "search": {"provider": cfg.search.provider,
+                           "key": key_status(cfg.search.api_key, cfg.home) if cfg.search.api_key else None},
                 "mcp": [{**dataclasses.asdict(m), **status, "keys": {k: key_status(v, cfg.home)
                                                                      for k, v in (*m.env.items(), *m.headers.items())
                                                                      if v.startswith(("env:", "keyring:", "secret:"))}}
@@ -448,7 +520,25 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     @app.put("/api/settings/models/{name}")
     async def put_model(name: str, body: ModelBody) -> dict[str, Any]:
         return apply(lambda: settings.put_model(ws.cfg.home, name, body.provider, body.id, body.context_window,
-                                                body.max_output, body.params))
+                                                body.max_output, body.params, body.vision))
+
+    @app.put("/api/settings/search")
+    async def put_search(body: SearchBody) -> dict[str, Any]:
+        if body.key_ref and not body.key_ref.startswith(("env:", "keyring:")):
+            raise HTTPException(400, "key_ref must be env:NAME or keyring:NAME")
+        return apply(lambda: settings.put_search(ws.cfg.home, body.provider, body.api_key, body.key_ref, body.clear))
+
+    @app.post("/api/settings/search/test")
+    async def test_search() -> dict[str, Any]:
+        """One real query with the saved key, so a wrong key or a missing proxy shows up here, not mid-task."""
+        if (backend := ws.search_provider()) is None:
+            raise HTTPException(400, "no search key is configured")
+        started = time.monotonic()
+        try:
+            hits = await backend.search("nano-workbuddy test", 1, None, "general")
+        except search.SearchError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "seconds": round(time.monotonic() - started, 2), "results": len(hits)}
 
     @app.delete("/api/settings/models/{name}")
     async def delete_model(name: str) -> dict[str, Any]:

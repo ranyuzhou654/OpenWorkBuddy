@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import compaction, hooks, llm, policy, prompt, skills
+from . import artifacts, compaction, hooks, llm, policy, prompt, search, skills
 from .config import Config, ModelSpec, load, secret
 from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
@@ -46,6 +46,7 @@ class Workspace:
         self.session_tools: dict[str, Registry] = {}
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
         self._stamps: dict[str, dict[str, tuple[int, int]]] = {}  # per-session read stamps survive across runs
+        self._records: dict[str, tuple[dict, dict]] = {}  # per session: sources by url, delivered versions by path
         self.index.reindex(self.sessions_dir)
 
     @classmethod
@@ -63,6 +64,43 @@ class Workspace:
     @property
     def sessions_dir(self) -> Path:
         return self.cfg.home / "sessions"
+
+    @property
+    def store(self) -> Path:
+        """Parsed-document cache, uploads and kept versions of delivered files (artifacts.py)."""
+        return self.cfg.home / "files"
+
+    def spill_dir(self, session_id: str) -> Path:
+        return self.cfg.home.resolve() / "spill" / session_id
+
+    def search_provider(self) -> search.SearchProvider | None:
+        """The web_search backend, or None when no key is configured (then the tool is not offered)."""
+        s = self.cfg.search
+        if not s.api_key:
+            return None
+        try:
+            return search.provider(s.provider, secret(s.api_key, self.cfg.home))
+        except LookupError:
+            return None
+
+    def uploads_dir(self, session_id: str) -> Path:
+        return self.spill_dir(session_id) / "uploads"
+
+    def upload(self, log: SessionLog, name: str, data: bytes) -> dict[str, Any]:
+        """Keep a file the user attached; returns its description (id, name, kind, ...)."""
+        return artifacts.save_upload(self.store, self.uploads_dir(log.id), name, data)
+
+    def attachments(self, log: SessionLog, ids: list[str] | tuple[str, ...]) -> tuple[list[dict], list[dict]]:
+        """(descriptions, model blocks) of uploaded files for a message, for the session's current model."""
+        files = [artifacts.find_upload(self.uploads_dir(log.id), i, self.store) for i in dict.fromkeys(ids)]
+        vision = self.cfg.model(self.model_ref(log)).sees_images
+        return files, [b for f in files for b in artifacts.upload_blocks(f, self.store, vision)]
+
+    def records(self, log: SessionLog) -> tuple[dict, dict]:
+        """The session's numbered sources and delivered versions, rebuilt from its log once per process."""
+        if log.id not in self._records:
+            self._records[log.id] = artifacts.session_records(log)
+        return self._records[log.id]
 
     # sessions
 
@@ -94,6 +132,7 @@ class Workspace:
         if log := self._logs.pop(session_id, None):
             log.close()
         self._stamps.pop(session_id, None)
+        self._records.pop(session_id, None)
         self.session_tools.pop(session_id, None)
         Path(row["file_path"]).unlink(missing_ok=True)
         for d in (self.cfg.home / "spill" / session_id, tmp_dir(session_id)):
@@ -156,7 +195,8 @@ class Workspace:
         start so that a skill or server switched off in the settings is gone from the next run.
         Also returns the notices that tell the model what is available."""
         notices: dict[str, str] = {}
-        base = list(self.tools.tools.values())
+        searchable = self.search_provider() is not None
+        base = [t for t in self.tools.tools.values() if t.name != "web_search" or searchable]
         if found := self.skills(root, enabled=False):  # then keep the model's list current, even if empty
             enabled = {n: s for n, s in found.items() if n not in self.cfg.skills_disabled}
             notices["skills"] = skills.listing(enabled) or "No skills are enabled."
@@ -302,11 +342,15 @@ class Workspace:
         preset_name = self.preset(log)
         preset = policy.PRESETS[preset_name]
         root, home = self.root_of(log), self.cfg.home.resolve()
-        spill = home / "spill" / log.id
+        spill = self.spill_dir(log.id)
+        model_ref = model_ref if model_ref in self.cfg.models else self.cfg.default_model
+        sources, versions = self.records(log)
         ctx = ToolCtx(root=root, session_id=log.id, spill_dir=spill, emit=emit,
                       read_stamps=self._stamps.setdefault(log.id, {}),
                       sandbox=policy.sandbox_policy(preset, root, tmp_dir(log.id), home, spill),
-                      tmp=tmp_dir(log.id), tools=tools, question=question)
+                      tmp=tmp_dir(log.id), tools=tools, question=question, store=self.store,
+                      vision=self.cfg.model(model_ref).sees_images, search=self.search_provider(),
+                      sources=sources, versions=versions)
         places = {"root": str(root), "home": str(home), "spill": str(spill)}
 
         async def gate(tool: Tool, call: ToolCall) -> Result | None:
@@ -346,7 +390,6 @@ class Workspace:
             return f"[Stop hook] {hook.reason}" if hook.block else None
 
         has = {h.event for h in self.cfg.hooks}
-        model_ref = model_ref if model_ref in self.cfg.models else self.cfg.default_model
         return Run(log=log, model=self.connect(self.cfg.model(model_ref)), tools=tools, ctx=ctx, run_id=run_id,
                    emit=emit, max_turns=self.cfg.max_turns, inbox=inbox or Inbox(), gate=gate,
                    after_tool=after_tool if "PostToolUse" in has else None,

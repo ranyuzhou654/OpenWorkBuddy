@@ -106,7 +106,7 @@ def delete_provider(home: Path, name: str, cfg: Config) -> Config:
 
 
 def put_model(home: Path, name: str, provider: str, model_id: str, context_window: int, max_output: int,
-              params: dict[str, Any] | None = None) -> Config:
+              params: dict[str, Any] | None = None, vision: bool | None = None) -> Config:
     _check_name("model", name)
     if not model_id.strip():
         raise SettingsError("model id is required")
@@ -129,11 +129,40 @@ def put_model(home: Path, name: str, provider: str, model_id: str, context_windo
             table["params"] = inline
         elif "params" in table:
             del table["params"]
+        if vision is not None:
+            table["vision"] = vision
+        elif "vision" in table:
+            del table["vision"]
         if new:
             table.add(tomlkit.nl())
             models[name] = table
 
     return edit(home, change)
+
+
+def put_search(home: Path, provider: str, api_key: str | None = None, key_ref: str | None = None,
+               clear: bool = False) -> Config:
+    """The web_search backend. Like a connection: a plaintext key goes to secrets.json as secret:search,
+    key_ref points at an env:/keyring: entry, clear removes the key (and with it the tool)."""
+
+    def change(doc: tomlkit.TOMLDocument) -> None:
+        if "search" not in doc:
+            doc["search"] = tomlkit.table()
+        table = doc["search"]
+        table["provider"] = provider
+        if clear:
+            table.pop("api_key", None)
+        elif api_key:
+            table["api_key"] = "secret:search"
+        elif key_ref:
+            table["api_key"] = key_ref
+
+    cfg = edit(home, change)
+    if clear:
+        SecretStore(home).delete("search")
+    elif api_key:
+        SecretStore(home).set("search", api_key.strip())
+    return cfg
 
 
 def delete_model(home: Path, name: str) -> Config:

@@ -33,6 +33,11 @@ class ToolCtx:
     tmp: Path | None = None  # writable scratch directory for sandboxed commands
     tools: Registry | None = None  # the run's own registry, for tool_search
     question: Callable[[dict[str, Any]], Awaitable[str]] | None = None  # asks the user (ask_user); None: no UI
+    store: Path | None = None  # ~/.nwb/files: parsed-document cache and kept versions of delivered files
+    vision: bool = True  # the model accepts images
+    search: Any = None  # the web_search backend (search.SearchProvider); None: not configured
+    sources: dict[str, dict[str, Any]] = field(default_factory=dict)  # url -> source record [S#] in this session
+    versions: dict[str, list[str]] = field(default_factory=dict)  # path -> sha256 of each delivered version
 
 
 @dataclass(slots=True)

@@ -14,6 +14,7 @@ Two kinds of events reach a client:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -32,6 +33,12 @@ MAX_LIVE_OUTPUT = 20_000
 MAX_PENDING_EVENTS = 5_000  # per subscriber; a client this far behind is cut off and reconnects from a snapshot
 
 type Factory = Callable[[Emit, Inbox, Ask, Question], Awaitable[str | None]]
+
+
+def _input(row: dict[str, Any]) -> Input:
+    """A pending input as it was accepted, attachments included."""
+    extra = json.loads(row.get("extra_json") or "{}")
+    return Input(row["content"], row["id"], tuple(extra.get("attachments", ())), tuple(extra.get("blocks", ())))
 
 
 class Busy(Exception):
@@ -143,21 +150,24 @@ class RunManager:
     # runs
 
     def send(self, log: SessionLog, content: str, *, request_id: str | None = None,
-             parent_id: str | None = None, delivery: str = "auto") -> str:
+             parent_id: str | None = None, delivery: str = "auto", attachments: list[str] = ()) -> str:
         """Start a run, or hand the message to the active one. Returns how it was delivered: "run", "steer",
         "queue", or "duplicate" for a retried request_id. Raises Busy for a request_id reused with another
         message, or a branch edit while a run is active."""
         live = self.live.get(log.id)
         if live and parent_id is not None:
             raise Busy("cannot branch from an earlier message while a run is active")
+        files, blocks = self.ws.attachments(log, attachments)  # KeyError for an unknown attachment
         if request_id:
-            claim = self.ws.index.claim_request(request_id, log.id, f"{parent_id}\0{content}")
+            claim = self.ws.index.claim_request(request_id, log.id, f"{parent_id}\0{content}\0{','.join(attachments)}")
             if claim == "duplicate":
                 return "duplicate"
             if claim == "conflict":
                 raise Busy(f"request_id {request_id} was already used for a different message")
         kind = ("queue" if delivery == "queue" else "steer") if live else "run"
-        msg = Input(content, self.ws.index.add_input(log.id, kind, content, parent_id))  # durable before the ack
+        extra = {"attachments": files, "blocks": blocks} if files else None
+        msg = Input(content, self.ws.index.add_input(log.id, kind, content, parent_id, extra),  # durable before the ack
+                    tuple(files), tuple(blocks))
         if live:
             getattr(live.inbox, kind).append(msg)
             self._publish_inbox(log.id, live.inbox)
@@ -204,7 +214,7 @@ class RunManager:
             except KeyError:
                 continue
             rows = self._not_in_log(log, pending.get(sid, []))
-            msgs = [Input(r["content"], r["id"]) for r in rows]
+            msgs = [_input(r) for r in rows]
             if sid in unfinished:
                 inbox = Inbox(steer=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] != "queue"],
                               queue=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "queue"])

@@ -81,7 +81,8 @@ PRESETS: dict[str, Preset] = {
     "workspace": Preset(
         "工作区", "workspace",
         (Rule("*", "*", "ask"), Rule("read", "*", "allow"), Rule("write", "{root}/*", "allow"),
-         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), Rule("memory", "*", "allow"), *HARNESS,
+         Rule("edit", "{root}/*", "allow"), Rule("bash", "*", "allow"), Rule("memory", "*", "allow"),
+         Rule("web_search", "*", "allow"), *HARNESS,
          *_ask_protected(), *_deny_secrets("allow")),
         "Permission preset: workspace. Reading, and editing files inside the project ({root}), need no approval "
         "(except .git and .nwb). Changes outside the project need the user's approval. "

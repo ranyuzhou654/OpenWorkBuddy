@@ -109,6 +109,8 @@ class Input:
 
     text: str
     id: str | None = None
+    attachments: tuple[dict[str, Any], ...] = ()  # uploads (artifacts.describe_upload), for the UI
+    blocks: tuple[dict[str, Any], ...] = ()  # what the model sees of them (artifacts.upload_blocks)
 
 
 @dataclass
@@ -123,7 +125,9 @@ class Inbox:
 
 
 def user_data(m: Input) -> dict[str, Any]:
-    return {"content": [text(m.text)], **({"input_id": m.id} if m.id else {})}
+    return {"content": [*([text(m.text)] if m.text or not m.blocks else []), *m.blocks],
+            **({"attachments": list(m.attachments)} if m.attachments else {}),
+            **({"input_id": m.id} if m.id else {})}
 
 
 type Gate = Callable[[Tool, ToolCall], Awaitable[Result | None]]  # None = go ahead, Result = blocked

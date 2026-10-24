@@ -1,4 +1,10 @@
-"""web_fetch (D11): fetch a URL and return its readable text.
+"""web_fetch (D11) and web_search (M1).
+
+web_search asks the configured search backend and records each hit as a numbered source ([S#], kind
+"search": a snippet only). web_fetch reads a page and records it as a source read in full (kind "page"),
+which upgrades a search hit for the same URL. The records travel in the results' meta.
+
+web_fetch: fetch a URL and return its readable text.
 
 The permission resource is the URL, so "always allow" grants one site (scheme://host/*). Redirects are
 followed only within the same site: a redirect elsewhere is reported to the model, whose next fetch is
@@ -9,13 +15,18 @@ back as images; anything else (PDF, archives) is saved to the session's private 
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
+import time
 from html.parser import HTMLParser
+from typing import Literal
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pydantic import Field
 
+from .. import artifacts, documents
+from ..search import SearchError
 from ..types import text
 from .builtin import MAX_IMAGE_BYTES, Args
 from .registry import Result, ToolCtx, ToolError, tool
@@ -140,19 +151,68 @@ async def web_fetch(args: FetchArgs, ctx: ToolCtx) -> Result:
 
 def _result(r: httpx.Response, body: bytes, url: str, ctx: ToolCtx) -> Result:
     kind = r.headers.get("content-type", "").split(";")[0].strip().lower()
-    head = f"{url} ({r.status_code}, {kind or 'unknown type'})\n\n"
     if r.status_code >= 400:
         return Result.error(f"HTTP {r.status_code} for {url}\n" + body[:2000].decode("utf-8", "replace"))
+
+    def cited(title: str, source_kind: str = "page") -> tuple[str, dict]:
+        rec = artifacts.cite(ctx.sources, url, source_kind, title, retrieved_at=_now(),
+                             sha256=hashlib.sha256(body).hexdigest())
+        return f"[S{rec['n']}] {url} ({r.status_code}, {kind or 'unknown type'})\n\n", {"sources": [rec]}
+
     if kind.startswith("image/") and len(body) <= MAX_IMAGE_BYTES:
-        return Result([text(head.strip()), {"type": "image", "mime": kind, "data": base64.b64encode(body).decode()}])
+        head, meta = cited("", "file")
+        return Result([text(head.strip()), {"type": "image", "mime": kind, "data": base64.b64encode(body).decode()}],
+                      meta=meta)
     if kind == "text/html" or kind == "application/xhtml+xml":
-        return Result.ok(head + html_to_text(body.decode(r.encoding or "utf-8", "replace"), url))
+        page = html_to_text(body.decode(r.encoding or "utf-8", "replace"), url)
+        head, meta = cited(page[2:page.index("\n")] if page.startswith("# ") and "\n" in page else "")
+        return Result([text(head + page)], meta=meta)
     if any(t in kind for t in TEXT_TYPES) or not kind and b"\0" not in body[:8192]:
-        return Result.ok(head + body.decode(r.encoding or "utf-8", "replace"))
+        head, meta = cited("")
+        return Result([text(head + body.decode(r.encoding or "utf-8", "replace"))], meta=meta)
     name = (urlsplit(url).path.rsplit("/", 1)[-1] or "download").replace("..", "_")
     ctx.spill_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     f = ctx.spill_dir / f"{ctx.call_id or 'web'}-{name}"
     with os.fdopen(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "wb") as out:
         out.write(body)
-    return Result.ok(f"{head}Binary content ({len(body)} bytes) saved to {f}. Inspect it with bash, e.g. "
-                     "`file` or a converter for its format.")
+    head, meta = cited(name, "file")
+    how = ("Read it with the read tool (pages=... for long documents)." if documents.is_document(f)
+           else "Inspect it with bash, e.g. `file` or a converter for its format.")
+    return Result([text(f"{head}Binary content ({len(body)} bytes) saved to {f}. {how}")], meta=meta)
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+class SearchArgs(Args):
+    query: str = Field(description="What to search for; specific queries work best")
+    max_results: int = Field(5, ge=1, le=10)
+    recency: Literal["any", "day", "week", "month", "year"] = Field(
+        "any", description="Only results published within this period")
+    topic: Literal["general", "news"] = Field("general", description="news: recent reporting, with publication dates")
+
+
+@tool(effect="read", parallel=True, scope=lambda args, ctx: ("web_search", args.query))
+async def web_search(args: SearchArgs, ctx: ToolCtx) -> Result:
+    """Search the web. Returns numbered sources [S#] with snippets; snippets are not the page: fetch a page
+    with web_fetch before relying on its details. Cite the numbers in answers and documents."""
+    if ctx.search is None:
+        raise ToolError("web search is not configured; the user can add a key in Settings → 联网搜索")
+    try:
+        hits = await ctx.search.search(args.query, args.max_results, None if args.recency == "any" else args.recency,
+                                       args.topic)
+    except SearchError as e:
+        raise ToolError(str(e)) from e
+    if not hits:
+        return Result.ok(f"No results for {args.query!r}.")
+    when, recs, lines = _now(), [], []
+    for h in hits:
+        rec = artifacts.cite(ctx.sources, h.url, "search", h.title, snippet=h.snippet[:500], published=h.published,
+                             retrieved_at=when, provider=ctx.search.name)
+        recs.append(rec)
+        date = f"published {h.published}" if h.published else "publication date unknown"
+        lines.append(f"[S{rec['n']}] {h.title}\n{h.url}\n{date}\n{h.snippet[:800]}")
+    head = (f"Results for {args.query!r} ({ctx.search.name}, retrieved {when}). These are search snippets; "
+            "fetch a page before relying on details.\n\n")
+    return Result([text(head + "\n\n".join(lines))], meta={"sources": recs})

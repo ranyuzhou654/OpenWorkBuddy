@@ -144,12 +144,17 @@ def site():
 
 
 async def test_web_fetch(site, project, tmp_path):
-    r, out = await run("web_fetch", project, tmp_path, url=f"{site}/moved")  # same-site redirect is followed
-    assert out.startswith(f"{site}/page (200, text/html)")
+    c = ctx(project, tmp_path)
+    r, out = await run("web_fetch", project, tmp_path, c, url=f"{site}/moved")  # same-site redirect is followed
+    assert out.startswith(f"[S1] {site}/page (200, text/html)")  # recorded as a source read in full
+    [rec] = r.meta["sources"]
+    assert (rec["n"], rec["kind"], rec["title"], rec["url"]) == (1, "page", "Demo Page", f"{site}/page")
     assert "# Demo Page" in out and "# Title" in out and "Hello world." in out and "- one\n- two" in out
     assert f"[Home]({site}/home)" in out and "    return 1" in out and "evil" not in out and "x{}" not in out
-    _, out = await run("web_fetch", project, tmp_path, url=f"{site}/data.json")
-    assert out.endswith('{"a": 1}')
+    _, out = await run("web_fetch", project, tmp_path, c, url=f"{site}/data.json")
+    assert out.endswith('{"a": 1}') and out.startswith("[S2]")
+    _, out = await run("web_fetch", project, tmp_path, c, url=f"{site}/page#top")
+    assert out.startswith("[S1]")  # the same page keeps its number
     _, out = await run("web_fetch", project, tmp_path, url=f"{site}/away")
     assert "redirects to another site: https://elsewhere.example/x" in out
     r, out = await run("web_fetch", project, tmp_path, url=f"{site}/missing")

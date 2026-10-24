@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Entry, type Info, type Preset, type Project } from "./api";
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
+import { Library } from "./Files";
 import { Home } from "./Home";
 import { Settings } from "./Settings";
 import { textOf, useSession } from "./session";
@@ -30,6 +31,7 @@ export function App() {
   const select = (id: string) => (location.hash = `#/s/${id}`);
   const settingsOpen = hash.startsWith("#/settings");
   const [showTree, setShowTree] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [state, dispatch] = useSession(sid);
   const busy = state.live !== null;
 
@@ -105,6 +107,8 @@ export function App() {
               )}
               <button className="ghost" disabled={busy} title="把较早的对话压缩成摘要，释放上下文"
                 onClick={() => api.compact(sid).catch((e) => showError(String(e)))}>压缩</button>
+              <button className={showLibrary ? "on" : "ghost"} onClick={() => setShowLibrary(!showLibrary)}
+                title="这个会话的来源、交付的文件和附件">资料</button>
               <button className={showTree ? "on" : "ghost"} onClick={() => setShowTree(!showTree)}>会话树</button>
               <span className={`conn ${state.connected ? "ok" : ""}`} title={state.connected ? "已连接" : "连接中断，重连中"} />
               {state.usage && (
@@ -120,9 +124,10 @@ export function App() {
                 <Composer projectId={session.project_id} busy={busy}
                   ctx={{ sid, session, info, busy, entries: state.entries, leaf: state.leaf, refresh,
                     toggleTree: () => setShowTree((v) => !v) }} dropped={state.dropped} onTakeDropped={takeDropped}
-                  onError={showError} submit={(text, delivery) => api.send(sid, { text, delivery })}
+                  onError={showError} submit={(text, delivery, files) => api.sendWithFiles(sid, text, files, delivery)}
                   onCancel={() => api.cancel(sid).catch((e) => showError(String(e)))} />
               </div>
+              {showLibrary && <Library sid={sid} state={state} />}
               {showTree && <Tree sid={sid} state={state} busy={busy} />}
             </div>
           </>

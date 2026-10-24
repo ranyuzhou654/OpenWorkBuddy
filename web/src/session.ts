@@ -5,7 +5,9 @@
 // has its stream closed by the server; onerror then fetches a fresh snapshot, as for any disconnect.
 
 import { useEffect, useReducer } from "react";
-import { api, type ContextUsage, type Entry, type Live, type SessionInfo, type Snapshot } from "./api";
+import {
+  api, type Artifact, type Attachment, type ContextUsage, type Entry, type Live, type SessionInfo, type Snapshot, type Source,
+} from "./api";
 
 export interface State {
   session: SessionInfo | null;
@@ -162,6 +164,31 @@ export function childrenOf(entries: Record<string, Entry>): Record<string, Entry
   return kids;
 }
 
-export function textOf(content: { type: string; text?: string }[]): string {
-  return content.filter((b) => b.type === "text").map((b) => b.text).join("");
+// What the user typed: attachment blocks (the model's copy of attached files) are shown as chips instead.
+export function textOf(content: { type: string; text?: string; attachment?: string }[]): string {
+  return content.filter((b) => b.type === "text" && !b.attachment).map((b) => b.text).join("");
+}
+
+// Every numbered source in the session (all branches: numbers are per session), latest record per number.
+export function sourcesOf(entries: Record<string, Entry>): Source[] {
+  const byUrl = new Map<string, Source>();
+  for (const e of Object.values(entries).sort((a, b) => a.seq - b.seq))
+    if (e.type === "tool_result") for (const s of (e.data.meta?.sources ?? []) as Source[]) byUrl.set(s.url, s);
+  return [...byUrl.values()].sort((a, b) => a.n - b.n);
+}
+
+// Delivered files on the current path, newest version per path first in the list it belongs to.
+export function artifactsOf(path: Entry[]): Artifact[][] {
+  const byPath = new Map<string, Artifact[]>();
+  for (const e of path) {
+    const a: Artifact | undefined = e.type === "tool_result" ? e.data.meta?.artifact : undefined;
+    if (a) byPath.set(a.path, [...(byPath.get(a.path) ?? []), a]);
+  }
+  return [...byPath.values()].map((v) => v.reverse());
+}
+
+export function uploadsOf(path: Entry[]): Attachment[] {
+  const seen = new Map<string, Attachment>();
+  for (const e of path) if (e.type === "user") for (const a of (e.data.attachments ?? []) as Attachment[]) seen.set(a.id, a);
+  return [...seen.values()];
 }

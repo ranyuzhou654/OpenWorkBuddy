@@ -20,6 +20,7 @@
 - 账户菜单与设置页：左下角账户按钮（设置 ⌘, / 用量 / 获取帮助），设置页按分区导航（通用、模型与密钥、用量、记忆、系统、开发者、帮助、技能、连接器），新增 token 用量统计、系统状态、钩子与规则查看、手动深浅色。教程：[11-账户菜单与设置页](docs/tutorial/11-账户菜单与设置页.md)
 - 斜杠命令：输入框里 `/` 同时列出命令和技能，支持方向键选择与参数补全；命令包括 /model、/permissions、/compact、/rewind、/fork、/rename、/init、/new、/tree、/stop、/archive 及设置页入口。教程：[12-斜杠命令](docs/tutorial/12-斜杠命令.md)
 - 可靠内核（M0，依据 [审查报告](docs/design/2026-10-24-personal-assistant-improvement-plan.md)）：消息先落盘再确认、重启后补投、request_id 去重；只有正常结束的模型回复才会执行工具；MCP 的只读提示不再意味着可重放；搜索不跟随软链接；原子写文件；会话日志单写者锁；SSE 订阅自带当前状态、队列有上限；GitHub Actions CI。教程：[13-可靠内核](docs/tutorial/13-可靠内核.md)
+- 文件与调研（M1）：消息可带附件（拖入、粘贴截图、选择文件）；`read` 能按页读 PDF / Word / PPT / Excel；`web_search`（Tavily）与来源编号 [S1]…，回答里可点开；`create_document` 把 Markdown 排成 .md / .docx / .pdf（中文字体内嵌），`present` 交付其他文件，交付前重新打开检查并核对引用，每一版都留副本；模型可设置是否支持看图。教程：[14-文件与调研](docs/tutorial/14-文件与调研.md)
 
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 

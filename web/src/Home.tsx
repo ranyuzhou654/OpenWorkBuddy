@@ -16,9 +16,9 @@ export function Home({ info, projects, initial, onAddProject, onError }: {
   const project = projects.find((p) => p.id === pid && !p.scratch);
   const scratch = projects.find((p) => p.scratch);
 
-  const submit = async (text: string) => {
+  const submit = async (text: string, _delivery: unknown, files: File[]) => {
     const s = await api.newSession(project?.id ?? null, model || undefined);
-    await api.send(s.id, { text });
+    await api.sendWithFiles(s.id, text, files);
     location.hash = `#/s/${s.id}`;
   };
 

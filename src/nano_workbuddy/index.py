@@ -39,7 +39,7 @@ create table if not exists approvals(
   args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real);
 create table if not exists inputs(
   id text primary key, session_id text not null, delivery text not null, content text not null,
-  parent_id text, status text not null, created_at real not null, done_at real);
+  parent_id text, status text not null, created_at real not null, done_at real, extra_json text);
 create table if not exists requests(
   request_id text primary key, session_id text not null, payload_hash text not null, created_at real not null);
 """
@@ -50,6 +50,7 @@ MIGRATIONS = [
     "alter table sessions add column name text",  # renamed by the user; shown instead of the title
     "alter table sessions add column archived_at real",
     "update projects set trusted=1",  # projects added before trust existed were all chosen by the user
+    "alter table inputs add column extra_json text",  # attachments of a pending message (M1)
 ]
 
 
@@ -111,7 +112,12 @@ class Index:
 
     def sync_session(self, log: SessionLog, model_ref: str | None = None) -> None:
         first_user = next((e for e in log.entries.values() if e.type == USER), None)
-        title = text_of(first_user.data["content"])[:80] if first_user else None
+        if first_user:  # the typed text, not the attachments' contents; a message of attachments only: their names
+            typed = text_of([b for b in first_user.data["content"] if "attachment" not in b]).strip()
+            names = ", ".join(a["name"] for a in first_user.data.get("attachments", ()))
+            title = (typed or names)[:80] or None
+        else:
+            title = None
         self.db.execute(
             """insert into sessions(id, project_id, title, file_path, indexed_bytes, leaf_id, model_ref, updated_at)
                values (?,?,?,?,?,?,?,?)
@@ -211,13 +217,16 @@ class Index:
         row = self._one("select payload_hash from requests where request_id=?", request_id)
         return "duplicate" if row["payload_hash"] == digest else "conflict"
 
-    def add_input(self, session_id: str, delivery: str, content: str, parent_id: str | None = None) -> str:
+    def add_input(self, session_id: str, delivery: str, content: str, parent_id: str | None = None,
+                  extra: dict[str, Any] | None = None) -> str:
         """A message the client sent, made durable before the client is told it was accepted. It stays
-        pending until it is in the session log (consumed) or handed back to the user (dropped)."""
+        pending until it is in the session log (consumed) or handed back to the user (dropped).
+        extra: its attachments, as they will appear in the user entry."""
         input_id = new_id("in")
-        self.db.execute("insert into inputs(id, session_id, delivery, content, parent_id, status, created_at)"
-                        " values (?,?,?,?,?,?,?)",
-                        (input_id, session_id, delivery, content, parent_id, "pending", time.time()))
+        self.db.execute("insert into inputs(id, session_id, delivery, content, parent_id, status, created_at,"
+                        " extra_json) values (?,?,?,?,?,?,?,?)",
+                        (input_id, session_id, delivery, content, parent_id, "pending", time.time(),
+                         json.dumps(extra, ensure_ascii=False) if extra else None))
         return input_id
 
     def finish_input(self, input_id: str, status: str) -> None:

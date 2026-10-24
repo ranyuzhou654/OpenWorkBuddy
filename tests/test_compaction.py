@@ -33,7 +33,8 @@ async def test_nothing_happens_while_the_request_fits(make_ws, project):
 async def test_prune_replaces_old_tool_output_with_a_saved_copy(make_ws, project):
     for n in "abc":
         (project / f"{n}.txt").write_text(f"{n}-start\n" + ("y" * 99 + "\n") * 70)
-    model = FakeModel(*(reply(None, call("read", path=f"{n}.txt")) for n in "abc"), reply("done"), window=SMALL)
+    model = FakeModel(*(reply(None, call("read", path=f"{n}.txt")) for n in "abc"), reply("done"),
+                      window=SMALL + 1_000)  # room for the fixed prompt and tools, so pruning alone is enough
     ws = make_ws(model)
     log = ws.new_session(project)
     assert await ws.submit(log, "read them") == "ok"

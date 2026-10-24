@@ -1,6 +1,8 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { Paperclip, X } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { available, type Command, type Ctx } from "./commands";
+import { size } from "./Files";
 
 interface Suggestion {
   key: string;
@@ -15,15 +17,27 @@ interface Suggestion {
 // Enter sends; Shift+Enter is a newline. While a run is active, a message can join it (插话 / steer)
 // or wait for its own run (排队 / queue). "/" at the start opens commands and skills (D15); ↑↓ choose,
 // Tab completes, Enter picks. `children` go left of the buttons (the new-chat page's pickers).
+// Files can be attached with the clip button, by dropping them on the box or by pasting (screenshots);
+// they are uploaded when the message is sent.
 export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropped = [], onTakeDropped, onError,
   placeholder, children }: {
   projectId: string | null; ctx: Ctx; busy?: boolean;
-  submit: (text: string, delivery: "auto" | "queue") => Promise<unknown>;
+  submit: (text: string, delivery: "auto" | "queue", files: File[]) => Promise<unknown>;
   onCancel?: () => void; dropped?: string[]; onTakeDropped?: () => void; onError: (m: string) => void;
   placeholder?: string; children?: ReactNode;
 }) {
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
   const [sel, setSel] = useState(0);
+  const addFiles = (list: FileList | File[]) => {
+    const add = [...list].filter((f) => f.size > 0);
+    const big = add.find((f) => f.size > 50 * 1024 * 1024);
+    if (big) return onError(`${big.name} 超过 50 MB，不能附加`);
+    setFiles((cur) => [...cur, ...add]);
+  };
   const [skills, setSkills] = useState<{ name: string; description: string }[]>([]);
 
   useEffect(() => {
@@ -51,19 +65,25 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
   useEffect(() => setSel(0), [text]);
 
   const send = async (delivery: "auto" | "queue" = "auto") => {
-    if (!text.trim()) return;
+    if ((!text.trim() && !files.length) || sending) return;
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text.trim());
-    const command = m && commands.find((c) => c.name === m[1]);
+    const command = !files.length && m && commands.find((c) => c.name === m[1]);
     if (command) return run(command, m[2] ?? "");
-    const body = text;
+    const [body, attached] = [text, files];
     setText("");
+    setFiles([]);
+    setSending(true);
     try {
-      await submit(body, delivery);
+      await submit(body, delivery, attached);
     } catch (e) {
       setText(body);
+      setFiles(attached);
       onError(String(e));
+    } finally {
+      setSending(false);
     }
   };
+  const ready = (text.trim() || files.length > 0) && !sending;
 
   return (
     <div className="composer">
@@ -81,13 +101,27 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
           ))}
         </div>
       )}
-      <div className="composer-box">
+      <div className={`composer-box${dragging ? " dragging" : ""}`}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } setDragging(false); }}>
+        {files.length > 0 && (
+          <div className="attach-list">
+            {files.map((f, i) => (
+              <span key={i} className="attach" title={`${f.name} · ${size(f.size)}`}>
+                <Paperclip size={12} />{f.name}<i>{size(f.size)}</i>
+                <button aria-label={`移除 ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={12} /></button>
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           value={text}
           placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : placeholder ?? "回复，或输入 / 查看命令和技能"}
           rows={Math.min(10, Math.max(2, text.split("\n").length))}
           autoFocus
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
           onKeyDown={(e) => {
             if (suggestions.length && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
               e.preventDefault();
@@ -111,12 +145,15 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
           }}
         />
         <div className="composer-actions">
+          <input ref={picker} type="file" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+          <button className="ghost icon" title="附加文件（也可以拖进来或粘贴截图）" aria-label="附加文件"
+            onClick={() => picker.current?.click()}><Paperclip size={15} /></button>
           {children}
           <span className="grow" />
-          <span className="hint">Shift+回车换行</span>
-          {busy && <button onClick={() => send("queue")} disabled={!text.trim()} title="等这次运行结束后再发">排队</button>}
+          <span className="hint">{sending ? (files.length ? "上传中…" : "发送中…") : "Shift+回车换行"}</span>
+          {busy && <button onClick={() => send("queue")} disabled={!ready} title="等这次运行结束后再发">排队</button>}
           {busy && onCancel && <button className="danger" onClick={onCancel}>停止</button>}
-          <button className="send" onClick={() => send()} disabled={!text.trim()} title={busy ? "插话：下一步之前送达" : "发送"}
+          <button className="send" onClick={() => send()} disabled={!ready} title={busy ? "插话：下一步之前送达" : "发送"}
             aria-label={busy ? "插话" : "发送"}>↑</button>
         </div>
       </div>

@@ -74,7 +74,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
             </div>
             <RemoteList value={remote[p.name]} onPick={(m) => setEditingModel({
               provider: p.name, id: m.id, name: slug(m.id),
-              context_window: m.context_window ?? 128_000, max_output: m.max_output ?? 8_192, params: {},
+              context_window: m.context_window ?? 128_000, max_output: m.max_output ?? 8_192, params: {}, vision: null,
             })} />
           </div>
         ),
@@ -90,7 +90,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
       <p className="note">会话顶栏可以随时换模型（下一次运行生效）；★ 是新会话的默认模型。上下文窗口决定何时清理与压缩，请按服务商文档填写。</p>
       <table className="models">
         <thead>
-          <tr><th /><th>名称</th><th>连接</th><th>模型 ID</th><th>上下文</th><th>最大输出</th><th /></tr>
+          <tr><th /><th>名称</th><th>连接</th><th>模型 ID</th><th>上下文</th><th>最大输出</th><th>看图</th><th /></tr>
         </thead>
         <tbody>
           {view.models.map((m) => (
@@ -101,6 +101,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
               <td><code>{m.id}</code></td>
               <td>{m.context_window.toLocaleString()}</td>
               <td>{m.max_output.toLocaleString()}</td>
+              <td title={m.vision === null ? "按协议自动判断" : "已手动设置"}>{m.sees_images ? "✓" : "—"}</td>
               <td className="actions">
                 <button onClick={() => test(m.name)} disabled={tests[m.name] === "running"}>测试</button>
                 {m.name !== view.default_model && <button onClick={() => save(api.setDefault(m.name))}>设为默认</button>}
@@ -126,6 +127,44 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
         </button>
       )}
 
+      <SearchSection view={view} save={save} />
+
+    </>
+  );
+}
+
+// web_search's backend. Without a key the tool is simply not offered to the model.
+function SearchSection({ view, save }: { view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean> }) {
+  const [key, setKey] = useState("");
+  const [test, setTest] = useState<ModelTest | "running" | null>(null);
+  const k = view.search.key;
+  return (
+    <>
+      <h2>联网搜索</h2>
+      <p className="note">
+        配置后助手可以用 web_search 搜索网页（结果编号为 [S1]、[S2]… 供引用），工作区档下不需要逐次确认；搜索词会发给 Tavily。
+        密钥在 <a href="https://app.tavily.com" target="_blank" rel="noreferrer">app.tavily.com</a> 申请，有免费额度。国内网络可能需要给服务设置 HTTPS_PROXY。
+      </p>
+      <div className="card">
+        <div className="card-head">
+          <b>Tavily</b>
+          {k ? <KeyBadge k={k} /> : <span className="key missing">未配置：助手没有搜索工具</span>}
+        </div>
+        <div className="row">
+          <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)}
+            placeholder={k?.set ? "粘贴新密钥以替换" : "tvly-…"} style={{ flex: 1 }} />
+          <button className="primary" disabled={!key.trim()}
+            onClick={async () => (await save(api.putSearch({ api_key: key.trim() }))) && setKey("")}>保存</button>
+          <button disabled={!k?.set || test === "running"} onClick={async () => {
+            setTest("running");
+            const r = await api.testSearch().catch((e) => ({ ok: false, error: String(e) }));
+            setTest(r.ok ? { ok: true, ms: Math.round(((r as { seconds?: number }).seconds ?? 0) * 1000), reply: "搜索可用" }
+              : { ok: false, error: (r as { error?: string }).error });
+          }}>测试</button>
+          {k && <button className="danger" onClick={() => confirm("移除搜索密钥？助手将不能联网搜索。") && save(api.putSearch({ clear: true }))}>移除</button>}
+          <TestResult value={test ?? undefined} />
+        </div>
+      </div>
     </>
   );
 }
@@ -292,6 +331,7 @@ function ModelForm({ initial, connections, existing, onSave, onCancel }: {
     name: initial.name ?? "", provider: initial.provider ?? connections[0] ?? "", id: initial.id ?? "",
     context_window: initial.context_window ?? 128_000, max_output: initial.max_output ?? 8_192,
   });
+  const [vision, setVision] = useState<boolean | null>(initial.vision ?? null);
   const [params, setParams] = useState(Object.keys(initial.params ?? {}).length ? JSON.stringify(initial.params, null, 2) : "");
   let parsed: Record<string, unknown> | null = {};
   try {
@@ -310,6 +350,14 @@ function ModelForm({ initial, connections, existing, onSave, onCancel }: {
       <label>模型 ID<input value={m.id} onChange={set("id")} placeholder="服务商的模型名，如 DeepSeek-v4.1-flash" /></label>
       <label>上下文窗口<input type="number" value={m.context_window} onChange={set("context_window")} /></label>
       <label>最大输出<input type="number" value={m.max_output} onChange={set("max_output")} /></label>
+      <label>看图
+        <select value={vision === null ? "" : String(vision)}
+          onChange={(e) => setVision(e.target.value === "" ? null : e.target.value === "true")}>
+          <option value="">自动（OpenAI 兼容协议默认不支持，其他协议默认支持）</option>
+          <option value="true">支持图片输入</option>
+          <option value="false">不支持（图片只告诉模型文件名）</option>
+        </select>
+      </label>
       <label>额外参数（JSON，可选）
         <textarea rows={3} value={params} onChange={(e) => setParams(e.target.value)}
           placeholder='如 {"thinking": {"type": "adaptive", "display": "summarized"}}' />
@@ -319,7 +367,7 @@ function ModelForm({ initial, connections, existing, onSave, onCancel }: {
         <button onClick={onCancel}>取消</button>
         <button className="primary" disabled={!m.name || !m.id || !m.provider || parsed === null}
           onClick={() => onSave(m.name, { provider: m.provider, id: m.id, context_window: m.context_window,
-            max_output: m.max_output, params: parsed ?? {} })}>保存</button>
+            max_output: m.max_output, params: parsed ?? {}, vision })}>保存</button>
       </div>
     </div>
   );

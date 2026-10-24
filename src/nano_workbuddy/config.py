@@ -62,6 +62,24 @@ class ModelSpec:
     context_window: int
     max_output: int
     params: dict[str, Any] = field(default_factory=dict)  # extra request body, e.g. thinking switches
+    vision: bool | None = None  # accepts images; None: guess from the protocol (see sees_images)
+
+    @property
+    def sees_images(self) -> bool:
+        """OpenAI-compatible endpoints often serve text-only models (DeepSeek, most local ones), so they must
+        say vision = true; the Anthropic and OpenAI Responses APIs take images unless told otherwise."""
+        return self.vision if self.vision is not None else self.provider.protocol != "openai-chat"
+
+
+SEARCH_PROVIDERS = ("tavily",)
+
+
+@dataclass(frozen=True)
+class SearchConfig:
+    """[search]: the web_search backend. Without an api_key the tool is not offered to the model."""
+
+    provider: str = "tavily"
+    api_key: str = ""  # a key reference, like a provider's
 
 
 @dataclass(frozen=True)
@@ -97,6 +115,7 @@ class Config:
     skill_dirs: tuple[str, ...] = ()  # [skills] dirs = [...]: more places to look for skills
     hooks: tuple[Hook, ...] = ()  # [[hooks.EVENT]] tables, Claude Code's events
     scratch_dir: Path = field(default_factory=lambda: default_scratch())  # where chats without a project work
+    search: SearchConfig = field(default_factory=SearchConfig)
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -136,15 +155,18 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
         if m["provider"] not in providers:
             raise ValueError(f"model {n}: unknown provider {m['provider']!r}")
         models[n] = ModelSpec(n, providers[m["provider"]], m["id"], int(m["context_window"]), int(m["max_output"]),
-                              dict(m.get("params", {})))
+                              dict(m.get("params", {})), m.get("vision"))
     if raw.get("default_model") not in models:
         raise ValueError(f"default_model {raw.get('default_model')!r} is not a configured model")
     rules = tuple(Rule(r["action"], r["resource"], r["effect"]) for r in raw.get("rules", []))
     mcp = {n: _mcp(n, m) for n, m in raw.get("mcp", {}).items()}
+    search = SearchConfig(**{k: v for k, v in raw.get("search", {}).items() if k in ("provider", "api_key")})
+    if search.provider not in SEARCH_PROVIDERS:
+        raise ValueError(f"search provider must be one of {', '.join(SEARCH_PROVIDERS)}")
     return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
                   tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())),
                   parse_hooks(raw.get("hooks", {})),
-                  Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch())
+                  Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch(), search)
 
 
 def _mcp(name: str, m: dict[str, Any]) -> McpServer:

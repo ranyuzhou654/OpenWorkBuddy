@@ -1,10 +1,55 @@
 // Types mirror the backend's wire format; requests are thin wrappers over fetch.
 
 export type Block =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; attachment?: string } // attachment: the model's view of an attached file
   | { type: "image"; mime: string; data: string }
   | { type: "thinking"; text: string; provider: string }
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown>; error?: string };
+
+// A file the user attached to a message (stored per session; the model sees it as <attachment> blocks).
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  path: string;
+  kind: "image" | "document" | "text" | "file";
+  desc: string; // e.g. "PDF, 12 pages"
+}
+
+export interface Check {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+// A file delivered to the user (create_document / present): one version, kept by hash.
+export interface Artifact {
+  path: string;
+  name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  version: number;
+  title: string;
+  checks: Check[];
+  info: Record<string, unknown>;
+  kept: boolean;
+  created_at: number;
+}
+
+// A numbered source [S#]: a search snippet, a page read in full, or a downloaded file.
+export interface Source {
+  n: number;
+  url: string;
+  kind: "search" | "page" | "file";
+  title: string;
+  snippet?: string;
+  published?: string;
+  retrieved_at?: string;
+  provider?: string;
+}
 
 export interface Entry {
   id: string;
@@ -142,6 +187,13 @@ export interface ModelView {
   context_window: number;
   max_output: number;
   params: Record<string, unknown>;
+  vision: boolean | null; // null: guessed from the protocol
+  sees_images?: boolean;
+}
+
+export interface SearchView {
+  provider: string;
+  key: KeyStatus | null;
 }
 
 export type Exposure = "auto" | "direct" | "deferred";
@@ -192,6 +244,7 @@ export interface SettingsView {
   mcp: McpView[];
   skills: SkillView[];
   skill_dirs: string[];
+  search: SearchView;
 }
 
 export interface RemoteModel {
@@ -244,8 +297,30 @@ export const api = {
   patch: (sid: string, body: { model?: string; preset?: string; title?: string; archived?: boolean }) =>
     call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
   deleteSession: (sid: string) => call<{ ok: boolean }>("DELETE", `/api/sessions/${sid}`),
-  send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue" }) =>
+  send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue"; attachments?: string[] }) =>
     call<{ delivery: string }>("POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
+  // The raw file as the body; returns what to list in the message's attachments.
+  upload: async (sid: string, file: File): Promise<Attachment> => {
+    const r = await fetch(`/api/sessions/${sid}/attachments?name=${encodeURIComponent(file.name || "pasted.png")}`,
+      { method: "PUT", body: file });
+    if (!r.ok) throw new ApiError(r.status, (await r.json().catch(() => ({}))).detail ?? r.statusText);
+    return r.json();
+  },
+  // Upload the files, then send the message that refers to them.
+  sendWithFiles: async (sid: string, text: string, files: File[], delivery: "auto" | "queue" = "auto") => {
+    const ids: string[] = [];
+    for (const f of files) ids.push((await api.upload(sid, f)).id);
+    return api.send(sid, { text, delivery, attachments: ids });
+  },
+  fileUrl: (sid: string, sha: string, name: string, download = false) =>
+    `/api/sessions/${sid}/files/${sha}?name=${encodeURIComponent(name)}${download ? "&download=1" : ""}`,
+  fileText: (sid: string, sha: string, name: string) =>
+    call<{ description: string; notes: string[]; text: string }>("GET",
+      `/api/sessions/${sid}/files/${sha}/text?name=${encodeURIComponent(name)}`),
+  reveal: (sid: string, path: string) => call<{ ok: boolean }>("POST", `/api/sessions/${sid}/reveal`, { path }),
+  putSearch: (body: { provider?: string; api_key?: string; key_ref?: string; clear?: boolean }) =>
+    call<SettingsView>("PUT", "/api/settings/search", { provider: "tavily", ...body }),
+  testSearch: () => call<{ ok: boolean; seconds?: number; results?: number; error?: string }>("POST", "/api/settings/search/test"),
   // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
   checkout: (sid: string, entry_id: string, descend = false, summarize = branchSummary.get()) =>
     call<{ leaf_id: string | null }>("POST", `/api/sessions/${sid}/checkout`, { entry_id, descend, summarize }),

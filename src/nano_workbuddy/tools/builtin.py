@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .. import documents
 from ..sandbox import SandboxUnavailable, wrap
 from ..types import text
 from .registry import Result, ToolCtx, ToolError, Verdict, tool
@@ -83,11 +84,13 @@ class ReadArgs(Args):
     path: str = Field(description="File path, absolute or relative to the project root")
     offset: int = Field(1, ge=1, description="First line to read (1-based)")
     limit: int = Field(2000, ge=1, le=5000, description="Maximum number of lines")
+    pages: str | None = Field(None, description='PDF pages, slides or sheets to read, e.g. "3" or "2-5"')
 
 
 @tool(effect="read", parallel=True, scope=_path_scope("read"))
 async def read(args: ReadArgs, ctx: ToolCtx) -> Result:
-    """Read a text file with line numbers, or an image. Use offset/limit for large files."""
+    """Read a text file with line numbers, an image, or the text of a PDF, Word, PowerPoint or Excel file
+    (with page / slide / sheet markers to cite). Use offset/limit for large files, pages for long documents."""
     p = resolve(ctx, args.path)
     if not p.exists():
         raise ToolError(f"{p} does not exist")
@@ -96,20 +99,46 @@ async def read(args: ReadArgs, ctx: ToolCtx) -> Result:
     if mime := IMAGE_TYPES.get(p.suffix.lower()):
         if p.stat().st_size > MAX_IMAGE_BYTES:
             raise ToolError(f"image larger than {MAX_IMAGE_BYTES} bytes")
+        if not ctx.vision:
+            return Result.ok(f"Image {p} ({p.stat().st_size} bytes). The current model cannot view images.")
         data = base64.b64encode(p.read_bytes()).decode()
         return Result([{"type": "text", "text": f"Image {p}"}, {"type": "image", "mime": mime, "data": data}])
+    if documents.is_document(p):
+        return await asyncio.to_thread(_read_document, p, args, ctx)
     raw = p.read_bytes()
     if b"\0" in raw[:8192]:
         raise ToolError(f"{p} looks binary; inspect it with bash")
     ctx.read_stamps[str(p)] = stamp(p)
-    lines = raw.decode("utf-8", errors="replace").splitlines()
+    return Result.ok(_numbered(raw.decode("utf-8", errors="replace").splitlines(), args, f"{p} is empty"))
+
+
+def _numbered(lines: list[str], args: ReadArgs, empty: str) -> str:
     if not lines:
-        return Result.ok(f"{p} is empty")
+        return empty
     start, end = args.offset - 1, min(len(lines), args.offset - 1 + args.limit)
     body = "\n".join(f"{n:6}\t{line[:MAX_LINE]}" for n, line in enumerate(lines[start:end], start=args.offset))
     if end < len(lines) or start > 0:
         body += f"\n[lines {args.offset}-{end} of {len(lines)}; use offset to read more]"
-    return Result.ok(body)
+    return body
+
+
+def _read_document(p: Path, args: ReadArgs, ctx: ToolCtx) -> Result:
+    try:
+        doc = documents.load(p, ctx.store / "cache" / "docs" if ctx.store else None)
+    except documents.DocumentError as e:
+        raise ToolError(str(e)) from e
+    first, last = 1, len(doc.units)
+    if args.pages:
+        if not doc.unit:
+            raise ToolError(f"{doc.kind} documents have no pages here; use offset/limit")
+        m = re.fullmatch(r"\s*(\d+)\s*(?:-\s*(\d+))?\s*", args.pages)
+        if not m or not 1 <= int(m.group(1)) <= len(doc.units):
+            raise ToolError(f"pages must look like 3 or 2-5, within 1-{len(doc.units)}")
+        first, last = int(m.group(1)), min(int(m.group(2) or m.group(1)), len(doc.units))
+    head = [f"{p}: {doc.describe()}" + (f", showing {doc.unit}s {first}-{last}" if args.pages else "")]
+    head += [f"Note: {n}" for n in doc.notes]
+    body = _numbered(doc.text(first, last).splitlines(), args, "(no text)")
+    return Result.ok("\n".join(head) + "\n\n" + body)
 
 
 class WriteArgs(Args):

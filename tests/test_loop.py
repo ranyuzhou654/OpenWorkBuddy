@@ -43,7 +43,8 @@ async def test_multi_step_file_task(make_ws, project):
     assert text_of(log.path()[-1].data["content"]) == "done: # hi"
     assert model.requests[0]["system"].startswith("You are nano-workbuddy")
     assert [t["name"] for t in model.requests[0]["tools"]] == [
-        "read", "write", "edit", "bash", "grep", "glob", "web_fetch", "todo", "ask_user", "memory"]
+        "read", "write", "edit", "bash", "grep", "glob", "web_fetch", "create_document", "present", "todo", "ask_user",
+        "memory"]  # web_search only when a search key is configured
     assert {"run.started", "assistant.delta", "run.finished"} <= {e["type"] for e in events}
     run = ws.index.unfinished_runs(log.id)
     assert run == []

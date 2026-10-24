@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, type Approval, type Block, type Entry, type Question, type Todo } from "./api";
-import { childrenOf, pathTo, textOf, type State } from "./session";
+import { api, type Approval, type Artifact, type Attachment, type Block, type Entry, type Question, type Source, type Todo } from "./api";
+import { ArtifactCard, AttachmentChips } from "./Files";
+import { childrenOf, pathTo, sourcesOf, textOf, type State } from "./session";
 
 type ToolCall = Extract<Block, { type: "tool_call" }>;
 
@@ -11,7 +12,8 @@ type ToolCall = Extract<Block, { type: "tool_call" }>;
 type Item =
   | { kind: "entry"; e: Entry }
   | { kind: "say"; key: string; blocks: Block[]; stop?: string }
-  | { kind: "steps"; key: string; calls: Step[] };
+  | { kind: "steps"; key: string; calls: Step[] }
+  | { kind: "artifact"; key: string; a: Artifact };
 
 type Thought = Extract<Block, { type: "thinking" }>;
 type Step = ToolCall | Thought; // thinking that only leads into tool calls stays inside the group
@@ -48,6 +50,9 @@ function toItems(path: Entry[]): Item[] {
     } else if (VISIBLE.has(e.type)) {
       flush();
       items.push({ kind: "entry", e });
+    } else if (e.type === "tool_result" && e.data.meta?.artifact) { // a delivered file is an event the user sees
+      flush();
+      items.push({ kind: "artifact", key: e.id, a: e.data.meta.artifact });
     }
   }
   flush();
@@ -69,6 +74,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
   const todos = latestTodos(path);
   const busy = live !== null;
   const items = toItems(path);
+  const cites = Object.fromEntries(sourcesOf(entries).map((x) => [x.n, x]));
 
   // Follow the bottom while streaming, unless the user scrolled up to read.
   const end = useRef<HTMLDivElement>(null);
@@ -84,11 +90,12 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
       {items.map((it, n) => {
         if (it.kind === "steps")
           return <StepGroup key={it.key} calls={it.calls} runs={runs} last={n === items.length - 1} />;
+        if (it.kind === "artifact") return <ArtifactCard key={it.key} sid={sid} a={it.a} />;
         if (it.kind === "say")
           return (
             <div key={it.key} className="msg assistant">
               {it.blocks.map((b, i) => b.type === "thinking" ? <Thinking key={i} text={b.text} />
-                : b.type === "text" ? <Markdown key={i} text={b.text} /> : null)}
+                : b.type === "text" ? <Markdown key={i} text={b.text} cites={cites} /> : null)}
               {it.stop === "aborted" && <div className="note">（已中止）</div>}
               {it.stop === "length" && <div className="note">（输出达到长度上限）</div>}
             </div>
@@ -124,7 +131,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
       {live && (live.thinking || live.text) && (
         <div className="msg assistant streaming">
           {live.thinking && <Thinking text={live.thinking} open />}
-          {live.text && <Markdown text={live.text} />}
+          {live.text && <Markdown text={live.text} cites={cites} />}
         </div>
       )}
       {live && !live.thinking && !live.text && runs.waiting.size === 0 && <div className="working">工作中…</div>}
@@ -145,6 +152,7 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const text = textOf(entry.data.content);
+  const files: Attachment[] = entry.data.attachments ?? [];
   const i = siblings.findIndex((s) => s.id === entry.id);
   const go = (to: Entry) => api.checkout(sid, to.id, true);
 
@@ -154,8 +162,8 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={Math.min(10, draft.split("\n").length + 1)} autoFocus />
         <div className="row">
           <button onClick={() => setEditing(false)}>取消</button>
-          <button className="primary" disabled={!draft.trim()} onClick={async () => {
-            await api.send(sid, { text: draft, parent_id: entry.parent_id });
+          <button className="primary" disabled={!draft.trim() && !files.length} onClick={async () => {
+            await api.send(sid, { text: draft, parent_id: entry.parent_id, attachments: files.map((f) => f.id) });
             setEditing(false);
           }}>保存并重新生成</button>
         </div>
@@ -163,7 +171,8 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
     );
   return (
     <div className={`msg user${entry.data.synthetic ? " synthetic" : ""}`}>
-      <div className="body">{text}</div>
+      {text && <div className="body">{text}</div>}
+      {files.length > 0 && <AttachmentChips sid={sid} files={files} />}
       <div className="meta">
         {siblings.length > 1 && (
           <span className="branches" title="这条消息的不同版本（分支）">
@@ -192,11 +201,20 @@ function Thinking({ text, open = false }: { text: string; open?: boolean }) {
   );
 }
 
-function Markdown({ text }: { text: string }) {
+// [S3] in an answer becomes a link to that source; unknown numbers stay plain text.
+function Markdown({ text, cites = {} }: { text: string; cites?: Record<number, Source> }) {
+  const linked = text.replace(/\[S(\d+)\](?!\()/g, (m, n) => {
+    const s = cites[Number(n)];
+    return s ? `[S${n}](${encodeURI(s.url)} "${(s.title || s.url).replace(/"/g, "'")}")` : m;
+  });
   return (
     <div className="md">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: (p) => <a {...p} target="_blank" rel="noreferrer" /> }}>
-        {text}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+        a: ({ children, ...p }) => (
+          <a {...p} target="_blank" rel="noreferrer" className={/^S\d+$/.test(String(children)) ? "cite" : undefined}>{children}</a>
+        ),
+      }}>
+        {linked}
       </ReactMarkdown>
     </div>
   );
@@ -221,6 +239,8 @@ function summary(name: string, args: Record<string, any>): string {
   if (name === "grep") return `${args.pattern ?? ""}${args.glob ? `  (${args.glob})` : ""}${args.path && args.path !== "." ? `  in ${args.path}` : ""}`;
   if (name === "glob") return `${args.pattern ?? ""}${args.path && args.path !== "." ? `  in ${args.path}` : ""}`;
   if (name === "web_fetch") return String(args.url ?? "");
+  if (name === "web_search") return String(args.query ?? "");
+  if (name === "create_document" || name === "present") return String(args.path ?? "");
   if (name === "ask_user") return String(args.question ?? "");
   if (name === "todo") {
     const list: Todo[] = Array.isArray(args.todos) ? args.todos : [];
@@ -240,6 +260,7 @@ function ToolArgs({ name, args }: { name: string; args: Record<string, any> }) {
     );
   if (name === "todo") return <TodoList todos={Array.isArray(args.todos) ? args.todos : []} />;
   if (name === "write") return <pre>{String(args.content ?? "").slice(0, 4000)}</pre>;
+  if (name === "create_document") return <pre>{String(args.content ?? "").slice(0, 4000)}</pre>;
   if (name === "bash") return <pre>{args.command}</pre>;
   if (name === "memory")
     return (
@@ -315,7 +336,8 @@ function StepGroup({ calls: steps, runs, last }: { calls: Step[]; runs: Runs; la
 }
 
 const ICONS: Record<string, string> = {
-  read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", todo: "✓", ask_user: "?",
+  read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", web_search: "⌕", todo: "✓", ask_user: "?",
+  create_document: "D", present: "⇪",
   skill: "S", memory: "M", tool_search: "⌕",
 };
 
