@@ -180,6 +180,12 @@ class Index:
             return self._all(sql + " and session_id=? order by started_at", session_id)
         return self._all(sql + " order by started_at")
 
+    def usage(self, since: float) -> list[dict[str, Any]]:
+        """Finished runs since a time: when, which model, and its token counts."""
+        rows = self._all("select started_at, model_ref, usage_json from runs"
+                         " where started_at>=? and usage_json is not null", since)
+        return [{"at": r["started_at"], "model": r["model_ref"], **json.loads(r["usage_json"])} for r in rows]
+
     def bump_resume(self, run_id: str) -> int:
         self.db.execute("update runs set resume_count=resume_count+1 where id=?", (run_id,))
         return self._one("select resume_count from runs where id=?", run_id)["resume_count"]

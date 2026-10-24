@@ -64,6 +64,15 @@ SEATBELT_NETWORK = """\
 """
 
 
+def backend() -> str | None:
+    """The sandbox this machine can use, or None (commands then need the trust preset)."""
+    if sys.platform == "darwin":
+        return "macOS Seatbelt" if Path(SANDBOX_EXEC).exists() else None
+    if sys.platform.startswith("linux"):
+        return "bubblewrap" if shutil.which("bwrap") else None
+    return None
+
+
 def wrap(argv: list[str], policy: SandboxPolicy) -> list[str]:
     if sys.platform == "darwin":
         return seatbelt(argv, policy)

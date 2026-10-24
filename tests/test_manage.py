@@ -119,3 +119,21 @@ async def test_context_usage_is_published_before_each_request(home, project):
         stream.close()
     sizes = [e["tokens"] for e in stream.events if e["type"] == "context"]
     assert len(sizes) == 2 and sizes[1] > sizes[0]  # the tool call and its result were added
+
+
+async def test_usage_and_system(home, project):
+    ws = workspace(home, reply(None, call("bash", command="echo hi")), reply("done"), reply("again"))
+    async with Server(ws) as s:
+        sid = await s.session(project)
+        for text in ("one", "two"):
+            stream = Stream(s.client, sid)
+            await stream.ready.wait()
+            await s.client.post(f"/api/sessions/{sid}/messages", json={"text": text})
+            await stream.until(finished)
+            stream.close()
+        u = (await s.client.get("/api/usage")).json()
+        assert [(m["runs"], m["input"], m["output"]) for m in u["per_model"]] == [(2, 30, 15)]  # 3 replies, 10/5 each
+        assert len(u["per_day"]) == 1 and u["per_day"][0]["runs"] == 2
+        info = (await s.client.get("/api/system")).json()
+        assert info["config"] == str(home / "config.toml") and info["hooks"] == [] and info["version"]
+        assert (await s.client.get("/api/info")).json()["user"]

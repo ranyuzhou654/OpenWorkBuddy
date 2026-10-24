@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import getpass
+import platform
 import secrets
 import shutil
 import sys
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -19,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
-from . import llm, settings, skills
+from . import llm, sandbox, settings, skills
 from .config import McpServer, key_status, secret
 from .log import entry_json
 from .memory import project_file
@@ -176,7 +179,36 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     async def info() -> dict[str, Any]:
         return {"models": [{"name": m.name, "provider": m.provider.name, "context_window": m.context_window}
                            for m in ws.cfg.models.values()],
-                "default_model": ws.cfg.default_model, "presets": {k: p.label for k, p in PRESETS.items()}}
+                "default_model": ws.cfg.default_model, "presets": {k: p.label for k, p in PRESETS.items()},
+                "user": getpass.getuser(), "version": version("nano-workbuddy")}
+
+    @app.get("/api/usage")
+    async def usage(days: int = Query(30, ge=1, le=365)) -> dict[str, Any]:
+        """Token use per day and per model over the last `days` days, summed from the runs table."""
+        start = time.time() - days * 86400
+        per_day: dict[str, dict[str, int]] = {}
+        per_model: dict[str, dict[str, int]] = {}
+        for run in ws.index.usage(start):
+            day = time.strftime("%Y-%m-%d", time.localtime(run.pop("at")))
+            for bucket in (per_day.setdefault(day, {}), per_model.setdefault(run.pop("model") or "?", {})):
+                bucket["runs"] = bucket.get("runs", 0) + 1
+                for k, v in run.items():
+                    if isinstance(v, int):
+                        bucket[k] = bucket.get(k, 0) + v
+        return {"days": days, "per_day": [{"day": d, **v} for d, v in sorted(per_day.items())],
+                "per_model": [{"model": m, **v} for m, v in sorted(per_model.items(), key=lambda x: -x[1]["runs"])]}
+
+    @app.get("/api/system")
+    async def system() -> dict[str, Any]:
+        """What this machine offers the agent, and where its files live; the developer view of the config."""
+        cfg = ws.cfg
+        picker = sys.platform == "darwin" or shutil.which("zenity") is not None
+        return {"version": version("nano-workbuddy"), "python": platform.python_version(),
+                "os": f"{platform.system()} {platform.release()}", "home": str(cfg.home),
+                "config": str(cfg.home / "config.toml"), "scratch_dir": str(cfg.scratch_dir),
+                "sandbox": sandbox.backend(), "ripgrep": shutil.which("rg"), "folder_picker": picker,
+                "hooks": [dataclasses.asdict(h) for h in cfg.hooks],
+                "rules": [{"action": r.action, "resource": r.resource, "effect": r.effect} for r in cfg.rules]}
 
     def project_view(p: dict[str, Any]) -> dict[str, Any]:
         return {**p, "trusted": bool(p["trusted"]), "scratch": ws.is_scratch(p),
@@ -462,7 +494,8 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     def memory_files() -> list[dict[str, Any]]:
         files = [{"key": "user", "label": "个人（USER.md）", "path": ws.cfg.home / "USER.md"}]
-        files += [{"key": p["id"], "label": f"项目 {p['name']}", "path": project_file(Path(p["root_path"]))}
+        files += [{"key": p["id"], "label": "对话文件夹" if ws.is_scratch(p) else f"项目 {p['name']}",
+                   "path": project_file(Path(p["root_path"]))}
                   for p in ws.index.projects()]
         return [{**f, "path": str(f["path"]), "text": f["path"].read_text(encoding="utf-8") if f["path"].is_file()
                  else ""} for f in files]

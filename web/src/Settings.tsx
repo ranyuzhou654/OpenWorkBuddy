@@ -3,8 +3,12 @@ import {
   api, type ConnectionView, type KeyStatus, type ModelTest, type ModelView, type Protocol, type RemoteModel,
   type SettingsView,
 } from "./api";
+import {
+  Blocks, CircleHelp, Cpu, Gauge, type LucideIcon, Monitor, NotebookPen, ScrollText, Settings as SettingsIcon, Wrench,
+} from "lucide-react";
 import { McpSection } from "./Mcp";
 import { MemorySection, SkillsSection } from "./Skills";
+import { DeveloperSection, GeneralSection, HelpSection, SystemSection, UsageSection } from "./System";
 
 // A connection is an endpoint plus one API key. Two keys for the same service = two connections.
 // Every model belongs to one connection; sessions pick a model, new sessions start on the default.
@@ -25,28 +29,11 @@ const PROTOCOLS: Record<Protocol, string> = {
   "openai-chat": "OpenAI 兼容（Chat）", anthropic: "Anthropic", "openai-responses": "OpenAI Responses（GPT 推理模型）",
 };
 
-export function Settings({ onChanged, onError }: { onChanged: () => void; onError: (m: string) => void }) {
-  const [view, setView] = useState<SettingsView | null>(null);
+function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean> }) {
   const [editingConn, setEditingConn] = useState<ConnectionView | "new" | null>(null);
   const [editingModel, setEditingModel] = useState<Partial<ModelView> | null>(null);
   const [remote, setRemote] = useState<Record<string, RemoteModel[] | string>>({});
   const [tests, setTests] = useState<Record<string, ModelTest | "running">>({});
-
-  useEffect(() => {
-    api.settings().then(setView).catch((e) => onError(String(e)));
-  }, [onError]);
-
-  // Every write returns the new settings; the model pickers elsewhere are refreshed via onChanged.
-  const save = async (p: Promise<SettingsView>): Promise<boolean> => {
-    try {
-      setView(await p);
-      onChanged();
-      return true;
-    } catch (e) {
-      onError(String(e));
-      return false;
-    }
-  };
 
   const fetchRemote = async (name: string) => {
     setRemote((r) => ({ ...r, [name]: "加载中…" }));
@@ -64,9 +51,8 @@ export function Settings({ onChanged, onError }: { onChanged: () => void; onErro
     setTests((t) => ({ ...t, [name]: result }));
   };
 
-  if (!view) return <div className="empty">加载中…</div>;
   return (
-    <div className="settings">
+    <>
       <h2>连接</h2>
       <p className="note">一个连接 = 一个服务地址 + 一把密钥。同一服务商有多把密钥，就建多个连接。密钥保存在 ~/.nwb/secrets.json（仅你可读），配置文件里只记引用，页面上只显示末 4 位。</p>
       {view.providers.map((p) =>
@@ -140,9 +126,76 @@ export function Settings({ onChanged, onError }: { onChanged: () => void; onErro
         </button>
       )}
 
-      <McpSection view={view} save={save} onError={onError} />
-      <SkillsSection view={view} save={save} />
-      <MemorySection onError={onError} />
+    </>
+  );
+}
+
+// Settings, after Claude's: a nav of sections on the left, one section at a time on the right.
+const GROUPS: { label: string; items: { key: string; label: string; icon: LucideIcon }[] }[] = [
+  { label: "设置", items: [
+    { key: "general", label: "通用", icon: SettingsIcon },
+    { key: "models", label: "模型与密钥", icon: Cpu },
+    { key: "usage", label: "用量", icon: Gauge },
+    { key: "memory", label: "记忆", icon: NotebookPen },
+  ] },
+  { label: "本机", items: [
+    { key: "system", label: "系统", icon: Monitor },
+    { key: "developer", label: "开发者", icon: Wrench },
+    { key: "help", label: "帮助", icon: CircleHelp },
+  ] },
+  { label: "自定义", items: [
+    { key: "skills", label: "技能", icon: ScrollText },
+    { key: "connectors", label: "连接器", icon: Blocks },
+  ] },
+];
+
+export function Settings({ section, onChanged, onError }: {
+  section: string; onChanged: () => void; onError: (m: string) => void;
+}) {
+  const [view, setView] = useState<SettingsView | null>(null);
+
+  useEffect(() => {
+    api.settings().then(setView).catch((e) => onError(String(e)));
+  }, [onError]);
+
+  // Every write returns the new settings; the model pickers elsewhere are refreshed via onChanged.
+  const save = async (p: Promise<SettingsView>): Promise<boolean> => {
+    try {
+      setView(await p);
+      onChanged();
+      return true;
+    } catch (e) {
+      onError(String(e));
+      return false;
+    }
+  };
+
+  const key = GROUPS.some((g) => g.items.some((i) => i.key === section)) ? section : "general";
+  const needsView = ["models", "skills", "connectors"].includes(key);
+  return (
+    <div className="settings-page">
+      <nav className="settings-nav">
+        {GROUPS.map((g) => (
+          <div key={g.label} className="nav-group">
+            <div className="nav-label">{g.label}</div>
+            {g.items.map(({ key: k, label, icon: Icon }) => (
+              <a key={k} href={`#/settings/${k}`} className={k === key ? "on" : ""}><Icon size={16} strokeWidth={1.75} />{label}</a>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div className="settings">
+        {needsView && !view ? <div className="empty">加载中…</div>
+          : key === "general" ? <GeneralSection onError={onError} />
+          : key === "models" ? <ModelsSection view={view!} save={save} />
+          : key === "usage" ? <UsageSection onError={onError} />
+          : key === "memory" ? <MemorySection onError={onError} />
+          : key === "system" ? <SystemSection onError={onError} />
+          : key === "developer" ? <DeveloperSection onError={onError} />
+          : key === "help" ? <HelpSection />
+          : key === "skills" ? <SkillsSection view={view!} save={save} />
+          : <McpSection view={view!} save={save} onError={onError} />}
+      </div>
     </div>
   );
 }

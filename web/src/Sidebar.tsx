@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { api, ApiError, type Project, type SessionInfo } from "./api";
+import { ChevronsUpDown, CircleHelp, Ellipsis, Gauge, Plus, Settings, SquarePen } from "lucide-react";
+import { api, ApiError, type Info, type Project, type SessionInfo } from "./api";
 
 // Adding a project: a native folder dialog (served by the backend, since a browser cannot reveal a real
 // path), then a question about trust. Without a dialog on the server's machine, the path is typed in.
@@ -84,7 +85,9 @@ function Menu({ items }: { items: [label: string, action: () => void, danger?: b
   }, [open]);
   return (
     <span className="menu">
-      <button className="dots" title="更多" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>⋯</button>
+      <button className="dots" title="更多" aria-label="更多" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+        <Ellipsis size={15} />
+      </button>
       {open && (
         <div className="menu-pop">
           {items.map(([label, action, danger]) => (
@@ -136,8 +139,8 @@ const folded = {
   },
 };
 
-export function Sidebar({ projects, current, running, onAddProject, onChanged, onError }: {
-  projects: Project[]; current: string | null; running: string | null; onAddProject: () => void;
+export function Sidebar({ info, projects, current, running, onAddProject, onChanged, onError }: {
+  info: Info | null; projects: Project[]; current: string | null; running: string | null; onAddProject: () => void;
   onChanged: () => void; onError: (m: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null); // "s:<id>" or "p:<id>"
@@ -171,8 +174,8 @@ export function Sidebar({ projects, current, running, onAddProject, onChanged, o
   return (
     <nav className="sidebar">
       <div className="brand">nano-workbuddy</div>
-      <button className={`new-chat${current === null && location.hash !== "#/settings" ? " on" : ""}`}
-        onClick={() => (location.hash = "#/")}>✎ 新对话</button>
+      <button className={`new-chat${current === null && !location.hash.startsWith("#/settings") ? " on" : ""}`}
+        onClick={() => (location.hash = "#/")}><SquarePen size={15} strokeWidth={1.75} />新对话</button>
       {chats.length > 0 && (
         <div className="project plain">
           <div className="project-head"><span>对话</span></div>
@@ -181,7 +184,7 @@ export function Sidebar({ projects, current, running, onAddProject, onChanged, o
       )}
       <div className="section-head">
         <span>项目</span>
-        <button title="添加项目" onClick={onAddProject}>＋</button>
+        <button title="添加项目" aria-label="添加项目" onClick={onAddProject}><Plus size={14} /></button>
       </div>
       {projects.filter((p) => !p.scratch).map((p) => (
         <div key={p.id} className="project">
@@ -198,7 +201,9 @@ export function Sidebar({ projects, current, running, onAddProject, onChanged, o
                 {!p.trusted && <span className="badge" title="未信任：新会话以只读档开始，不加载项目技能">未信任</span>}
               </span>
               <span>
-                <button title="在此项目中新建会话" onClick={() => (location.hash = `#/new/${p.id}`)}>＋</button>
+                <button title="在此项目中新建会话" aria-label="在此项目中新建会话" onClick={() => (location.hash = `#/new/${p.id}`)}>
+                  <Plus size={14} />
+                </button>
                 <Menu items={[["重命名", () => setEditing(`p:${p.id}`)],
                   [p.trusted ? "取消信任" : "信任此项目", () => act(api.patchProject(p.id, { trusted: !p.trusted }))],
                   ["从列表移除", () => {
@@ -228,8 +233,35 @@ export function Sidebar({ projects, current, running, onAddProject, onChanged, o
           ))}
         </details>
       )}
-      <button className={`link settings-link${location.hash === "#/settings" ? " on" : ""}`}
-        onClick={() => (location.hash = "#/settings")}>⚙ 模型与密钥</button>
+      <Account info={info} />
     </nav>
+  );
+}
+
+// The account button at the bottom of the sidebar; its menu opens upwards.
+function Account({ info }: { info: Info | null }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+  const user = info?.user ?? "…";
+  return (
+    <div className="account">
+      {open && (
+        <div className="account-pop">
+          <a href="#/settings"><Settings size={16} strokeWidth={1.75} />设置<kbd>⌘ ,</kbd></a>
+          <a href="#/settings/usage"><Gauge size={16} strokeWidth={1.75} />用量</a>
+          <a href="#/settings/help"><CircleHelp size={16} strokeWidth={1.75} />获取帮助</a>
+        </div>
+      )}
+      <button className={`account-btn${open ? " open" : ""}`} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+        <span className="avatar">{user.slice(0, 1).toUpperCase()}</span>
+        <span className="who"><b>{user}</b><small>本机{info ? ` · v${info.version}` : ""}</small></span>
+        <ChevronsUpDown size={14} />
+      </button>
+    </div>
   );
 }

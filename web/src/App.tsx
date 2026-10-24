@@ -28,7 +28,7 @@ export function App() {
   const sid = hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
   const newIn = hash.match(/^#\/new\/(.+)$/)?.[1] ?? null;
   const select = (id: string) => (location.hash = `#/s/${id}`);
-  const settingsOpen = hash === "#/settings";
+  const settingsOpen = hash.startsWith("#/settings");
   const [showTree, setShowTree] = useState(false);
   const [state, dispatch] = useSession(sid);
   const busy = state.live !== null;
@@ -49,6 +49,16 @@ export function App() {
   const showError = useCallback((message: string) => dispatch({ type: "error", message }), [dispatch]);
   const takeDropped = useCallback(() => dispatch({ type: "takeDropped" }), [dispatch]);
   const adder = useAddProject(projects, refresh, showError);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        location.hash = "#/settings";
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (unauthorized)
     return <div className="login">未登录。请用 <code>nwb serve</code> 在终端里打印的登录链接打开本页。</div>;
@@ -57,7 +67,7 @@ export function App() {
   const project = projects.find((p) => p.id === session?.project_id);
   return (
     <div className="app">
-      <Sidebar projects={projects} current={sid} running={busy ? sid : null} onChanged={refresh} onError={showError}
+      <Sidebar info={info} projects={projects} current={sid} running={busy ? sid : null} onChanged={refresh} onError={showError}
         onAddProject={() => adder.add().then((p) => p && (location.hash = `#/new/${p.id}`))} />
       {adder.dialog}
       <main>
@@ -65,7 +75,7 @@ export function App() {
           <div className="banner" onClick={() => dispatch({ type: "error", message: null })}>{state.error}（点击关闭）</div>
         )}
         {settingsOpen ? (
-          <Settings onChanged={refreshInfo} onError={showError} />
+          <Settings section={hash.split("/")[2] ?? "general"} onChanged={refreshInfo} onError={showError} />
         ) : sid && session ? (
           <>
             <header>

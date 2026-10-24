@@ -93,6 +93,30 @@ export interface Info {
   models: { name: string; provider: string; context_window: number }[];
   default_model: string;
   presets: Record<Preset, string>;
+  user: string; // the account the server runs as
+  version: string;
+}
+
+export type Tokens = { runs: number; input?: number; output?: number; cache_read?: number; [k: string]: number | undefined };
+
+export interface Usage {
+  days: number;
+  per_day: (Tokens & { day: string })[];
+  per_model: (Tokens & { model: string })[];
+}
+
+export interface SystemInfo {
+  version: string;
+  python: string;
+  os: string;
+  home: string;
+  config: string;
+  scratch_dir: string;
+  sandbox: string | null;
+  ripgrep: string | null;
+  folder_picker: boolean;
+  hooks: { event: string; matcher: string; command: string; timeout: number }[];
+  rules: { action: string; resource: string; effect: string }[];
 }
 
 export type Protocol = "openai-chat" | "anthropic" | "openai-responses";
@@ -249,6 +273,8 @@ export const api = {
   setSkillDirs: (dirs: string[]) => call<SettingsView>("PUT", "/api/settings/skill-dirs", { dirs }),
   skills: (projectId: string | null) =>
     call<{ name: string; description: string }[]>("GET", `/api/skills${projectId ? `?project_id=${projectId}` : ""}`),
+  usage: (days = 30) => call<Usage>("GET", `/api/usage?days=${days}`),
+  system: () => call<SystemInfo>("GET", "/api/system"),
   memory: () => call<MemoryFile[]>("GET", "/api/memory"),
   putMemory: (key: string, text: string) => call<MemoryFile[]>("PUT", `/api/memory/${encodeURIComponent(key)}`, { text }),
   answer: (qid: string, answer: string) => call<{ ok: boolean }>("POST", `/api/questions/${qid}`, { answer }),
@@ -271,5 +297,29 @@ export const branchSummary = {
     } catch {
       // storage unavailable: the choice lasts until reload
     }
+  },
+};
+
+// Per-browser preference: follow the system's light/dark setting, or force one.
+export type Theme = "system" | "light" | "dark";
+export const theme = {
+  get(): Theme {
+    try {
+      return (localStorage.getItem("nwb.theme") as Theme | null) ?? "system";
+    } catch {
+      return "system";
+    }
+  },
+  set(t: Theme): void {
+    try {
+      localStorage.setItem("nwb.theme", t);
+    } catch {
+      // storage unavailable: the choice lasts until reload
+    }
+    theme.apply(t);
+  },
+  apply(t: Theme = theme.get()): void {
+    if (t === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
   },
 };
