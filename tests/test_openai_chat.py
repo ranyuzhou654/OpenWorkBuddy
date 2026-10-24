@@ -53,6 +53,15 @@ async def test_invalid_arguments_are_flagged_not_dropped():
     assert "error" in resp.content[0] and resp.content[0]["args"] == {}
 
 
+async def test_stream_without_finish_reason_is_an_error():
+    """Complete-looking JSON arguments do not make a cut-off stream trustworthy (F05)."""
+    out = await collect([chunk(content="Writing", tool_calls=[tc(0, "c", "write", '{"path": "x", "content": "y"}')])])
+    resp = out[-1]
+    assert resp.stop == "error" and resp.content[1]["args"] == {"path": "x", "content": "y"}
+    out = await collect([chunk(content="plain text, no terminal chunk")])
+    assert out[-1].stop == "error"
+
+
 def test_to_chat_replays_thinking_only_to_its_provider():
     thinking = {"type": "thinking", "text": "hmm", "provider": "deepseek", "meta": {"field": "reasoning_content"}}
     call = {"type": "tool_call", "id": "c1", "name": "read", "args": {"path": "中文"}}

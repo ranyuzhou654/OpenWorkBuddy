@@ -1,6 +1,10 @@
 """Active runs for the server: at most one task per session, an inbox for messages sent while it runs,
 approvals waiting for the user, and fan-out of events to every subscribed client.
 
+Every message is made durable (index inputs table) before the client is told how it was delivered, and
+stays "pending" until the user entry made from it is in the log. After a crash or restart, resume_all
+hands pending messages to the resumed run, or starts a run for them: an acknowledged message is never lost.
+
 Two kinds of events reach a client:
   durable   - "entry" / "checkout", published by the session log itself; replayable by seq
   ephemeral - deltas, tool output, run status, approvals; a reconnecting client gets their
@@ -17,7 +21,7 @@ from typing import Any
 
 from . import policy
 from .log import SessionLog, entry_json
-from .loop import SHUTDOWN, Inbox
+from .loop import SHUTDOWN, Inbox, Input
 from .runtime import Ask, Emit, Question, Workspace
 from .tools import Result, Tool
 from .types import ToolCall, new_id
@@ -25,6 +29,7 @@ from .types import ToolCall, new_id
 log_ = logging.getLogger(__name__)
 
 MAX_LIVE_OUTPUT = 20_000
+MAX_PENDING_EVENTS = 5_000  # per subscriber; a client this far behind is cut off and reconnects from a snapshot
 
 type Factory = Callable[[Emit, Inbox, Ask, Question], Awaitable[str | None]]
 
@@ -34,21 +39,31 @@ class Busy(Exception):
 
 
 class Hub:
-    """Fan-out of one session's events to its SSE subscribers."""
+    """Fan-out of one session's events to its SSE subscribers. Each subscriber's queue is bounded: one that
+    falls too far behind (a stalled tab, a slow link) is not allowed to grow memory without limit. It is
+    cut off instead — its queue is emptied and ends with None, which closes its stream — and the client
+    reconnects with a fresh snapshot, which is always consistent. Events are never silently skipped."""
 
-    def __init__(self) -> None:
-        self.subs: set[asyncio.Queue[dict[str, Any]]] = set()
+    def __init__(self, limit: int = MAX_PENDING_EVENTS) -> None:
+        self.subs: set[asyncio.Queue[dict[str, Any] | None]] = set()
+        self.limit = limit
 
     def publish(self, event: dict[str, Any]) -> None:
-        for q in self.subs:
-            q.put_nowait(event)
+        for q in list(self.subs):
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                self.subs.discard(q)
+                while not q.empty():
+                    q.get_nowait()
+                q.put_nowait(None)
 
-    def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
-        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    def subscribe(self) -> asyncio.Queue[dict[str, Any] | None]:
+        q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(self.limit)
         self.subs.add(q)
         return q
 
-    def unsubscribe(self, q: asyncio.Queue[dict[str, Any]]) -> None:
+    def unsubscribe(self, q: asyncio.Queue[dict[str, Any] | None]) -> None:
         self.subs.discard(q)
 
 
@@ -64,11 +79,10 @@ class Live:
     outputs: dict[str, str] = field(default_factory=dict)  # call_id -> streamed tool output so far
     approvals: dict[str, tuple[dict[str, Any], asyncio.Future[tuple[str, str | None]]]] = field(default_factory=dict)
     questions: dict[str, tuple[dict[str, Any], asyncio.Future[str]]] = field(default_factory=dict)
-    seen_requests: set[str] = field(default_factory=set)
 
     def view(self) -> dict[str, Any]:
         return {"run_id": self.run_id, "text": self.text, "thinking": self.thinking, "outputs": self.outputs,
-                "steer": self.inbox.steer, "queue": self.inbox.queue,
+                **self.inbox.view(),
                 "approvals": [v for v, _ in self.approvals.values()],
                 "questions": [v for v, _ in self.questions.values()]}
 
@@ -88,6 +102,9 @@ class RunManager:
         return self.hubs[log.id]
 
     def _on_log(self, sid: str, event: dict[str, Any]) -> None:
+        if event["type"] == "entry" and event["entry"]["type"] == "user" and (iid := event["entry"]["data"].get(
+                "input_id")):
+            self.ws.index.finish_input(iid, "consumed")  # the message is in the log now: it can no longer be lost
         if (live := self.live.get(sid)) and event["type"] == "entry":
             entry = event["entry"]
             if entry["type"] == "assistant":  # the streamed text is now durable
@@ -112,6 +129,9 @@ class RunManager:
 
         return emit
 
+    def live_view(self, sid: str) -> dict[str, Any] | None:
+        return live.view() if (live := self.live.get(sid)) else None
+
     def snapshot(self, log: SessionLog) -> dict[str, Any]:
         """Everything a client needs to render a session; then it subscribes with after=seq."""
         self.hub(log)
@@ -124,25 +144,34 @@ class RunManager:
 
     def send(self, log: SessionLog, content: str, *, request_id: str | None = None,
              parent_id: str | None = None, delivery: str = "auto") -> str:
-        """Start a run, or hand the message to the active one. Returns how it was delivered."""
-        if live := self.live.get(log.id):
-            if parent_id is not None:
-                raise Busy("cannot branch from an earlier message while a run is active")
-            if request_id and request_id in live.seen_requests:
+        """Start a run, or hand the message to the active one. Returns how it was delivered: "run", "steer",
+        "queue", or "duplicate" for a retried request_id. Raises Busy for a request_id reused with another
+        message, or a branch edit while a run is active."""
+        live = self.live.get(log.id)
+        if live and parent_id is not None:
+            raise Busy("cannot branch from an earlier message while a run is active")
+        if request_id:
+            claim = self.ws.index.claim_request(request_id, log.id, f"{parent_id}\0{content}")
+            if claim == "duplicate":
                 return "duplicate"
-            if request_id:
-                live.seen_requests.add(request_id)
-            kind = "queue" if delivery == "queue" else "steer"
-            getattr(live.inbox, kind).append(content)
+            if claim == "conflict":
+                raise Busy(f"request_id {request_id} was already used for a different message")
+        kind = ("queue" if delivery == "queue" else "steer") if live else "run"
+        msg = Input(content, self.ws.index.add_input(log.id, kind, content, parent_id))  # durable before the ack
+        if live:
+            getattr(live.inbox, kind).append(msg)
             self._publish_inbox(log.id, live.inbox)
-            return kind
+        else:
+            self._submit(log, msg, request_id=request_id, parent_id=parent_id)
+        return kind
 
+    def _submit(self, log: SessionLog, msg: Input, *, request_id: str | None = None,
+                parent_id: str | None = None, inbox: Inbox | None = None) -> None:
         def factory(emit: Emit, inbox: Inbox, ask: Ask, question: Question) -> Awaitable[str]:
-            return self.ws.submit(log, content, request_id=request_id, parent_id=parent_id, emit=emit,
+            return self.ws.submit(log, msg, request_id=request_id, parent_id=parent_id, emit=emit,
                                   inbox=inbox, ask=ask, question=question)
 
-        self._start(log, factory)
-        return "run"
+        self._start(log, factory, inbox)
 
     def compact(self, log: SessionLog, instructions: str | None = None) -> None:
         if log.id in self.live:
@@ -160,12 +189,37 @@ class RunManager:
         live.task.cancel()
 
     def resume_all(self) -> None:
-        """At server start: continue every run a crash or shutdown left unfinished (D6)."""
-        self.ws.index.expire_pending_approvals()
-        for sid in dict.fromkeys(r["session_id"] for r in self.ws.index.unfinished_runs()):
-            log = self.ws.open_session(sid)
-            self._start(log, lambda emit, inbox, ask, question, log=log: self.ws.resume(log, emit, inbox, ask,
-                                                                                        question))
+        """At server start: continue every run a crash or shutdown left unfinished (D6), together with the
+        messages that were accepted but had not reached the log yet; start a run for such messages in a
+        session that has nothing to resume."""
+        index = self.ws.index
+        index.expire_pending_approvals()
+        unfinished = [r["session_id"] for r in index.unfinished_runs()]
+        pending: dict[str, list[dict[str, Any]]] = {}
+        for row in index.pending_inputs():
+            pending.setdefault(row["session_id"], []).append(row)
+        for sid in dict.fromkeys([*unfinished, *pending]):
+            try:
+                log = self.ws.open_session(sid)
+            except KeyError:
+                continue
+            rows = self._not_in_log(log, pending.get(sid, []))
+            msgs = [Input(r["content"], r["id"]) for r in rows]
+            if sid in unfinished:
+                inbox = Inbox(steer=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] != "queue"],
+                              queue=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "queue"])
+                self._start(log, lambda emit, inbox, ask, question, log=log: self.ws.resume(log, emit, inbox, ask,
+                                                                                            question), inbox)
+            elif msgs:
+                self._submit(log, msgs[0], parent_id=rows[0]["parent_id"], inbox=Inbox(queue=msgs[1:]))
+
+    def _not_in_log(self, log: SessionLog, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Pending inputs minus those whose user entry was written just before a crash (marked consumed now)."""
+        logged = {e.data.get("input_id") for e in log.entries.values() if e.type == "user"}
+        for r in rows:
+            if r["id"] in logged:
+                self.ws.index.finish_input(r["id"], "consumed")
+        return [r for r in rows if r["id"] not in logged]
 
     async def shutdown(self) -> None:
         """Stop runs so that they resume on the next start instead of counting as cancelled."""
@@ -197,16 +251,20 @@ class RunManager:
         self.hubs[log.id].publish({"type": "session", "session": self.ws.index.session(log.id),
                                    "context": self.ws.context_usage(log)})  # title, leaf, context size
         leftovers = live.inbox.steer + live.inbox.queue
-        if leftovers and status in ("ok", "limit"):  # messages that arrived as the run was ending
-            first, rest = leftovers[0], leftovers[1:]
-            self.send(log, first)
-            self.live[log.id].inbox.queue.extend(rest)
+        if status == "busy":  # another process holds the session: inputs stay pending for the next start
+            pass
+        elif leftovers and status in ("ok", "limit"):  # messages that arrived as the run was ending
+            self._submit(log, leftovers[0], inbox=Inbox(queue=leftovers[1:]))
             self._publish_inbox(log.id, self.live[log.id].inbox)
         elif leftovers:  # cancelled or failed: give the text back to the composer
-            self.hubs[log.id].publish({"type": "inbox", "steer": [], "queue": [], "dropped": leftovers})
+            for m in leftovers:
+                if m.id:
+                    self.ws.index.finish_input(m.id, "dropped")
+            self.hubs[log.id].publish({"type": "inbox", "steer": [], "queue": [],
+                                       "dropped": [m.text for m in leftovers]})
 
     def _publish_inbox(self, sid: str, inbox: Inbox) -> None:
-        self.hubs[sid].publish({"type": "inbox", "steer": inbox.steer, "queue": inbox.queue})
+        self.hubs[sid].publish({"type": "inbox", **inbox.view()})
 
     # approvals
 

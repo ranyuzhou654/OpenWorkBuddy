@@ -12,7 +12,7 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
-from .log import SessionLog
+from .log import SessionBusy, SessionLog
 from .loop import CANCELLED
 from .policy import PRESETS, Check
 from .runtime import Ask, Workspace
@@ -279,7 +279,7 @@ def repl(ws: Workspace, log: SessionLog) -> None:
         if line.startswith("/"):
             try:
                 nxt = command(ws, log, line)
-            except KeyError as e:
+            except (KeyError, SessionBusy) as e:
                 print(f"{RED}{e}{RESET}")
                 continue
             if nxt is None:

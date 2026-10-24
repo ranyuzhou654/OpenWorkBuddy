@@ -34,6 +34,8 @@ from .types import (
 
 TRUNCATED = ("Not executed: the response hit the output token limit, so the arguments may be incomplete. "
              "Re-issue the call with complete arguments.")
+INCOMPLETE = ("Not executed: the response did not finish normally (the stream was cut off, failed or was "
+              "refused), so this call may not be what was intended. Re-issue it if it is still needed.")
 UNKNOWN = ("Execution was interrupted before its result was recorded; the outcome is unknown. "
            "Check the current state before deciding whether to retry.")
 RECOVERED = "This call completed before an interruption; recovery verified its effect."
@@ -85,20 +87,43 @@ def next_step(path: list[Entry]) -> Step:
         elif e.type == ASSISTANT:
             calls = e.tool_calls
             missing = [c for c in calls if c["id"] not in answered]
-            if missing:
-                return FailCalls(missing, TRUNCATED) if e.data["stop"] == "length" else RunTools(missing)
+            if missing:  # only a normally finished response may cause side effects
+                match e.data["stop"]:
+                    case "tool_use" | "end":
+                        return RunTools(missing)
+                    case "length":
+                        return FailCalls(missing, TRUNCATED)
+                    case _:
+                        return FailCalls(missing, INCOMPLETE)
             return CallModel() if calls else Done()
         else:
             return Done()
     return Done()
 
 
+@dataclass(frozen=True, slots=True)
+class Input:
+    """A message from the user. id is its row in the index's inputs table (None when nothing persists it,
+    as in the CLI); the user entry made from it carries the id, which is how recovery tells whether it
+    already reached the log."""
+
+    text: str
+    id: str | None = None
+
+
 @dataclass
 class Inbox:
     """Messages the user sent while a run was active (D6 steer / queue)."""
 
-    steer: list[str] = field(default_factory=list)  # join this run before its next model call
-    queue: list[str] = field(default_factory=list)  # start their own run after this one ends
+    steer: list[Input] = field(default_factory=list)  # join this run before its next model call
+    queue: list[Input] = field(default_factory=list)  # start their own run after this one ends
+
+    def view(self) -> dict[str, list[str]]:
+        return {"steer": [m.text for m in self.steer], "queue": [m.text for m in self.queue]}
+
+
+def user_data(m: Input) -> dict[str, Any]:
+    return {"content": [text(m.text)], **({"input_id": m.id} if m.id else {})}
 
 
 type Gate = Callable[[Tool, ToolCall], Awaitable[Result | None]]  # None = go ahead, Result = blocked
@@ -158,9 +183,9 @@ async def drive(run: Run) -> str:
 def _take_steer(run: Run) -> bool:
     msgs, run.inbox.steer = run.inbox.steer, []
     for m in msgs:
-        run.log.append(USER, {"content": [text(m)]}, run_id=run.run_id)
+        run.log.append(USER, user_data(m), run_id=run.run_id)
     if msgs:
-        run.emit({"type": "inbox", "steer": run.inbox.steer, "queue": run.inbox.queue})
+        run.emit({"type": "inbox", **run.inbox.view()})
     return bool(msgs)
 
 

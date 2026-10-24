@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+import mcp_types
 import pytest
 from conftest import FakeModel, call, reply
 
@@ -221,3 +222,37 @@ async def test_settings_api_for_mcp(home):
         assert bad.status_code == 400
         assert (await c.delete("/api/settings/mcp/demo")).status_code == 200
     assert ws.mcp.servers == {}  # closed on shutdown
+
+
+def test_long_and_clashing_names_stay_distinct(tmp_path):
+    """Truncated names end in a hash; names that clash after sanitising get a suffix (F10)."""
+    from nano_workbuddy.tools.mcp import Server, tool_name
+
+    long_a, long_b = tool_name("server", "x" * 70 + "a"), tool_name("server", "x" * 70 + "b")
+    assert long_a != long_b and len(long_a) == len(long_b) == 64
+    assert tool_name("demo", "add") == "mcp__demo__add"  # short names are unchanged
+    srv = Server(McpServer("demo", "true"), tmp_path)
+    srv.tools = [mcp_types.Tool(name=n, input_schema={"type": "object"}) for n in ("a.b", "a_b")]
+    names = [t.name for t in srv.as_tools()]
+    assert names[0] == "mcp__demo__a_b" and len(set(names)) == 2
+
+
+def test_read_only_hint_never_makes_a_call_replayable(tmp_path):
+    """The hint may parallelise calls but a crash mid-call is still reported as unknown (F06)."""
+    from nano_workbuddy.tools.mcp import Server
+
+    srv = Server(McpServer("demo", "true"), tmp_path)
+    srv.tools = [mcp_types.Tool(name="look", input_schema={"type": "object"},
+                                annotations=mcp_types.ToolAnnotations(read_only_hint=True))]
+    [t] = srv.as_tools()
+    assert t.parallel and t.effect == "exec" and t.recover is None
+
+
+def test_structured_content_is_kept():
+    from nano_workbuddy.tools.mcp import to_result
+
+    r = to_result(mcp_types.CallToolResult(content=[mcp_types.TextContent(type="text", text="2 rows")],
+                                           structured_content={"rows": [1, 2]}))
+    assert text_of(r.content) == "2 rows" and r.meta == {"structured": {"rows": [1, 2]}}
+    r = to_result(mcp_types.CallToolResult(content=[], structured_content={"rows": []}))
+    assert text_of(r.content) == '{"rows": []}'

@@ -1,8 +1,10 @@
-"""SQLite index (D4). Authoritative here: projects, runs, approvals, and each session's model, settings,
-name and archived state. Cache rebuilt from the JSONL files: session titles, leaves and indexed sizes."""
+"""SQLite index (D4). Authoritative here: projects, runs, approvals, inputs not yet in a log, request ids,
+and each session's model, settings, name and archived state. Cache rebuilt from the JSONL files: session
+titles, leaves and indexed sizes."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -35,6 +37,11 @@ create table if not exists rules(
 create table if not exists approvals(
   id text primary key, session_id text not null, run_id text, call_id text not null, tool text not null,
   args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real);
+create table if not exists inputs(
+  id text primary key, session_id text not null, delivery text not null, content text not null,
+  parent_id text, status text not null, created_at real not null, done_at real);
+create table if not exists requests(
+  request_id text primary key, session_id text not null, payload_hash text not null, created_at real not null);
 """
 
 # Append only: MIGRATIONS[i] upgrades schema version i to i + 1. SCHEMA always describes the latest shape.
@@ -140,7 +147,7 @@ class Index:
 
     def delete_session(self, session_id: str) -> None:
         for table, key in (("sessions", "id"), ("runs", "session_id"), ("rules", "session_id"),
-                           ("approvals", "session_id")):
+                           ("approvals", "session_id"), ("inputs", "session_id"), ("requests", "session_id")):
             self.db.execute(f"delete from {table} where {key}=?", (session_id,))
 
     def update_settings(self, session_id: str, patch: dict[str, Any]) -> dict[str, Any]:
@@ -189,6 +196,39 @@ class Index:
     def bump_resume(self, run_id: str) -> int:
         self.db.execute("update runs set resume_count=resume_count+1 where id=?", (run_id,))
         return self._one("select resume_count from runs where id=?", run_id)["resume_count"]
+
+    # requests and inputs (messages accepted from a client)
+
+    def claim_request(self, request_id: str, session_id: str, payload: str) -> str:
+        """A client's request id, seen for the first time ("new"), again with the same message ("duplicate":
+        a retry, do nothing) or again with a different one ("conflict"). Recorded before anything else
+        happens, so a retry that races the first attempt is still caught."""
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        cur = self.db.execute("insert or ignore into requests(request_id, session_id, payload_hash, created_at)"
+                              " values (?,?,?,?)", (request_id, session_id, digest, time.time()))
+        if cur.rowcount:
+            return "new"
+        row = self._one("select payload_hash from requests where request_id=?", request_id)
+        return "duplicate" if row["payload_hash"] == digest else "conflict"
+
+    def add_input(self, session_id: str, delivery: str, content: str, parent_id: str | None = None) -> str:
+        """A message the client sent, made durable before the client is told it was accepted. It stays
+        pending until it is in the session log (consumed) or handed back to the user (dropped)."""
+        input_id = new_id("in")
+        self.db.execute("insert into inputs(id, session_id, delivery, content, parent_id, status, created_at)"
+                        " values (?,?,?,?,?,?,?)",
+                        (input_id, session_id, delivery, content, parent_id, "pending", time.time()))
+        return input_id
+
+    def finish_input(self, input_id: str, status: str) -> None:
+        self.db.execute("update inputs set status=?, done_at=? where id=? and status='pending'",
+                        (status, time.time(), input_id))
+
+    def pending_inputs(self, session_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "select * from inputs where status='pending'"
+        if session_id:
+            return self._all(sql + " and session_id=? order by created_at, rowid", session_id)
+        return self._all(sql + " order by created_at, rowid")
 
     # rules approved by the user ("always allow")
 

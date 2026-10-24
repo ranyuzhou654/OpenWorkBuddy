@@ -88,6 +88,20 @@ async def test_grep_is_a_read_for_permissions(tree, tmp_path, home):
     assert (action, policy.check(action, resource, rules, places).effect) == ("read", "deny")
 
 
+async def test_search_does_not_follow_symlinks(project, tmp_path, engine):
+    """A link inside the project may point at a file the rules deny; neither engine follows it (F04)."""
+    secret_dir = tmp_path / "elsewhere"
+    secret_dir.mkdir()
+    (secret_dir / "fake-secret.txt").write_text("SYNTHETIC_MARKER\n")
+    (project / "ordinary.txt").symlink_to(secret_dir / "fake-secret.txt")
+    (project / "linked").symlink_to(secret_dir, target_is_directory=True)
+    (project / "real.txt").write_text("SYNTHETIC_MARKER here\n")
+    _, out = await run("grep", project, tmp_path, pattern="SYNTHETIC_MARKER")
+    assert out.splitlines() == ["real.txt"]
+    _, names = await run("glob", project, tmp_path, pattern="**/*.txt")
+    assert names.splitlines() == ["real.txt"]
+
+
 @pytest.fixture
 def site():
     class Handler(BaseHTTPRequestHandler):

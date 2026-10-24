@@ -27,7 +27,7 @@ class ToolCtx:
     session_id: str
     spill_dir: Path
     emit: Callable[[dict[str, Any]], None] = lambda event: None
-    read_stamps: dict[str, float] = field(default_factory=dict)  # path -> mtime at last read
+    read_stamps: dict[str, tuple[int, int]] = field(default_factory=dict)  # path -> (mtime_ns, size) at last read
     call_id: str = ""
     sandbox: SandboxPolicy | None = None  # None: commands run unconfined (full-trust preset)
     tmp: Path | None = None  # writable scratch directory for sandboxed commands
@@ -99,7 +99,12 @@ class Registry:
     tool_search loaded them (D14), so dozens of rarely used schemas do not ride along every request."""
 
     def __init__(self, tools: list[Tool], deferred: Iterable[str] = ()):
-        self.tools = {t.name: t for t in tools}  # insertion order is the declared order (stable prefix, D9)
+        self.tools: dict[str, Tool] = {}  # insertion order is the declared order (stable prefix, D9)
+        for t in tools:
+            if t.name in self.tools:  # e.g. two MCP servers whose names differ only in punctuation
+                log.warning("tool name %s is taken; the second tool with that name is left out", t.name)
+                continue
+            self.tools[t.name] = t
         self.deferred = set(deferred)
 
     def get(self, name: str) -> Tool | None:

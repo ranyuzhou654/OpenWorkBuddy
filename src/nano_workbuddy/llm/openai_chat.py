@@ -99,11 +99,13 @@ def _user_content(blocks: list[Block]) -> str | list[dict[str, Any]]:
 
 
 async def assemble(chunks: AsyncIterable[Any], provider: str, model: str) -> AsyncIterator[Delta | Response]:
-    """Fold streamed chunks into deltas plus one final Response. Tool calls are only emitted complete."""
+    """Fold streamed chunks into deltas plus one final Response. Tool calls are only emitted complete.
+    A stream that ends without a finish_reason was cut off (a dropped connection or a broken proxy):
+    its stop is "error", and the loop then refuses to run its tool calls, however valid they look."""
     texts: list[str] = []
     thinking: list[str] = []
     calls: dict[int, dict[str, str]] = {}
-    stop: Stop = "end"
+    stop: Stop | None = None
     usage: dict[str, int] = {}
     async for chunk in chunks:
         if chunk.usage:
@@ -143,7 +145,9 @@ async def assemble(chunks: AsyncIterable[Any], provider: str, model: str) -> Asy
         except ValueError as e:
             call["error"] = f"arguments are not a valid JSON object ({e}): {slot['args'][:200]}"
         content.append(call)
-    if calls and stop == "end":
+    if stop is None:
+        stop = "error"
+    elif calls and stop == "end":
         stop = "tool_use"
     yield Response(content, stop, usage, {"provider": provider, "model": model})
 

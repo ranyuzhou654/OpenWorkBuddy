@@ -1,5 +1,8 @@
 // Session state on the client: snapshot first, then SSE events folded in by one reducer.
 // Durable events ("entry", "checkout", "leaf") rebuild the tree; ephemeral ones update `live`.
+// Each subscription starts with a "live" event, so state that changed between the snapshot and the
+// subscription (an approval appearing, the run ending) is never missed. A client that falls too far behind
+// has its stream closed by the server; onerror then fetches a fresh snapshot, as for any disconnect.
 
 import { useEffect, useReducer } from "react";
 import { api, type ContextUsage, type Entry, type Live, type SessionInfo, type Snapshot } from "./api";
@@ -48,6 +51,8 @@ function onEvent(s: State, ev: any): State {
     case "checkout":
     case "leaf":
       return { ...s, leaf: ev.leaf_id };
+    case "live": // the active run's state as the subscription starts: replaces what the snapshot said
+      return { ...s, live: ev.live };
     case "session":
       return { ...s, session: ev.session, context: ev.context ?? s.context };
     case "context": // before each model request of a run

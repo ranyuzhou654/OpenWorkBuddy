@@ -167,3 +167,17 @@ def test_skill_files_are_readable_inside_home(home, project, name):
     assert policy.check("read", f"{home}/secrets.json", rules, places).effect == "deny"
     sandbox = policy.sandbox_policy(policy.PRESETS["workspace"], project, home / "tmp", home, home / "spill")
     assert home / "skills" in sandbox.allow_read
+
+
+async def test_tools_are_tracked_per_session(home, project, tmp_path, make_ws):
+    """A run in one project must not change another session's tool set or context estimate (F11)."""
+    other = tmp_path / "other"
+    other.mkdir()
+    make_skill(project / ".agents" / "skills", "pdf")
+    ws = make_ws(FakeModel(reply("a"), reply("b")))
+    with_skill, without = ws.new_session(project), ws.new_session(other)
+    await ws.submit(without, "hi")
+    before = ws.context_usage(without)["tokens"]
+    await ws.submit(with_skill, "hi")
+    assert ws.tools_of(with_skill).get("skill") and not ws.tools_of(without).get("skill")
+    assert ws.context_usage(without)["tokens"] == before

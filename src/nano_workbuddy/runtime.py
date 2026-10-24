@@ -15,8 +15,8 @@ from . import compaction, hooks, llm, policy, prompt, skills
 from .config import Config, ModelSpec, load, secret
 from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
-from .log import SessionLog
-from .loop import SHUTDOWN, Inbox, Run, close_pending, drive
+from .log import SessionBusy, SessionLog
+from .loop import SHUTDOWN, Inbox, Input, Run, close_pending, drive, user_data
 from .memory import memory_tool
 from .tools import BUILTIN, Registry, Result, Tool, ToolCtx, ToolError
 from .tools.mcp import McpHub, Server, tool_search
@@ -41,9 +41,11 @@ class Workspace:
         self.connect = connect or self._connect
         self.tools = tools or Registry([*BUILTIN, memory_tool(cfg.home)])  # skill and MCP tools are added per run
         self.mcp = McpHub(cfg.home)
-        self.last_tools = self.tools  # the most recent run's tools, for context estimates between runs
+        # each session's tools as of its latest run: context estimates and manual compaction between runs use
+        # them. Per session, because another session in another project may have other skills and servers.
+        self.session_tools: dict[str, Registry] = {}
         self._logs: dict[str, SessionLog] = {}  # one live object per session, so listeners see every append
-        self._stamps: dict[str, dict[str, float]] = {}  # per-session read stamps survive across runs
+        self._stamps: dict[str, dict[str, tuple[int, int]]] = {}  # per-session read stamps survive across runs
         self.index.reindex(self.sessions_dir)
 
     @classmethod
@@ -92,6 +94,7 @@ class Workspace:
         if log := self._logs.pop(session_id, None):
             log.close()
         self._stamps.pop(session_id, None)
+        self.session_tools.pop(session_id, None)
         Path(row["file_path"]).unlink(missing_ok=True)
         for d in (self.cfg.home / "spill" / session_id, tmp_dir(session_id)):
             shutil.rmtree(d, ignore_errors=True)
@@ -133,7 +136,7 @@ class Workspace:
         """Estimated size of the next request versus what the session's model allows."""
         system, messages = to_messages(log.path())
         spec = self.cfg.model(self.model_ref(log))
-        tools = self.last_tools.schemas(loaded_tools(log.path()))
+        tools = self.tools_of(log).schemas(loaded_tools(log.path()))
         return {"tokens": request_tokens(system, messages, tools), "budget": budget(spec)}
 
     # tools (D14)
@@ -159,8 +162,7 @@ class Workspace:
             notices["skills"] = skills.listing(enabled) or "No skills are enabled."
             base += [skills.skill_tool(enabled)] if enabled else []
         if not self.cfg.mcp:
-            self.last_tools = Registry(base)
-            return self.last_tools, notices
+            return Registry(base), notices
         servers = await self.mcp.connect(self.cfg.mcp)
         live = [s for s in servers if s.client]
         auto = sum(estimate_tokens(json.dumps([t.schema() for t in s.as_tools()])) for s in live
@@ -171,8 +173,11 @@ class Workspace:
         mcp_tools = {s.spec.name: s.as_tools() for s in live}
         deferred = [t.name for s in live if s.spec.name in lazy for t in mcp_tools[s.spec.name]]
         tools = [*base, *([tool_search] if deferred else []), *(t for ts in mcp_tools.values() for t in ts)]
-        self.last_tools = Registry(tools, deferred)
-        return self.last_tools, notices | {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
+        return Registry(tools, deferred), notices | {"mcp": mcp_notice(self.cfg.mcp, servers, lazy)}
+
+    def tools_of(self, log: SessionLog) -> Registry:
+        """The tools of the session's latest run; built-in tools if it has not run since the server started."""
+        return self.session_tools.get(log.id, self.tools)
 
     # permissions (D12)
 
@@ -185,30 +190,47 @@ class Workspace:
 
     # runs
 
-    async def submit(self, log: SessionLog, content: str, *, request_id: str | None = None,
+    async def submit(self, log: SessionLog, content: str | Input, *, request_id: str | None = None,
                      parent_id: str | None = None, emit: Emit = lambda e: None,
                      inbox: Inbox | None = None, ask: Ask | None = None, question: Question | None = None) -> str:
-        """Append a user message (as a child of parent_id when editing an earlier message) and run."""
+        """Append a user message (as a child of parent_id when editing an earlier message) and run.
+        The whole run holds the session's write lock; if another process holds it, nothing is written."""
+        msg = content if isinstance(content, Input) else Input(content)
+        try:
+            with log.writing():
+                return await self._submit(log, msg, request_id, parent_id, emit, inbox, ask, question)
+        except SessionBusy as e:  # refused like a blocking hook: the text goes back to the composer
+            self._give_back(msg, emit, str(e))
+            return "blocked"
+
+    async def _submit(self, log: SessionLog, msg: Input, request_id: str | None, parent_id: str | None,
+                      emit: Emit, inbox: Inbox | None, ask: Ask | None, question: Question | None) -> str:
         run, created = self.index.start_run(log.id, request_id, self.model_ref(log))
         if not created:  # a retried request: never start the same work twice
             return run["status"]
-        hook = await self._hook(log, "UserPromptSubmit", {"prompt": content}, emit)
+        hook = await self._hook(log, "UserPromptSubmit", {"prompt": msg.text}, emit)
         if hook.block:  # the message is refused before anything is written; the text goes back to the composer
             self.index.finish_run(run["id"], "blocked")
-            emit({"type": "run.error", "message": f"A UserPromptSubmit hook refused this message: {hook.reason}"})
-            emit({"type": "inbox", "steer": [], "queue": [], "dropped": [content]})
+            self._give_back(msg, emit, f"A UserPromptSubmit hook refused this message: {hook.reason}")
             return "blocked"
         if parent_id is not None:
             log.checkout(parent_id)
         close_pending(log, run["id"], "Interrupted; the user sent a new message instead.")
         if hook.context:
             log.append(NOTICE, {"kind": "hook", "text": "\n".join(hook.context)}, run_id=run["id"])
-        if forced := self._invoked_skill(log, content):  # "/name ...": load the skill for the model (D15)
+        if forced := self._invoked_skill(log, msg.text):  # "/name ...": load the skill for the model (D15)
             body, key = skills.render(forced), f"skill:{forced.name}"
             if in_view(log.path()).get(key) != body:  # unless the model already sees this exact text
                 log.append(NOTICE, {"kind": key, "text": body, "pin": True}, run_id=run["id"])
-        log.append(USER, {"content": [text(content)]}, run_id=run["id"])
+        log.append(USER, user_data(msg), run_id=run["id"])
         return await self._drive(log, run, emit, inbox, ask, question)
+
+    def _give_back(self, msg: Input, emit: Emit, why: str) -> None:
+        """A message that will not run: tell the client why and return the text to its composer."""
+        if msg.id:
+            self.index.finish_input(msg.id, "dropped")
+        emit({"type": "run.error", "message": why})
+        emit({"type": "inbox", "steer": [], "queue": [], "dropped": [msg.text]})
 
     async def _hook(self, log: SessionLog, event: str, payload: dict[str, Any], emit: Emit,
                     tool: str | None = None) -> hooks.Outcome:
@@ -227,7 +249,16 @@ class Workspace:
     async def resume(self, log: SessionLog, emit: Emit = lambda e: None,
                      inbox: Inbox | None = None, ask: Ask | None = None,
                      question: Question | None = None) -> str | None:
-        """Continue runs a crash or restart left unfinished (D6). Gives up after MAX_RESUMES attempts."""
+        """Continue runs a crash or restart left unfinished (D6). Gives up after MAX_RESUMES attempts.
+        A run another process is still driving (it holds the session's lock) is left alone: "busy"."""
+        try:
+            with log.writing():
+                return await self._resume(log, emit, inbox, ask, question)
+        except SessionBusy:
+            return "busy"
+
+    async def _resume(self, log: SessionLog, emit: Emit, inbox: Inbox | None, ask: Ask | None,
+                      question: Question | None) -> str | None:
         status = None
         for run in self.index.unfinished_runs(log.id):
             if self.index.bump_resume(run["id"]) > MAX_RESUMES:
@@ -244,7 +275,8 @@ class Workspace:
         emit({"type": "run.started", "run_id": None, "kind": "compaction"})
         status = "error"
         try:
-            status = "ok" if await compaction.compact(run, instructions) else "nothing"
+            with log.writing():
+                status = "ok" if await compaction.compact(run, instructions) else "nothing"
         finally:
             emit({"type": "run.finished", "run_id": None, "status": status, "usage": run.usage})
         return status
@@ -255,7 +287,8 @@ class Workspace:
         emit({"type": "run.started", "run_id": None, "kind": "branch_summary"})
         status = "error"
         try:
-            status = "ok" if await compaction.summarize_branch(run, target_id) else "nothing"
+            with log.writing():
+                status = "ok" if await compaction.summarize_branch(run, target_id) else "nothing"
         finally:
             self.index.sync_session(log)
             emit({"type": "run.finished", "run_id": None, "status": status, "usage": run.usage})
@@ -265,7 +298,7 @@ class Workspace:
                  inbox: Inbox | None = None, ask: Ask | None = None, tools: Registry | None = None,
                  notices: dict[str, str] | None = None, question: Question | None = None) -> Run:
         """Freeze one run's settings: model, preset and tools are read once (D12); approved rules are read live."""
-        tools = tools or self.last_tools
+        tools = tools or self.tools_of(log)
         preset_name = self.preset(log)
         preset = policy.PRESETS[preset_name]
         root, home = self.root_of(log), self.cfg.home.resolve()
@@ -328,6 +361,7 @@ class Workspace:
         try:
             ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
             tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log))
+            self.session_tools[log.id] = tools
             run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices, question)
             usage = run.usage
             status = await drive(run)

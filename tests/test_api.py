@@ -21,8 +21,9 @@ TOKEN = "test-token"
 class Server:
     def __init__(self, ws: Workspace):
         self.ws = ws
-        self.srv = uvicorn.Server(uvicorn.Config(create_app(ws, TOKEN), host="127.0.0.1", port=0,
-                                                 log_level="warning"))
+        app = create_app(ws, TOKEN)
+        self.runs = app.state.runs
+        self.srv = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
 
     async def __aenter__(self) -> Server:
         self.task = asyncio.create_task(self.srv.serve())
@@ -131,7 +132,7 @@ async def test_reconnect_replays_only_newer_entries(ws_for, project):
 
         later = Stream(s.client, sid, after=snap["seq"])  # a client that saw everything so far
         await later.ready.wait()
-        assert [e["type"] for e in later.events] == ["leaf"]
+        assert later.events == [{"type": "live", "live": None}, {"type": "leaf", "leaf_id": snap["leaf_id"]}]
         await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "second"})
         await later.until(finished)
         later.close()
@@ -257,3 +258,140 @@ async def test_server_restart_resumes_interrupted_runs(ws_for, project, home):
             await asyncio.sleep(0.05)
         assert s2.ws.open_session(sid).path()[-1].data["content"][0]["text"] == "resumed answer"
         assert s2.ws.index.unfinished_runs(sid) == []
+
+
+async def test_request_ids_are_claimed_before_the_run_starts(ws_for, project):
+    """An immediate retry of the first message is a duplicate, not a steer; reusing an id for another
+    message is refused (F01)."""
+    gate = asyncio.Event()
+
+    async def held(msgs):
+        await gate.wait()
+        return reply("done")
+
+    async with Server(ws_for(FakeModel(held))) as s:
+        sid = await s.session(project)
+        stream = Stream(s.client, sid)
+        await stream.ready.wait()
+        post = lambda body: s.client.post(f"/api/sessions/{sid}/messages", json=body)  # noqa: E731
+        assert (await post({"text": "original", "request_id": "r1"})).json()["delivery"] == "run"
+        assert (await post({"text": "original", "request_id": "r1"})).json()["delivery"] == "duplicate"
+        assert (await post({"text": "changed", "request_id": "r1"})).status_code == 409
+        gate.set()
+        await stream.until(finished)
+        stream.close()
+        log = s.ws.open_session(sid)
+        assert [e.data["content"][0]["text"] for e in log.path() if e.type == USER] == ["original"]
+        assert s.ws.index.pending_inputs(sid) == []
+
+
+async def test_queued_message_survives_a_restart(ws_for, project):
+    """A message accepted while a run is active is durable: after a restart it still runs (F02)."""
+    gate = asyncio.Event()
+
+    async def never(msgs):
+        await gate.wait()
+        return reply("unreachable")
+
+    async with Server(ws_for(FakeModel(never))) as s:
+        sid = await s.session(project)
+        stream = Stream(s.client, sid)
+        await stream.ready.wait()
+        await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "long job"})
+        await stream.until(lambda e: e["type"] == "run.started")
+        r = await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "queued-marker", "delivery": "queue"})
+        assert r.json()["delivery"] == "queue"
+        stream.close()
+    assert [r["content"] for r in s.ws.index.pending_inputs(sid)] == ["queued-marker"]
+
+    async with Server(ws_for(FakeModel(reply("resumed"), reply("queued answer")))) as s2:
+        for _ in range(100):
+            idle = sid not in s2.runs.live
+            if idle and not s2.ws.index.pending_inputs(sid) and not s2.ws.index.unfinished_runs(sid):
+                break
+            await asyncio.sleep(0.05)
+        log = s2.ws.open_session(sid)
+        users = [e.data["content"][0]["text"] for e in log.path() if e.type == USER]
+        assert users == ["long job", "queued-marker"] and log.path()[-1].data["content"][0]["text"] == "queued answer"
+
+
+async def test_accepted_input_without_a_run_is_delivered_once(ws_for, project, home):
+    """A crash right after accepting a message (before its run started) still delivers it at startup, and a
+    message whose user entry already reached the log is not delivered twice (F02)."""
+    ws = ws_for(FakeModel())
+    log = ws.new_session(project)
+    lost = ws.index.add_input(log.id, "run", "accepted then crashed")
+    done = ws.index.add_input(log.id, "run", "already logged")
+    log.append(USER, {"content": [{"type": "text", "text": "already logged"}], "input_id": done})
+    log.append("assistant", {"content": [{"type": "text", "text": "ok"}], "stop": "end"})
+    log.close()
+    ws.index.db.close()
+
+    async with Server(ws_for(FakeModel(reply("delivered")))) as s:
+        for _ in range(100):
+            if not s.ws.index.pending_inputs(log.id) and log.id not in s.runs.live:
+                break
+            await asyncio.sleep(0.05)
+        path = s.ws.open_session(log.id).path()
+        users = [e.data["content"][0]["text"] for e in path if e.type == USER]
+        assert users == ["already logged", "accepted then crashed"]
+        assert next(e for e in path if e.type == USER and e.data.get("input_id") == lost)
+
+
+async def test_subscription_starts_with_the_live_state(ws_for, project, tmp_path):
+    """An approval requested between a client's snapshot and its subscription still reaches it (F07)."""
+    out = tmp_path / "outside"
+    out.mkdir()
+    model = FakeModel(reply(None, call("write", path=str(out / "a.txt"), content="a")), reply("done"))
+    async with Server(ws_for(model)) as s:
+        sid = await s.session(project)
+        snap = (await s.client.get(f"/api/sessions/{sid}")).json()  # the client's snapshot: nothing live yet
+        await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "go"})
+        for _ in range(100):  # the approval appears before the client subscribes
+            if (live := s.runs.live.get(sid)) and live.approvals:
+                break
+            await asyncio.sleep(0.02)
+        stream = Stream(s.client, sid, after=snap["seq"])
+        first_live = await stream.until(lambda e: e["type"] == "live")
+        [approval] = first_live["live"]["approvals"]
+        await s.client.post(f"/api/approvals/{approval['id']}", json={"decision": "once"})
+        await stream.until(finished)
+        stream.close()
+
+
+async def test_a_subscriber_that_falls_behind_is_cut_off():
+    """Bounded queues: a stalled client costs bounded memory and gets a clean end of stream (F08)."""
+    from nano_workbuddy.runs import Hub
+
+    hub = Hub(limit=3)
+    slow, fast = hub.subscribe(), hub.subscribe()
+    for i in range(3):
+        hub.publish({"type": "delta", "i": i})
+        fast.get_nowait()
+    hub.publish({"type": "delta", "i": 3})  # slow's queue is full
+    assert slow.get_nowait() is None and slow.empty() and slow not in hub.subs
+    assert fast.get_nowait() == {"type": "delta", "i": 3} and fast in hub.subs
+
+
+async def test_session_written_by_another_process_is_refused(ws_for, project):
+    """While another process (the CLI) holds a session, the server refuses to write it: messages come back
+    to the composer, checkout is a 409, and a startup resume leaves its pending inputs alone (F12)."""
+    from nano_workbuddy.log import SessionLog
+
+    async with Server(ws_for(FakeModel(reply("after")))) as s:
+        sid = await s.session(project)
+        stream = Stream(s.client, sid)
+        await stream.ready.wait()
+        cli = SessionLog.open(s.ws.open_session(sid).file)
+        with cli.writing():
+            await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "while busy"})
+            dropped = await stream.until(lambda e: e["type"] == "inbox" and e.get("dropped"))
+            assert dropped["dropped"] == ["while busy"]
+            assert any(e["type"] == "run.error" and "another process" in e["message"] for e in stream.events)
+            root = s.ws.open_session(sid).path()[0].id
+            r = await s.client.post(f"/api/sessions/{sid}/checkout", json={"entry_id": root})
+            assert r.status_code == 409
+        assert s.ws.index.pending_inputs(sid) == []  # handed back, not left pending
+        await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "now"})
+        await stream.until(lambda e: finished(e) and e["status"] == "ok")
+        stream.close()

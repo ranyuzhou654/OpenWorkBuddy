@@ -8,11 +8,13 @@ import contextlib
 import os
 import re
 import signal
+import tempfile
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..sandbox import SandboxUnavailable, wrap
+from ..types import text
 from .registry import Result, ToolCtx, ToolError, Verdict, tool
 
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
@@ -24,6 +26,8 @@ ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR
              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
 SANDBOX_DENIAL = re.compile(r"Operation not permitted|Read-only file system|Could not resolve host|"
                             r"Failed to connect|Network is unreachable|Temporary failure in name resolution")
+UMASK = os.umask(0)  # read once at import (setting it is process-wide, so never later from a running tool)
+os.umask(UMASK)
 SANDBOX_HINT = ("\n[This command ran in the sandbox. If it failed because it needs the network or must write "
                 "outside the project, re-run it with unsandboxed=true; the user will be asked to approve.]")
 
@@ -42,13 +46,37 @@ def _path_scope(action: str):
     return lambda args, ctx: (action, str(resolve(ctx, args.path)))
 
 
+def stamp(p: Path) -> tuple[int, int]:
+    """What "unchanged since read" compares: nanosecond mtime and size."""
+    st = p.stat()
+    return st.st_mtime_ns, st.st_size
+
+
 def _check_fresh(ctx: ToolCtx, p: Path) -> None:
     """Writes to an existing file require an unchanged earlier read, so the model never edits blind."""
-    stamp = ctx.read_stamps.get(str(p))
-    if stamp is None:
+    seen = ctx.read_stamps.get(str(p))
+    if seen is None:
         raise ToolError(f"read {p} before modifying it")
-    if p.stat().st_mtime != stamp:
+    if stamp(p) != seen:
         raise ToolError(f"{p} changed since it was last read; read it again")
+
+
+def atomic_write(p: Path, content: str) -> None:
+    """Write a sibling temporary file, then rename it over the target. A crash, a full disk or a reader at the
+    wrong moment sees the old file or the new one, never a mix. An existing file keeps its permission bits."""
+    mode = p.stat().st_mode & 0o7777 if p.exists() else 0o666 & ~UMASK
+    fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=f".{p.name}.", suffix=".nwb-tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, p)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp)
+        raise
 
 
 class ReadArgs(Args):
@@ -73,7 +101,7 @@ async def read(args: ReadArgs, ctx: ToolCtx) -> Result:
     raw = p.read_bytes()
     if b"\0" in raw[:8192]:
         raise ToolError(f"{p} looks binary; inspect it with bash")
-    ctx.read_stamps[str(p)] = p.stat().st_mtime
+    ctx.read_stamps[str(p)] = stamp(p)
     lines = raw.decode("utf-8", errors="replace").splitlines()
     if not lines:
         return Result.ok(f"{p} is empty")
@@ -103,8 +131,8 @@ async def write(args: WriteArgs, ctx: ToolCtx) -> Result:
     if p.exists():
         _check_fresh(ctx, p)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(args.content, encoding="utf-8")
-    ctx.read_stamps[str(p)] = p.stat().st_mtime
+    atomic_write(p, args.content)
+    ctx.read_stamps[str(p)] = stamp(p)
     return Result.ok(f"Wrote {len(args.content.encode())} bytes to {p}")
 
 
@@ -141,8 +169,8 @@ async def edit(args: EditArgs, ctx: ToolCtx) -> Result:
         raise ToolError("old_string not found; read the file again and copy the text exactly")
     if n > 1 and not args.replace_all:
         raise ToolError(f"old_string matches {n} places; include more context or set replace_all")
-    p.write_text(s.replace(args.old_string, args.new_string), encoding="utf-8")
-    ctx.read_stamps[str(p)] = p.stat().st_mtime
+    atomic_write(p, s.replace(args.old_string, args.new_string))
+    ctx.read_stamps[str(p)] = stamp(p)
     return Result.ok(f"Edited {p} ({n if args.replace_all else 1} replacement(s))")
 
 
@@ -203,7 +231,8 @@ async def bash(args: BashArgs, ctx: ToolCtx) -> Result:
         await asyncio.wait_for(pump(), args.timeout)
     except TimeoutError:
         await _kill(proc)
-        return Result.error(f"timed out after {args.timeout}s\n{out.decode(errors='replace')}")
+        return Result([text(f"Error: timed out after {args.timeout}s\n{out.decode(errors='replace')}")], True,
+                      {"exit_code": None, "timed_out": True})
     except asyncio.CancelledError:
         await _kill(proc)  # the whole process group, not just bash
         raise
@@ -212,5 +241,7 @@ async def bash(args: BashArgs, ctx: ToolCtx) -> Result:
         body += f"\n[output truncated at {MAX_OUTPUT} bytes]"
     if sandboxed and proc.returncode != 0 and SANDBOX_DENIAL.search(body):
         body += SANDBOX_HINT
-    return Result.ok(f"{body}\n[exit code {proc.returncode}]".lstrip())
+    # A non-zero exit is often a legitimate answer (grep found nothing, a test failed), so the call itself
+    # succeeded; the code is also kept structured for the UI and later checks.
+    return Result([text(f"{body}\n[exit code {proc.returncode}]".lstrip())], meta={"exit_code": proc.returncode})
 

@@ -113,3 +113,23 @@ def test_index_migration_tolerates_a_column_that_already_exists(tmp_path):
     db.executescript(SCHEMA)  # latest shape, but user_version was never set
     db.close()
     assert Index(tmp_path / "index.db").db.execute("pragma user_version").fetchone()[0] == len(MIGRATIONS)
+
+
+def test_one_writer_at_a_time_and_catch_up(tmp_path):
+    """A second process writing the same session gets SessionBusy; once the lock is free it first reads
+    what the other wrote, so its new entry attaches to the real leaf (F12)."""
+    from nano_workbuddy.log import SessionBusy
+
+    server, root = make(tmp_path)
+    cli = SessionLog.open(tmp_path / "s.jsonl")  # a second open file: flock treats it as another process
+    with server.writing():
+        u = server.append(USER, {"content": ["from the server"]})
+        with pytest.raises(SessionBusy):
+            cli.append(USER, {"content": ["from the cli"]})
+    seen = []
+    cli.listeners.append(seen.append)
+    mine = cli.append(USER, {"content": ["from the cli"]})
+    assert mine.parent_id == u.id and [e["type"] for e in seen] == ["entry", "entry"]  # caught up, then wrote
+    assert [e.id for e in SessionLog.open(tmp_path / "s.jsonl").path()] == [root.id, u.id, mine.id]
+    server.append(ASSISTANT, {"content": [], "stop": "end"})  # and the server catches up in turn
+    assert server.path()[-2].id == mine.id

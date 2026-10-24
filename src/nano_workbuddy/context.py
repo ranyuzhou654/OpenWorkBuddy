@@ -10,6 +10,7 @@ prompt cache keeps hitting in between.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -190,11 +191,14 @@ def branch_message(d: dict[str, Any]) -> str:
 
 
 def spill(r: Result, spill_dir: Path, call_id: str) -> Result:
-    """Keep the head and tail inline and save the full text privately (0700 dir, 0600 file, no symlink follow)."""
+    """Keep the head and tail inline and save the full text privately (0700 dir, 0600 file, no symlink follow).
+    The file is named by the call id plus a hash of the text: providers reuse ids such as "call_0" across turns,
+    and a result recorded again after a crash finds its own file instead of colliding with it."""
     full = "".join(b["text"] for b in r.content if b["type"] == "text")
     if len(full) <= SPILL_CHARS:
         return r
-    f = write_private(spill_dir, f"{call_id}.txt", full)
+    digest = hashlib.sha256(full.encode()).hexdigest()[:12]
+    f = write_private(spill_dir, f"{re.sub(r'[^A-Za-z0-9_-]', '_', call_id)[:64]}-{digest}.txt", full)
     omitted = len(full) - 2 * KEEP_CHARS
     note = (f"\n\n[... {omitted} characters omitted. Full output saved to {f} — "
             f"inspect it with read (offset/limit) or bash grep ...]\n\n")
@@ -203,9 +207,16 @@ def spill(r: Result, spill_dir: Path, call_id: str) -> Result:
 
 
 def write_private(directory: Path, name: str, content: str) -> Path:
+    """Create a private file. If it already exists with exactly this content (the same write repeated after
+    a crash) it is reused; anything else there, including a symlink, is an error."""
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     f = directory / name
-    fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    except FileExistsError:
+        if not f.is_symlink() and f.is_file() and f.read_bytes() == content.encode("utf-8"):
+            return f
+        raise
     with os.fdopen(fd, "w", encoding="utf-8") as out:
         out.write(content)
     return f

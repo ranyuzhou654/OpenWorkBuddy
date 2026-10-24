@@ -9,6 +9,7 @@ Every MCP tool goes through the same permission gate as built-in tools: action `
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -38,8 +39,15 @@ INSTRUCTIONS_CHARS = 1_000
 
 
 def tool_name(server: str, name: str) -> str:
-    """Provider function names allow [A-Za-z0-9_-], at most 64 characters."""
-    return re.sub(r"[^A-Za-z0-9_-]", "_", f"mcp__{server}__{name}")[:64]
+    """Provider function names allow [A-Za-z0-9_-], at most 64 characters. A longer name is cut and ends in a
+    hash of the full one, so two long names that share their first 64 characters stay apart."""
+    full = f"mcp__{server}__{name}"
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", full)
+    return safe if len(safe) <= 64 else f"{safe[:55]}_{_hash(full)}"
+
+
+def _hash(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()[:8]
 
 
 def describe(e: BaseException) -> str:
@@ -129,17 +137,25 @@ class Server:
         return StdioServerParameters(command=argv[0], args=argv[1:], env=env, cwd=Path.home())
 
     def as_tools(self) -> list[Tool]:
-        return [self._tool(t) for t in self.tools]
+        out, taken = [], set()
+        for t in self.tools:
+            name = tool_name(self.spec.name, t.name)
+            if name in taken:  # "a.b" and "a_b" both become a_b: the later one gets a stable suffix
+                name = f"{name[:55]}_{_hash(t.name)}"
+            taken.add(name)
+            out.append(self._tool(t, name))
+        return out
 
-    def _tool(self, t: mcp_types.Tool) -> Tool:
-        name = tool_name(self.spec.name, t.name)
-        read_only = bool(t.annotations and t.annotations.read_only_hint)  # a hint: only used for parallelism
+    def _tool(self, t: mcp_types.Tool, name: str) -> Tool:
+        # readOnlyHint is the server's own claim. It may let calls run side by side, but never makes a call
+        # safe to replay after a crash: effect stays "exec", so an interrupted call is reported as unknown.
+        read_only = bool(t.annotations and t.annotations.read_only_hint)
 
         async def call(args: AnyArgs, ctx: ToolCtx) -> Result:
             return await self.call(t.name, args.model_dump())
 
-        return Tool(name, t.description or t.title or t.name, AnyArgs, call, "read" if read_only else "exec",
-                    read_only, None, lambda args, ctx: (name, ""), input_schema=t.input_schema)
+        return Tool(name, t.description or t.title or t.name, AnyArgs, call, "exec", read_only, None,
+                    lambda args, ctx: (name, ""), input_schema=t.input_schema)
 
     async def call(self, name: str, args: dict[str, Any]) -> Result:
         if self.client is None:
@@ -177,9 +193,12 @@ def to_result(r: mcp_types.CallToolResult) -> Result:
             blocks.append(text(f"[resource link {c.uri} {c.name}]"))
         else:
             blocks.append(text(f"[{c.type} content not shown]"))
-    if not blocks and r.structured_content is not None:
-        blocks.append(text(json.dumps(r.structured_content, ensure_ascii=False)))
-    return Result(blocks or [text("(no output)")], r.is_error)
+    meta: dict[str, Any] = {}
+    if r.structured_content is not None:  # kept whole in the log even when the text blocks summarise it
+        meta["structured"] = r.structured_content
+        if not blocks:
+            blocks.append(text(json.dumps(r.structured_content, ensure_ascii=False)))
+    return Result(blocks or [text("(no output)")], r.is_error, meta)
 
 
 class McpHub:

@@ -54,6 +54,35 @@ async def test_write_requires_fresh_read_of_existing_file(ctx, project):
     assert f.read_text() == "new"
 
 
+async def test_writes_are_atomic_and_keep_permissions(ctx, project, monkeypatch):
+    """The new content replaces the file in one rename; a failure leaves the old file whole (F09)."""
+    f = project / "run.sh"
+    f.write_text("old")
+    f.chmod(0o755)
+    await run(ctx, "read", path="run.sh")
+    assert not (await run(ctx, "write", path="run.sh", content="new")).is_error
+    assert f.read_text() == "new" and f.stat().st_mode & 0o777 == 0o755
+    await run(ctx, "read", path="run.sh")
+
+    def full_disk(*a):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "fsync", full_disk)
+    assert (await run(ctx, "edit", path="run.sh", old_string="new", new_string="newer")).is_error
+    assert f.read_text() == "new" and [p.name for p in project.iterdir()] == ["run.sh"]  # no temp file left
+
+
+async def test_same_second_change_is_noticed(ctx, project):
+    """Freshness compares size and nanosecond mtime, so a quick change behind our back is caught."""
+    f = project / "a.txt"
+    f.write_text("one")
+    await run(ctx, "read", path="a.txt")
+    st = f.stat()
+    f.write_text("three")
+    os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))  # same mtime, different size
+    assert "changed since" in text_of((await run(ctx, "write", path="a.txt", content="x")).content)
+
+
 async def test_write_creates_new_files_and_dirs(ctx, project):
     r = await run(ctx, "write", path="d/e/new.txt", content="hi")
     assert not r.is_error and (project / "d/e/new.txt").read_text() == "hi"
@@ -87,11 +116,12 @@ async def test_bash_reports_exit_code_and_scrubs_env(ctx, monkeypatch):
     r = await run(ctx, "bash", command="echo hi; echo ${SECRET_API_KEY:-none}; exit 3")
     out = text_of(r.content)
     assert "hi\nnone" in out and "[exit code 3]" in out
+    assert not r.is_error and r.meta == {"exit_code": 3}  # a non-zero exit is an answer, kept structured (F13)
 
 
 async def test_bash_timeout_kills(ctx):
     r = await run(ctx, "bash", command="sleep 30", timeout=1)
-    assert r.is_error and "timed out" in text_of(r.content)
+    assert r.is_error and "timed out" in text_of(r.content) and r.meta["timed_out"]
 
 
 def alive(pid: int) -> bool:
@@ -122,7 +152,17 @@ def test_spill_keeps_head_and_tail(tmp_path):
     r = spill(Result.ok(big), tmp_path / "sp", "c9")
     inline = text_of(r.content)
     assert inline.startswith("a" * 100) and inline.endswith("z" * 100) and "MIDDLE" not in inline
-    saved = tmp_path / "sp" / "c9.txt"
+    [saved] = (tmp_path / "sp").glob("c9-*.txt")
     assert saved.read_text() == big and str(saved) in inline
     assert oct(saved.stat().st_mode & 0o777) == "0o600"
     assert spill(Result.ok("small"), tmp_path / "sp", "c10").content == [{"type": "text", "text": "small"}]
+
+
+def test_spill_survives_reused_call_ids(tmp_path):
+    """Providers reuse ids like "call_0" across turns; a repeated identical write reuses its file (F03)."""
+    a, b = "a" * 31_000, "b" * 31_000
+    first = text_of(spill(Result.ok(a), tmp_path / "sp", "call_0").content)
+    second = text_of(spill(Result.ok(b), tmp_path / "sp", "call_0").content)
+    again = text_of(spill(Result.ok(a), tmp_path / "sp", "call_0").content)
+    assert first != second and first == again
+    assert sorted(f.read_text()[0] for f in (tmp_path / "sp").iterdir()) == ["a", "b"]

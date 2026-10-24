@@ -1,0 +1,33 @@
+# Tests, lint and the web build on every push and pull request. The Python tests run on macOS: the
+# Seatbelt sandbox tests need it (they are skipped elsewhere), and it is the platform this is developed on.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: brew install ripgrep  # the grep tests cover both engines: ripgrep and the Python fallback
+      - run: uv sync --locked
+      - run: uv run ruff check src tests
+      - run: uv run pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build  # tsc --noEmit, then vite build

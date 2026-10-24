@@ -215,12 +215,12 @@ async def test_new_message_closes_dangling_calls(make_ws, project):
 
 
 async def test_steer_joins_the_run_before_the_next_model_call(make_ws, project):
-    from nano_workbuddy.loop import Inbox
+    from nano_workbuddy.loop import Inbox, Input
 
     inbox = Inbox()
 
     def first(msgs):
-        inbox.steer.append("also do B")  # arrives while the model is answering
+        inbox.steer.append(Input("also do B"))  # arrives while the model is answering
         return reply(None, call("bash", command="true"))
 
     model = FakeModel(first, reply("done A and B"))
@@ -232,12 +232,12 @@ async def test_steer_joins_the_run_before_the_next_model_call(make_ws, project):
 
 
 async def test_steer_after_the_final_answer_continues_the_run(make_ws, project):
-    from nano_workbuddy.loop import Inbox
+    from nano_workbuddy.loop import Inbox, Input
 
     inbox = Inbox()
 
     def first(msgs):
-        inbox.steer.append("one more thing")
+        inbox.steer.append(Input("one more thing"))
         return reply("first answer")
 
     model = FakeModel(first, reply("second answer"))

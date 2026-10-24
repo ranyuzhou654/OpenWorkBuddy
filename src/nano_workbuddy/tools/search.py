@@ -1,6 +1,11 @@
 """grep and glob (D11). ripgrep when it is installed (fast, honours .gitignore), otherwise a Python walk
 with the same output. Both skip hidden files and directories, which also keeps them out of ~/.ssh and
-friends; an explicit path into such a place is still checked by the permission rules as a read."""
+friends; an explicit path into such a place is still checked by the permission rules as a read.
+
+Neither follows symbolic links while walking. The permission check covers the directory searched, and a
+link inside it may point anywhere (a "notes.txt" pointing into ~/.ssh): following it would read a file the
+rules were never asked about. An explicit path is resolved first, so a link given directly is checked
+where it really points."""
 
 from __future__ import annotations
 
@@ -46,9 +51,10 @@ def walk(base: Path) -> Iterator[Path]:
     if base.is_file():
         yield base
         return
-    for dirpath, dirnames, filenames in os.walk(base):
+    for dirpath, dirnames, filenames in os.walk(base):  # never descends into linked directories
         dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in SKIP_DIRS)
-        yield from (Path(dirpath, f) for f in sorted(filenames) if not f.startswith("."))
+        files = (Path(dirpath, f) for f in sorted(filenames) if not f.startswith("."))
+        yield from (p for p in files if not p.is_symlink())  # as rg without --follow
 
 
 def _shown(p: Path, ctx: ToolCtx) -> str:

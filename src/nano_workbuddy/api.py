@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from . import llm, sandbox, settings, skills
 from .config import McpServer, key_status, secret
-from .log import entry_json
+from .log import SessionBusy, entry_json
 from .memory import project_file
 from .policy import PRESETS
 from .runs import Busy, RunManager
@@ -147,6 +147,10 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     app = FastAPI(title="nano-workbuddy", lifespan=lifespan)
     app.state.runs = runs
+
+    @app.exception_handler(SessionBusy)
+    async def session_busy(request: Request, e: SessionBusy) -> JSONResponse:
+        return JSONResponse({"detail": str(e)}, 409)  # another process (the CLI) is writing this session
 
     @app.middleware("http")
     async def auth(request: Request, call_next):
@@ -304,18 +308,21 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
 
     @app.get("/api/sessions/{sid}/events", response_class=EventSourceResponse)
     async def events(sid: str, request: Request, after: int = -1) -> AsyncIterator[ServerSentEvent]:
-        """Replay durable entries with seq > after, then stream live events until the client leaves."""
+        """Replay durable entries with seq > after, then the current state of the active run, then stream
+        live events until the client leaves. The ephemeral state (streamed text, approvals, questions, inbox)
+        is sent inside the subscription: whatever happened between the client's snapshot request and this
+        subscription — an approval card appearing, the run ending — is not lost in that gap."""
         log = session_log(sid)
         last = max(after, int(request.headers.get("last-event-id") or -1))
-        q = runs.hub(log).subscribe()  # subscribe and read the backlog with no await between: no gap, no dupes
+        q = runs.hub(log).subscribe()  # subscribe and read the state with no await between: no gap, no dupes
         backlog = sorted((e for e in log.entries.values() if e.seq > last), key=lambda e: e.seq)
-        leaf = log.leaf_id
+        leaf, live = log.leaf_id, runs.live_view(sid)
         try:
             for e in backlog:
                 yield ServerSentEvent(data={"type": "entry", "seq": e.seq, "entry": entry_json(e)}, id=str(e.seq))
+            yield ServerSentEvent(data={"type": "live", "live": live})
             yield ServerSentEvent(data={"type": "leaf", "leaf_id": leaf})
-            while True:
-                event = await q.get()
+            while (event := await q.get()) is not None:  # None: this client fell too far behind
                 yield ServerSentEvent(data=event, id=str(event["seq"]) if "seq" in event else None)
         finally:
             runs.hub(log).unsubscribe(q)

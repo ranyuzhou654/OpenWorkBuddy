@@ -2,7 +2,7 @@
 
 import pytest
 
-from nano_workbuddy.loop import TRUNCATED, CallModel, Done, FailCalls, RunTools, next_step
+from nano_workbuddy.loop import INCOMPLETE, TRUNCATED, CallModel, Done, FailCalls, RunTools, next_step
 from nano_workbuddy.types import Entry
 
 
@@ -44,6 +44,10 @@ CASES = [
      FailCalls([tc(1)], TRUNCATED)),
     ("truncated but answered goes back to the model", [SYS, USER, assistant(tc(1), stop="length"), result(1)],
      CallModel()),
+    ("calls from a cut-off or failed response are failed, never run (F05)",
+     [SYS, USER, assistant(tc(1), stop="error")], FailCalls([tc(1)], INCOMPLETE)),
+    ("calls kept from an aborted response are failed, never run", [SYS, USER, assistant(tc(1), stop="aborted")],
+     FailCalls([tc(1)], INCOMPLETE)),
     ("state entries are transparent", [SYS, USER, e("state", todo=[])], CallModel()),
     ("steer after results goes to the model", [SYS, USER, assistant(tc(1)), result(1), USER], CallModel()),
 ]
