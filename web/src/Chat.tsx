@@ -6,19 +6,69 @@ import { childrenOf, pathTo, textOf, type State } from "./session";
 
 type ToolCall = Extract<Block, { type: "tool_call" }>;
 
+// What the conversation shows, in order. Consecutive tool calls, even across several model turns, form one
+// collapsible group of steps; text, thinking and anything the user sees as an event break the group.
+type Item =
+  | { kind: "entry"; e: Entry }
+  | { kind: "say"; key: string; blocks: Block[]; stop?: string }
+  | { kind: "steps"; key: string; calls: Step[] };
+
+type Thought = Extract<Block, { type: "thinking" }>;
+type Step = ToolCall | Thought; // thinking that only leads into tool calls stays inside the group
+
+function toItems(path: Entry[]): Item[] {
+  const items: Item[] = [];
+  let steps: Step[] = [];
+  const flush = () => {
+    const first = steps.find((x) => x.type === "tool_call");
+    if (first) items.push({ kind: "steps", key: first.id, calls: steps });
+    else if (steps.length) items.push({ kind: "say", key: `t:${items.length}`, blocks: steps });
+    steps = [];
+  };
+  for (const e of path) {
+    if (e.type === "assistant") {
+      const blocks: Block[] = e.data.content;
+      const speaks = blocks.some((b) => b.type === "text" && b.text.trim());
+      let said: Block[] = [];
+      blocks.forEach((b, i) => {
+        if (b.type === "tool_call" || (b.type === "thinking" && b.text && !speaks)) {
+          if (said.length) items.push({ kind: "say", key: `${e.id}:${i}`, blocks: said });
+          said = [];
+          steps.push(b);
+        } else if (b.type === "text" || (b.type === "thinking" && b.text)) {
+          flush();
+          said.push(b);
+        }
+      });
+      if (said.length) items.push({ kind: "say", key: e.id, blocks: said });
+      if (e.data.stop === "aborted" || e.data.stop === "length") {
+        flush();
+        items.push({ kind: "say", key: `${e.id}:stop`, blocks: [], stop: e.data.stop });
+      }
+    } else if (VISIBLE.has(e.type)) {
+      flush();
+      items.push({ kind: "entry", e });
+    }
+  }
+  flush();
+  return items;
+}
+
+const VISIBLE = new Set(["user", "compaction", "branch_summary", "prune", "notice"]);
+
 export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork: (entryId: string) => void }) {
   const { entries, leaf, live } = state;
   const path = pathTo(entries, leaf);
   const kids = childrenOf(entries);
-  const results: Record<string, Entry> = {};
-  const started = new Set<string>();
+  const runs: Runs = { results: {}, started: {}, outputs: live?.outputs ?? {}, live: live !== null,
+    waiting: new Set([...(live?.approvals ?? []), ...(live?.questions ?? [])].map((a) => a.call_id)) };
   for (const e of path) {
-    if (e.type === "tool_result") results[e.data.call_id] = e;
-    if (e.type === "tool_started") started.add(e.data.call_id);
+    if (e.type === "tool_result") runs.results[e.data.call_id] = e;
+    if (e.type === "tool_started") runs.started[e.data.call_id] = e.ts;
   }
-  const waiting = new Map<string, unknown>([...(live?.approvals ?? []), ...(live?.questions ?? [])].map((a) => [a.call_id, a]));
   const todos = latestTodos(path);
   const busy = live !== null;
+  const items = toItems(path);
 
   // Follow the bottom while streaming, unless the user scrolled up to read.
   const end = useRef<HTMLDivElement>(null);
@@ -31,16 +81,23 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
   return (
     <div className="chat" ref={box}>
       {path.length <= 1 && <div className="empty">发一条消息开始。助手可以读写这个项目里的文件、运行命令。</div>}
-      {path.map((e) => {
+      {items.map((it, n) => {
+        if (it.kind === "steps")
+          return <StepGroup key={it.key} calls={it.calls} runs={runs} last={n === items.length - 1} />;
+        if (it.kind === "say")
+          return (
+            <div key={it.key} className="msg assistant">
+              {it.blocks.map((b, i) => b.type === "thinking" ? <Thinking key={i} text={b.text} />
+                : b.type === "text" ? <Markdown key={i} text={b.text} /> : null)}
+              {it.stop === "aborted" && <div className="note">（已中止）</div>}
+              {it.stop === "length" && <div className="note">（输出达到长度上限）</div>}
+            </div>
+          );
+        const e = it.e;
         if (e.type === "user") {
           const siblings = (kids[e.parent_id ?? "root"] ?? []).filter((x) => x.type === "user");
           return <UserMessage key={e.id} sid={sid} entry={e} siblings={siblings} busy={busy} onFork={onFork} />;
         }
-        if (e.type === "assistant")
-          return (
-            <AssistantMessage key={e.id} entry={e} results={results} started={started} waiting={waiting}
-              outputs={live?.outputs ?? {}} />
-          );
         if (e.type === "compaction")
           return (
             <details key={e.id} className="divider">
@@ -57,14 +114,12 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
           );
         if (e.type === "prune")
           return <div key={e.id} className="divider">已从上下文中清理 {e.data.count} 条旧工具输出（全文已另存）</div>;
-        if (e.type === "notice")
-          return (
-            <details key={e.id} className="divider">
-              <summary>{NOTICES[e.data.kind] ?? (e.data.kind.startsWith("skill:") ? `已加载技能 ${e.data.kind.slice(6)}` : "系统通知")}</summary>
-              <div className="note">{e.data.text}</div>
-            </details>
-          );
-        return null;
+        return (
+          <details key={e.id} className="divider">
+            <summary>{NOTICES[e.data.kind] ?? (e.data.kind.startsWith("skill:") ? `已加载技能 ${e.data.kind.slice(6)}` : "系统通知")}</summary>
+            <div className="note">{e.data.text}</div>
+          </details>
+        );
       })}
       {live && (live.thinking || live.text) && (
         <div className="msg assistant streaming">
@@ -72,7 +127,7 @@ export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork
           {live.text && <Markdown text={live.text} />}
         </div>
       )}
-      {live && !live.thinking && !live.text && waiting.size === 0 && <div className="working">工作中…</div>}
+      {live && !live.thinking && !live.text && runs.waiting.size === 0 && <div className="working">工作中…</div>}
       {live?.approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)}
       {live?.questions.map((q) => <QuestionCard key={q.id} question={q} />)}
       {live && [...live.steer.map((t) => ["插话", t]), ...live.queue.map((t) => ["排队", t])].map(([kind, t], i) => (
@@ -124,29 +179,6 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-function AssistantMessage({ entry, results, started, waiting, outputs }: {
-  entry: Entry; results: Record<string, Entry>; started: Set<string>; waiting: Map<string, unknown>;
-  outputs: Record<string, string>;
-}) {
-  const blocks: Block[] = entry.data.content;
-  return (
-    <div className={`msg assistant${entry.data.stop === "aborted" ? " aborted" : ""}`}>
-      {blocks.map((b, i) => {
-        if (b.type === "thinking") return b.text ? <Thinking key={i} text={b.text} /> : null;
-        if (b.type === "text") return <Markdown key={i} text={b.text} />;
-        if (b.type === "tool_call")
-          return (
-            <ToolCard key={b.id} call={b} result={results[b.id]} running={started.has(b.id)}
-              waiting={waiting.has(b.id)} output={outputs[b.id]} />
-          );
-        return null;
-      })}
-      {entry.data.stop === "aborted" && <div className="note">（已中止）</div>}
-      {entry.data.stop === "length" && <div className="note">（输出达到长度上限）</div>}
     </div>
   );
 }
@@ -219,32 +251,124 @@ function ToolArgs({ name, args }: { name: string; args: Record<string, any> }) {
   return <pre>{JSON.stringify(args, null, 2)}</pre>;
 }
 
-function ToolCard({ call, result, running, waiting, output }: {
-  call: ToolCall; result?: Entry; running: boolean; waiting: boolean; output?: string;
-}) {
-  const status = result ? (result.data.is_error ? "error" : "done") : waiting ? "waiting" : running ? "running" : "pending";
-  const label = { done: "完成", error: "出错", waiting: call.name === "ask_user" ? "等待回答" : "等待确认",
-    running: "运行中", pending: "排队" }[status];
-  const [open, setOpen] = useState(false);
-  const content: Block[] = result?.data.content ?? [];
+interface Runs {
+  results: Record<string, Entry>; // call id -> its tool_result
+  started: Record<string, number>; // call id -> when it started
+  outputs: Record<string, string>; // call id -> streamed output of a running call
+  waiting: Set<string>; // call ids waiting for an approval or an answer
+  live: boolean;
+}
+
+type Status = "done" | "error" | "running" | "waiting" | "pending";
+
+function statusOf(call: ToolCall, runs: Runs): Status {
+  const r = runs.results[call.id];
+  if (r) return r.data.is_error ? "error" : "done";
+  if (runs.waiting.has(call.id)) return "waiting";
+  return call.id in runs.started && runs.live ? "running" : "pending";
+}
+
+function seconds(call: ToolCall, runs: Runs): number | null {
+  const r = runs.results[call.id];
+  const t0 = runs.started[call.id];
+  return r && t0 ? Math.max(0, r.ts - t0) : null;
+}
+
+function duration(s: number): string {
+  if (s < 1) return `${Math.round(s * 1000)}ms`;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+}
+
+// Open while something in it is still happening; a finished group of more than three steps folds away.
+// Clicking the header overrides that either way.
+function StepGroup({ calls: steps, runs, last }: { calls: Step[]; runs: Runs; last: boolean }) {
+  const calls = steps.filter((x): x is ToolCall => x.type === "tool_call");
+  const statuses = calls.map((c) => statusOf(c, runs));
+  const active = statuses.some((s) => s === "running" || s === "waiting") || (runs.live && last);
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const open = choice ?? (active || calls.length <= 3);
+  const errors = statuses.filter((s) => s === "error").length;
+  const total = calls.reduce((sum, c) => sum + (seconds(c, runs) ?? 0), 0);
+  const names = [...new Set(calls.map((c) => toolLabel(c.name)))];
+  const counted = names.map((n) => {
+    const k = calls.filter((c) => toolLabel(c.name) === n).length;
+    return k > 1 ? `${n} ×${k}` : n;
+  });
   return (
-    <div className={`tool ${status}`}>
-      <div className="tool-head" onClick={() => setOpen(!open)}>
-        <span className="dot" />
-        <b>{toolLabel(call.name)}</b>
+    <div className="steps">
+      {calls.length > 1 && (
+        <div className="steps-head" onClick={() => setChoice(!open)}>
+          <span className={`caret${open ? " open" : ""}`} />
+          <span className="count">{calls.length} 个步骤</span>
+          {!open && <span className="names">{counted.join(" · ")}</span>}
+          <span className="right">
+            {errors > 0 && <span className="danger-text">{errors} 个出错</span>}
+            {active ? <span style={{ color: "var(--clay-text)" }}>进行中</span> : total > 0 && <span>{duration(total)}</span>}
+          </span>
+        </div>
+      )}
+      {open && steps.map((x, i) => x.type === "thinking" ? <ThoughtRow key={`t${i}`} text={x.text} />
+        : <StepRow key={x.id} call={x} status={statuses[calls.indexOf(x)]} runs={runs} />)}
+    </div>
+  );
+}
+
+const ICONS: Record<string, string> = {
+  read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", todo: "✓", ask_user: "?",
+  skill: "S", memory: "M", tool_search: "⌕",
+};
+
+function StepRow({ call, status, runs }: { call: ToolCall; status: Status; runs: Runs }) {
+  const [open, setOpen] = useState(false);
+  const result = runs.results[call.id];
+  const content: Block[] = result?.data.content ?? [];
+  const took = seconds(call, runs);
+  const label = { done: took !== null ? duration(took) : "完成", error: "出错", running: "运行中", pending: "排队",
+    waiting: call.name === "ask_user" ? "等你回答" : "等你确认" }[status];
+  const live = status === "running" ? runs.outputs[call.id] : undefined;
+  return (
+    <div className={`step ${status}`}>
+      <div className="step-row" onClick={() => setOpen(!open)} title={open ? "收起" : "展开参数和输出"}>
+        <span className="ic">{call.name.startsWith("mcp__") ? "◆" : ICONS[call.name] ?? "·"}</span>
+        <span className="name">{toolLabel(call.name)}</span>
         <code>{summary(call.name, call.args)}</code>
-        <span className="status">{label}</span>
+        {call.name === "edit" && <Delta args={call.args} />}
+        <span className="st">{label}</span>
       </div>
-      {(open || status === "running") && (
-        <div className="tool-body">
+      {(open || live) && (
+        <div className="step-body">
           {open && <ToolArgs name={call.name} args={call.args} />}
           {result
             ? content.map((b, i) =>
-                b.type === "image" ? <img key={i} src={`data:${b.mime};base64,${b.data}`} /> : b.type === "text" ? <pre key={i} className="out">{b.text}</pre> : null)
-            : output && <pre className="out">{output}</pre>}
+                b.type === "image" ? <img key={i} src={`data:${b.mime};base64,${b.data}`} />
+                  : b.type === "text" ? <pre key={i} className="out">{b.text}</pre> : null)
+            : live && <pre className="out">{live}</pre>}
         </div>
       )}
     </div>
+  );
+}
+
+function ThoughtRow({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="step thought">
+      <div className="step-row" onClick={() => setOpen(!open)}>
+        <span className="ic">…</span>
+        <span className="name">思考</span>
+        <code>{text.trim().split("\n")[0]}</code>
+      </div>
+      {open && <div className="step-body"><div className="thought-text">{text}</div></div>}
+    </div>
+  );
+}
+
+// Lines removed and added by an edit, the way a diff stat shows them.
+function Delta({ args }: { args: Record<string, any> }) {
+  const lines = (s: unknown) => (typeof s === "string" && s ? s.split("\n").length : 0);
+  return (
+    <span className="delta"><span className="a">+{lines(args.new_string)}</span> <span className="d">−{lines(args.old_string)}</span></span>
   );
 }
 

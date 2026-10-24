@@ -50,30 +50,34 @@ export function Composer({ projectId, busy = false, submit, onCancel, dropped = 
           ))}
         </div>
       )}
-      <textarea
-        value={text}
-        placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : placeholder ?? "要做什么？（Shift+回车换行，/ 调用技能）"}
-        rows={Math.min(8, Math.max(2, text.split("\n").length))}
-        autoFocus
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Tab" && matches.length) {
-            e.preventDefault();
-            setText(`/${matches[0].name} `);
-            return;
-          }
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            send();
-          }
-        }}
-      />
-      <div className="composer-actions">
-        {children}
-        <span className="grow" />
-        {busy && <button onClick={() => send("queue")} disabled={!text.trim()}>排队</button>}
-        {busy && onCancel && <button className="danger" onClick={onCancel}>停止</button>}
-        <button className="primary" onClick={() => send()} disabled={!text.trim()}>{busy ? "插话" : "发送"}</button>
+      <div className="composer-box">
+        <textarea
+          value={text}
+          placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : placeholder ?? "回复，或用 / 调用技能"}
+          rows={Math.min(10, Math.max(2, text.split("\n").length))}
+          autoFocus
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Tab" && matches.length) {
+              e.preventDefault();
+              setText(`/${matches[0].name} `);
+              return;
+            }
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
+        <div className="composer-actions">
+          {children}
+          <span className="grow" />
+          <span className="hint">Shift+回车换行</span>
+          {busy && <button onClick={() => send("queue")} disabled={!text.trim()} title="等这次运行结束后再发">排队</button>}
+          {busy && onCancel && <button className="danger" onClick={onCancel}>停止</button>}
+          <button className="send" onClick={() => send()} disabled={!text.trim()} title={busy ? "插话：下一步之前送达" : "发送"}
+            aria-label={busy ? "插话" : "发送"}>↑</button>
+        </div>
       </div>
     </div>
   );

@@ -16,6 +16,7 @@
 - 阶段 4c：Claude Code 格式的 shell 钩子（PreToolUse / PostToolUse / UserPromptSubmit / Stop）、OpenAI Responses 协议（加密推理回传）、切换分支时自动总结离开的分支。教程：[07-钩子Responses与分支摘要](docs/tutorial/07-钩子Responses与分支摘要.md)
 - 补齐内置工具：`grep` / `glob`（有 ripgrep 用 ripgrep，否则 Python 实现）、`web_fetch`（正文抽取，按站点审批）、`todo`（计划面板，压缩不丢）、`ask_user`（运行中弹出问题卡片）；并用 OpenDesign 真实模型做了冒烟测试。教程：[08-补齐内置工具](docs/tutorial/08-补齐内置工具.md)
 - 会话与项目管理：新对话页（输入框里选项目，也可不选项目直接聊）、系统对话框选文件夹并询问是否信任（不信任则默认只读、不加载项目技能）、会话重命名 / 归档 / 永久删除、项目改名 / 移除、运行中实时刷新上下文用量。教程：[09-会话与项目管理](docs/tutorial/09-会话与项目管理.md)
+- 界面重做：Linear 式的密度和布局、Claude 式的暖色调色板（亮 / 暗）与衬线回答，工具调用合并成可折叠的步骤组并显示耗时，字体随前端打包、离线可用。教程：[10-界面重做](docs/tutorial/10-界面重做.md)
 
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 

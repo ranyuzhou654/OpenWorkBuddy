@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Info, type Preset, type Project } from "./api";
+import { api, ApiError, type Entry, type Info, type Preset, type Project } from "./api";
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
 import { Home } from "./Home";
 import { Settings } from "./Settings";
-import { useSession } from "./session";
+import { textOf, useSession } from "./session";
 import { Sidebar, useAddProject } from "./Sidebar";
 import { Tree } from "./Tree";
 
@@ -54,9 +54,10 @@ export function App() {
     return <div className="login">未登录。请用 <code>nwb serve</code> 在终端里打印的登录链接打开本页。</div>;
 
   const session = state.session;
+  const project = projects.find((p) => p.id === session?.project_id);
   return (
     <div className="app">
-      <Sidebar projects={projects} current={sid} onChanged={refresh} onError={showError}
+      <Sidebar projects={projects} current={sid} running={busy ? sid : null} onChanged={refresh} onError={showError}
         onAddProject={() => adder.add().then((p) => p && (location.hash = `#/new/${p.id}`))} />
       {adder.dialog}
       <main>
@@ -68,7 +69,10 @@ export function App() {
         ) : sid && session ? (
           <>
             <header>
-              <div className="title">{session.title ?? "新会话"}</div>
+              <div className="title" title={project?.root_path}>
+                {project && <span className="crumb">{project.scratch ? "对话" : project.name} / </span>}
+                {session.title ?? firstMessage(state.entries) ?? "新会话"}
+              </div>
               <select value={session.model_ref} disabled={busy} title="模型（下一次运行生效）"
                 onChange={(e) => api.patch(sid, { model: e.target.value }).catch((er) => showError(String(er)))}>
                 {[...new Set(info?.models.map((m) => m.provider))].map((conn) => (
@@ -85,12 +89,13 @@ export function App() {
               {state.context && (
                 <span className={`meter${state.context.tokens > state.context.budget * 0.8 ? " high" : ""}`}
                   title={`下一次请求约 ${state.context.tokens} tokens，上限 ${state.context.budget}（超出时先清理旧工具输出，再压缩）`}>
-                  上下文 {kTokens(state.context.tokens)}/{kTokens(state.context.budget)}
+                  <i><b style={{ width: `${Math.min(100, (100 * state.context.tokens) / state.context.budget)}%` }} /></i>
+                  {kTokens(state.context.tokens)}/{kTokens(state.context.budget)}
                 </span>
               )}
-              <button disabled={busy} title="把较早的对话压缩成摘要，释放上下文"
+              <button className="ghost" disabled={busy} title="把较早的对话压缩成摘要，释放上下文"
                 onClick={() => api.compact(sid).catch((e) => showError(String(e)))}>压缩</button>
-              <button className={showTree ? "on" : ""} onClick={() => setShowTree(!showTree)}>会话树</button>
+              <button className={showTree ? "on" : "ghost"} onClick={() => setShowTree(!showTree)}>会话树</button>
               <span className={`conn ${state.connected ? "ok" : ""}`} title={state.connected ? "已连接" : "连接中断，重连中"} />
               {state.usage && (
                 <span className="usage" title="上一次运行的 token 用量">
@@ -125,6 +130,12 @@ const PRESET_HELP: Record<Preset, string> = {
   workspace: "工作区：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；项目外写入、沙箱外运行需确认。",
   trust: "完全信任：不进沙箱、不询问，以你的全部权限运行。",
 };
+
+// Titles come from the first message when a run ends; until then, show that message directly.
+function firstMessage(entries: Record<string, Entry>): string | null {
+  const first = Object.values(entries).filter((e) => e.type === "user").sort((a, b) => a.seq - b.seq)[0];
+  return first ? textOf(first.data.content).slice(0, 80) : null;
+}
 
 function kTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

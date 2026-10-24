@@ -118,11 +118,35 @@ function Rename({ value, onDone }: { value: string; onDone: (v: string | null) =
 
 const title = (s: SessionInfo) => s.title ?? "新会话";
 
-export function Sidebar({ projects, current, onAddProject, onChanged, onError }: {
-  projects: Project[]; current: string | null; onAddProject: () => void; onChanged: () => void;
-  onError: (m: string) => void;
+// Projects folded in the sidebar, remembered per browser.
+const folded = {
+  get(): string[] {
+    try {
+      return JSON.parse(localStorage.getItem("nwb.folded") ?? "[]");
+    } catch {
+      return [];
+    }
+  },
+  set(ids: string[]): void {
+    try {
+      localStorage.setItem("nwb.folded", JSON.stringify(ids));
+    } catch {
+      // storage unavailable: folding lasts until reload
+    }
+  },
+};
+
+export function Sidebar({ projects, current, running, onAddProject, onChanged, onError }: {
+  projects: Project[]; current: string | null; running: string | null; onAddProject: () => void;
+  onChanged: () => void; onError: (m: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null); // "s:<id>" or "p:<id>"
+  const [closed, setClosed] = useState<string[]>(folded.get);
+  const toggle = (pid: string) => {
+    const next = closed.includes(pid) ? closed.filter((x) => x !== pid) : [...closed, pid];
+    setClosed(next);
+    folded.set(next);
+  };
   const act = (p: Promise<unknown>, leave = false) =>
     p.then(() => { onChanged(); if (leave) location.hash = "#/"; }).catch((e) => onError(String(e)));
   const open = (sid: string) => (location.hash = `#/s/${sid}`);
@@ -134,7 +158,8 @@ export function Sidebar({ projects, current, onAddProject, onChanged, onError }:
         if (v !== null && v !== title(s)) act(api.patch(s.id, { title: v }));
       }} />
     ) : (
-      <div key={s.id} className={`session${s.id === current ? " on" : ""}`}>
+      <div key={s.id} className={`session${s.id === current ? " on" : ""}${s.id === running ? " running" : ""}`}>
+        <span className="dot" />
         <button onClick={() => open(s.id)} title={title(s)}>{title(s)}</button>
         <Menu items={[["重命名", () => setEditing(`s:${s.id}`)],
           ["归档", () => act(api.patch(s.id, { archived: true }), s.id === current)]]} />
@@ -149,7 +174,7 @@ export function Sidebar({ projects, current, onAddProject, onChanged, onError }:
       <button className={`new-chat${current === null && location.hash !== "#/settings" ? " on" : ""}`}
         onClick={() => (location.hash = "#/")}>✎ 新对话</button>
       {chats.length > 0 && (
-        <div className="project">
+        <div className="project plain">
           <div className="project-head"><span>对话</span></div>
           {chats.map(sessionRow)}
         </div>
@@ -167,7 +192,11 @@ export function Sidebar({ projects, current, onAddProject, onChanged, onError }:
             }} />
           ) : (
             <div className="project-head" title={p.root_path}>
-              <span>{p.name}{!p.trusted && <span className="badge" title="未信任：新会话以只读档开始，不加载项目技能">未信任</span>}</span>
+              <span className="name" onClick={() => toggle(p.id)}>
+                <span className={`caret${closed.includes(p.id) ? "" : " open"}`} />
+                <span className="label">{p.name}</span>
+                {!p.trusted && <span className="badge" title="未信任：新会话以只读档开始，不加载项目技能">未信任</span>}
+              </span>
               <span>
                 <button title="在此项目中新建会话" onClick={() => (location.hash = `#/new/${p.id}`)}>＋</button>
                 <Menu items={[["重命名", () => setEditing(`p:${p.id}`)],
@@ -180,7 +209,8 @@ export function Sidebar({ projects, current, onAddProject, onChanged, onError }:
               </span>
             </div>
           )}
-          {p.sessions.filter((s) => !s.archived_at).map(sessionRow)}
+          {(!closed.includes(p.id) || p.sessions.some((s) => s.id === current)) &&
+            p.sessions.filter((s) => !s.archived_at && (!closed.includes(p.id) || s.id === current)).map(sessionRow)}
         </div>
       ))}
       {archived.length > 0 && (
@@ -188,6 +218,7 @@ export function Sidebar({ projects, current, onAddProject, onChanged, onError }:
           <summary>已归档（{archived.length}）</summary>
           {archived.map(({ s, p }) => (
             <div key={s.id} className={`session${s.id === current ? " on" : ""}`}>
+              <span className="dot" />
               <button onClick={() => open(s.id)} title={`${p.scratch ? "对话" : p.name} · ${title(s)}`}>{title(s)}</button>
               <button className="link" title="恢复到列表" onClick={() => act(api.patch(s.id, { archived: false }))}>恢复</button>
               <button className="link danger-text" title="永久删除" onClick={() => {
