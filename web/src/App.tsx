@@ -117,7 +117,9 @@ export function App() {
               <div className="conversation">
                 <Chat sid={sid} state={state}
                   onFork={(id) => api.fork(sid, id).then((s) => { refresh(); select(s.id); }).catch((e) => showError(String(e)))} />
-                <Composer projectId={session.project_id} busy={busy} dropped={state.dropped} onTakeDropped={takeDropped}
+                <Composer projectId={session.project_id} busy={busy}
+                  ctx={{ sid, session, info, busy, entries: state.entries, leaf: state.leaf, refresh,
+                    toggleTree: () => setShowTree((v) => !v) }} dropped={state.dropped} onTakeDropped={takeDropped}
                   onError={showError} submit={(text, delivery) => api.send(sid, { text, delivery })}
                   onCancel={() => api.cancel(sid).catch((e) => showError(String(e)))} />
               </div>

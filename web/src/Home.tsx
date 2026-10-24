@@ -26,7 +26,8 @@ export function Home({ info, projects, initial, onAddProject, onError }: {
     <div className="home">
       <h1>要做什么？</h1>
       <Composer projectId={project?.id ?? scratch?.id ?? null} submit={submit} onError={onError}
-        placeholder="描述任务，回车开始；/ 调用技能">
+        ctx={{ sid: null, session: null, info, busy: false, entries: {}, leaf: null, refresh: () => {}, toggleTree: () => {} }}
+        placeholder="描述任务，回车开始；输入 / 查看命令和技能">
         <select value={project?.id ?? ""} title={project?.root_path ?? "不进项目，在对话文件夹里工作"}
           onChange={async (e) => {
             if (e.target.value !== "+") return setChoice(e.target.value || null);

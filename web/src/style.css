@@ -341,11 +341,20 @@ details.divider .md { font-size: 14px; }
 .composer-actions select { border-radius: 999px; font-size: 12px; padding: 1px 4px 1px 8px; max-width: 220px; }
 .composer-actions .send { width: 30px; height: 28px; padding: 0; justify-content: center; border-radius: var(--r); font-size: 15px; }
 .composer-actions .hint { font-size: 11px; color: var(--faint); }
-.slash { display: flex; flex-direction: column; gap: 1px; margin: 0 auto 6px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
-.slash button { border: 0; background: none; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; text-align: left; }
-.slash button:hover { background: var(--hover); }
-.slash button b { font-family: var(--mono); font-weight: 500; }
-.slash button span { color: var(--muted); }
+.slash {
+  display: flex; flex-direction: column; margin: 0 auto 6px; padding: 4px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow); max-height: 320px; overflow-y: auto;
+}
+.slash-group { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; }
+.slash button {
+  width: 100%; border: 0; background: none; justify-content: flex-start; gap: 10px; padding: 5px 10px; border-radius: var(--r-sm);
+  overflow: hidden; white-space: nowrap; text-align: left;
+}
+.slash button:hover:not(:disabled) { background: none; }
+.slash button.on { background: var(--hover); color: var(--text); }
+.slash button b { font-family: var(--mono); font-weight: 500; font-size: 12.5px; flex-shrink: 0; }
+.slash button i { font-style: normal; font-size: 12px; color: var(--faint); flex-shrink: 0; }
+.slash button span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* --- new-chat page --- */
 .home { margin: auto 0; padding: 0 0 14vh; }

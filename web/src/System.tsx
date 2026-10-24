@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, branchSummary, type SystemInfo, theme, type Theme, type Usage } from "./api";
+import { COMMANDS } from "./commands";
 
 // Settings sections that describe this machine and this browser rather than models or tools.
 
@@ -166,7 +167,7 @@ const KEYS: [string, string][] = [
   ["⌘ ,", "打开设置"],
   ["回车", "发送；运行中则插话"],
   ["Shift + 回车", "换行"],
-  ["/", "在输入框开头调出技能，Tab 补全"],
+  ["/", "在输入框开头调出命令和技能；↑↓ 选择，Tab 补全，回车执行，Esc 关闭"],
   ["回车 / Esc", "重命名时保存 / 取消"],
 ];
 
@@ -184,6 +185,16 @@ export function HelpSection() {
       <h2>快捷键</h2>
       <div className="card kv">
         {KEYS.map(([k, v]) => <div key={k}><span><kbd>{k}</kbd></span><div>{v}</div></div>)}
+      </div>
+      <h2>斜杠命令</h2>
+      <p className="note">在输入框里输入，不会发给模型（/init 除外，它替你发一段请求）。和技能重名时命令优先。</p>
+      <div className="card kv">
+        {COMMANDS.map((c) => (
+          <div key={c.name}>
+            <span><code>/{c.name}</code>{c.args && <span className="note"> {c.args}</span>}</span>
+            <div>{c.description}{c.session && <span className="note">（会话中）</span>}</div>
+          </div>
+        ))}
       </div>
       <h2>命令行</h2>
       <div className="card kv">
