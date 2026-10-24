@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import shutil
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -63,14 +64,45 @@ class Workspace:
 
     # sessions
 
-    def new_session(self, root: Path, model: str | None = None) -> SessionLog:
-        project = self.index.project_for(root)
+    def new_session(self, root: Path, model: str | None = None, *, trusted: bool = True) -> SessionLog:
+        """trusted applies only if this creates the project (the caller has asked the user). An untrusted
+        project's sessions start read-only (D12)."""
+        project = self.index.project_for(root, trusted)
         sid = new_id("s")
         log = SessionLog.create(self.sessions_dir / project["id"] / f"{sid}.jsonl", sid, project["id"])
         log.append(SYSTEM_PROMPT, prompt.build(Path(project["root_path"]), self.cfg.home))
         self.index.sync_session(log, self.cfg.model(model).name)
+        self.index.update_settings(sid, {"preset": "workspace" if project["trusted"] else "readonly"})
         self._logs[sid] = log
         return log
+
+    def scratch_project(self) -> dict[str, Any]:
+        """The project that chats without a project run in; ours, so trusted."""
+        self.cfg.scratch_dir.mkdir(parents=True, exist_ok=True)
+        return self.index.project_for(self.cfg.scratch_dir, trusted=True)
+
+    def is_scratch(self, project: dict[str, Any]) -> bool:
+        return project["root_path"] == str(self.cfg.scratch_dir.resolve())
+
+    def delete_session(self, session_id: str) -> None:
+        """For good: the log, its saved tool outputs and scratch files, and its rows. Not the project's files."""
+        row = self.index.session(session_id)
+        if row is None:
+            raise KeyError(f"no session {session_id}")
+        if log := self._logs.pop(session_id, None):
+            log.close()
+        self._stamps.pop(session_id, None)
+        Path(row["file_path"]).unlink(missing_ok=True)
+        for d in (self.cfg.home / "spill" / session_id, tmp_dir(session_id)):
+            shutil.rmtree(d, ignore_errors=True)
+        self.index.delete_session(session_id)
+
+    def delete_project(self, project_id: str) -> None:
+        """Removes the project from the list together with its sessions; its folder on disk is untouched."""
+        for row in self.index.sessions(project_id):
+            self.delete_session(row["id"])
+        shutil.rmtree(self.sessions_dir / project_id, ignore_errors=True)
+        self.index.delete_project(project_id)
 
     def open_session(self, session_id: str) -> SessionLog:
         if log := self._logs.get(session_id):
@@ -106,8 +138,13 @@ class Workspace:
 
     # tools (D14)
 
+    def trusted(self, root: Path) -> bool:
+        return bool((p := self.index.project_at(root)) and p["trusted"])
+
     def skills(self, root: Path | None, enabled: bool = True) -> dict[str, skills.Skill]:
-        """Skills found for a project; by default minus those switched off in the settings."""
+        """Skills found for a project; by default minus those switched off in the settings. An untrusted
+        project's own skills are not loaded: they are instructions written by whoever wrote the project."""
+        root = root if root and self.trusted(root) else None
         found = skills.discover(root, self.cfg.home, self.cfg.skill_dirs)
         return {n: s for n, s in found.items() if not (enabled and n in self.cfg.skills_disabled)}
 

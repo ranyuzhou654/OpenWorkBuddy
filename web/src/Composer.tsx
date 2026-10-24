@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "./api";
 
 // Enter sends; Shift+Enter is a newline. While a run is active, a message can join it (插话 / steer)
-// or wait for its own run (排队 / queue).
-export function Composer({ sid, busy, dropped, onTakeDropped, onError }: {
-  sid: string; busy: boolean; dropped: string[]; onTakeDropped: () => void; onError: (m: string) => void;
+// or wait for its own run (排队 / queue). `children` go left of the buttons (the new-chat page's pickers).
+export function Composer({ projectId, busy = false, submit, onCancel, dropped = [], onTakeDropped, onError,
+  placeholder, children }: {
+  projectId: string | null; busy?: boolean; submit: (text: string, delivery: "auto" | "queue") => Promise<unknown>;
+  onCancel?: () => void; dropped?: string[]; onTakeDropped?: () => void; onError: (m: string) => void;
+  placeholder?: string; children?: ReactNode;
 }) {
   const [text, setText] = useState("");
   const [skills, setSkills] = useState<{ name: string; description: string }[]>([]);
 
   useEffect(() => {
-    api.sessionSkills(sid).then(setSkills).catch(() => setSkills([]));
-  }, [sid]);
+    api.skills(projectId).then(setSkills).catch(() => setSkills([]));
+  }, [projectId]);
 
   // "/na" at the start of an empty-ish message suggests skills; picking one loads it for this message (D15)
   const slash = busy ? null : /^\/(\S*)$/.exec(text);
@@ -20,7 +23,7 @@ export function Composer({ sid, busy, dropped, onTakeDropped, onError }: {
   useEffect(() => {
     if (dropped.length) {
       setText((t) => [t, ...dropped].filter(Boolean).join("\n"));
-      onTakeDropped();
+      onTakeDropped?.();
     }
   }, [dropped, onTakeDropped]);
 
@@ -29,7 +32,7 @@ export function Composer({ sid, busy, dropped, onTakeDropped, onError }: {
     const body = text;
     setText("");
     try {
-      await api.send(sid, { text: body, delivery });
+      await submit(body, delivery);
     } catch (e) {
       setText(body);
       onError(String(e));
@@ -49,8 +52,9 @@ export function Composer({ sid, busy, dropped, onTakeDropped, onError }: {
       )}
       <textarea
         value={text}
-        placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : "要做什么？（Shift+回车换行，/ 调用技能）"}
+        placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : placeholder ?? "要做什么？（Shift+回车换行，/ 调用技能）"}
         rows={Math.min(8, Math.max(2, text.split("\n").length))}
+        autoFocus
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Tab" && matches.length) {
@@ -65,8 +69,10 @@ export function Composer({ sid, busy, dropped, onTakeDropped, onError }: {
         }}
       />
       <div className="composer-actions">
+        {children}
+        <span className="grow" />
         {busy && <button onClick={() => send("queue")} disabled={!text.trim()}>排队</button>}
-        {busy && <button className="danger" onClick={() => api.cancel(sid).catch((e) => onError(String(e)))}>停止</button>}
+        {busy && onCancel && <button className="danger" onClick={onCancel}>停止</button>}
         <button className="primary" onClick={() => send()} disabled={!text.trim()}>{busy ? "插话" : "发送"}</button>
       </div>
     </div>

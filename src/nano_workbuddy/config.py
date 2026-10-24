@@ -96,12 +96,19 @@ class Config:
     skills_disabled: tuple[str, ...] = ()  # [skills] disabled = [...]
     skill_dirs: tuple[str, ...] = ()  # [skills] dirs = [...]: more places to look for skills
     hooks: tuple[Hook, ...] = ()  # [[hooks.EVENT]] tables, Claude Code's events
+    scratch_dir: Path = field(default_factory=lambda: default_scratch())  # where chats without a project work
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
         if name not in self.models:
             raise KeyError(f"unknown model {name!r}; configured: {', '.join(self.models)}")
         return self.models[name]
+
+
+def default_scratch() -> Path:
+    """Visible, so the files a chat writes are easy to find; not inside ~/.nwb, which the sandbox hides."""
+    docs = Path.home() / "Documents"
+    return (docs if docs.is_dir() else Path.home()) / "nano-workbuddy"
 
 
 def home_dir() -> Path:
@@ -136,7 +143,8 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
     mcp = {n: _mcp(n, m) for n, m in raw.get("mcp", {}).items()}
     return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
                   tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())),
-                  parse_hooks(raw.get("hooks", {})))
+                  parse_hooks(raw.get("hooks", {})),
+                  Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch())
 
 
 def _mcp(name: str, m: dict[str, Any]) -> McpServer:

@@ -309,10 +309,10 @@ def main(argv: list[str] | None = None) -> None:
     root = args.project.resolve()
     if args.session:
         log = ws.open_session(args.session)
-    elif args.cont and (recent := ws.index.sessions(ws.index.project_for(root)["id"])):
+    elif args.cont and (p := ws.index.project_at(root)) and (recent := ws.index.sessions(p["id"])):
         log = ws.open_session(recent[0]["id"])
     else:
-        log = ws.new_session(root, args.model)
+        log = ws.new_session(root, args.model, trusted=ws.index.project_at(root) is not None or ask_trust(root))
     PRINTER.watch(log)
     if args.model:
         ws.set_model(log, args.model)
@@ -325,6 +325,16 @@ def main(argv: list[str] | None = None) -> None:
                                    question=terminal_question))
         sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
+
+
+def ask_trust(root: Path) -> bool:
+    """First use of a folder. Untrusted: sessions start read-only and the project's own skills stay unloaded."""
+    if not sys.stdin.isatty():
+        return False
+    print(f"{root} is not a project yet. Do you trust the files in it?\n"
+          f"{DIM}Trusted: the agent may edit files here and run sandboxed commands without asking, and the "
+          f"project's skills are loaded. Not trusted: read-only until you switch the preset.{RESET}")
+    return input("Trust this folder? [y/N] ").strip().lower() in ("y", "yes")
 
 
 def key_main(argv: list[str]) -> None:

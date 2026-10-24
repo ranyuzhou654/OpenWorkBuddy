@@ -147,7 +147,8 @@ async def test_skills_and_memory_api(home, project):
         assert {(k["name"], k["source"]) for k in view["skills"]} == {("pdf", "user"), ("deploy", "project")}
         view = (await s.client.patch("/api/settings/skills/pdf", json={"enabled": False})).json()
         assert next(k for k in view["skills"] if k["name"] == "pdf")["enabled"] is False
-        assert [k["name"] for k in (await s.client.get(f"/api/sessions/{sid}/skills")).json()] == ["deploy"]
+        pid = ws.index.session(sid)["project_id"]
+        assert [k["name"] for k in (await s.client.get("/api/skills", params={"project_id": pid})).json()] == ["deploy"]
 
         files = (await s.client.get("/api/memory")).json()
         assert [f["key"] for f in files][0] == "user" and files[1]["path"] == str(project / "AGENTS.md")

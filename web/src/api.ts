@@ -35,12 +35,15 @@ export interface SessionInfo {
   settings: Settings;
   leaf_id: string | null;
   updated_at: number;
+  archived_at: number | null;
 }
 
 export interface Project {
   id: string;
   name: string;
   root_path: string;
+  trusted: boolean; // untrusted: new sessions start read-only and the project's skills are not loaded
+  scratch: boolean; // the folder chats without a project run in
   sessions: SessionInfo[];
 }
 
@@ -207,10 +210,16 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   info: () => call<Info>("GET", "/api/info"),
   projects: () => call<Project[]>("GET", "/api/projects"),
-  addProject: (path: string) => call<Project>("POST", "/api/projects", { path }),
-  newSession: (projectId: string) => call<SessionInfo>("POST", `/api/projects/${projectId}/sessions`, {}),
+  addProject: (path: string, trusted: boolean) => call<Project>("POST", "/api/projects", { path, trusted }),
+  patchProject: (pid: string, body: { name?: string; trusted?: boolean }) => call<Project>("PATCH", `/api/projects/${pid}`, body),
+  removeProject: (pid: string) => call<{ ok: boolean }>("DELETE", `/api/projects/${pid}`),
+  pickFolder: () => call<{ path: string | null }>("POST", "/api/pick-folder"), // a native dialog on the server's machine
+  // project_id null: a chat without a project
+  newSession: (project_id: string | null, model?: string) => call<SessionInfo>("POST", "/api/sessions", { project_id, model }),
   snapshot: (sid: string) => call<Snapshot>("GET", `/api/sessions/${sid}`),
-  patch: (sid: string, body: { model?: string; preset?: string }) => call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
+  patch: (sid: string, body: { model?: string; preset?: string; title?: string; archived?: boolean }) =>
+    call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
+  deleteSession: (sid: string) => call<{ ok: boolean }>("DELETE", `/api/sessions/${sid}`),
   send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue" }) =>
     call<{ delivery: string }>("POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
   // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
@@ -238,7 +247,8 @@ export const api = {
   enableSkill: (name: string, enabled: boolean) =>
     call<SettingsView>("PATCH", `/api/settings/skills/${encodeURIComponent(name)}`, { enabled }),
   setSkillDirs: (dirs: string[]) => call<SettingsView>("PUT", "/api/settings/skill-dirs", { dirs }),
-  sessionSkills: (sid: string) => call<{ name: string; description: string }[]>("GET", `/api/sessions/${sid}/skills`),
+  skills: (projectId: string | null) =>
+    call<{ name: string; description: string }[]>("GET", `/api/skills${projectId ? `?project_id=${projectId}` : ""}`),
   memory: () => call<MemoryFile[]>("GET", "/api/memory"),
   putMemory: (key: string, text: string) => call<MemoryFile[]>("PUT", `/api/memory/${encodeURIComponent(key)}`, { text }),
   answer: (qid: string, answer: string) => call<{ ok: boolean }>("POST", `/api/questions/${qid}`, { answer }),

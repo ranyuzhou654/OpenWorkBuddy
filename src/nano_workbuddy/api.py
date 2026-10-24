@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import secrets
+import shutil
+import sys
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -31,15 +33,24 @@ COOKIE = "nwb_token"
 
 class NewProject(BaseModel):
     path: str
+    trusted: bool = False
+
+
+class ProjectPatch(BaseModel):
+    name: str | None = None
+    trusted: bool | None = None
 
 
 class NewSession(BaseModel):
     model: str | None = None
+    project_id: str | None = None  # POST /api/sessions: None starts a chat without a project
 
 
 class SessionPatch(BaseModel):
     model: str | None = None
     preset: Literal["readonly", "workspace", "trust"] | None = None
+    title: str | None = None  # "" goes back to the title taken from the first message
+    archived: bool | None = None
 
 
 class Compact(BaseModel):
@@ -167,26 +178,66 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                            for m in ws.cfg.models.values()],
                 "default_model": ws.cfg.default_model, "presets": {k: p.label for k, p in PRESETS.items()}}
 
+    def project_view(p: dict[str, Any]) -> dict[str, Any]:
+        return {**p, "trusted": bool(p["trusted"]), "scratch": ws.is_scratch(p),
+                "sessions": ws.index.sessions(p["id"])}
+
+    def project_row(pid: str) -> dict[str, Any]:
+        if (project := ws.index.project(pid)) is None:
+            raise HTTPException(404, "no such project")
+        return project
+
+    def idle(sids: list[str]) -> None:
+        if any(sid in runs.live for sid in sids):
+            raise HTTPException(409, "stop the active run first")
+
     @app.get("/api/projects")
     async def projects() -> list[dict[str, Any]]:
-        return [{**p, "sessions": ws.index.sessions(p["id"])} for p in ws.index.projects()]
+        return [project_view(p) for p in ws.index.projects()]
 
     @app.post("/api/projects")
     async def add_project(body: NewProject) -> dict[str, Any]:
+        """Adding a folder that is already a project returns it unchanged, trust included."""
         root = Path(body.path).expanduser()
         if not root.is_dir():
             raise HTTPException(400, f"{root} is not a directory")
-        return ws.index.project_for(root)
+        return project_view(ws.index.project_for(root, body.trusted))
 
-    @app.post("/api/projects/{pid}/sessions")
-    async def new_session(pid: str, body: NewSession) -> dict[str, Any]:
-        if (project := ws.index.project(pid)) is None:
-            raise HTTPException(404, "no such project")
+    @app.patch("/api/projects/{pid}")
+    async def update_project(pid: str, body: ProjectPatch) -> dict[str, Any]:
+        project_row(pid)
+        ws.index.update_project(pid, (body.name or "").strip() or None, body.trusted)
+        return project_view(ws.index.project(pid))
+
+    @app.delete("/api/projects/{pid}")
+    async def remove_project(pid: str) -> dict[str, bool]:
+        """Forgets the project and deletes its sessions; the folder itself is not touched."""
+        project_row(pid)
+        idle([r["id"] for r in ws.index.sessions(pid)])
+        ws.delete_project(pid)
+        return {"ok": True}
+
+    @app.post("/api/pick-folder")
+    async def pick_folder() -> dict[str, str | None]:
+        """A native folder dialog on the machine the server runs on: a browser cannot reveal a real path."""
+        try:
+            path = await choose_folder()
+        except FileNotFoundError as e:
+            raise HTTPException(501, str(e)) from e
+        return {"path": str(Path(path).resolve()) if path else None}
+
+    @app.post("/api/sessions")
+    async def start_session(body: NewSession) -> dict[str, Any]:
+        project = project_row(body.project_id) if body.project_id else ws.scratch_project()
         try:
             log = ws.new_session(Path(project["root_path"]), body.model)
         except KeyError as e:
             raise HTTPException(400, str(e)) from e
         return ws.index.session(log.id)
+
+    @app.post("/api/projects/{pid}/sessions")
+    async def new_session(pid: str, body: NewSession) -> dict[str, Any]:
+        return await start_session(body.model_copy(update={"project_id": pid}))
 
     @app.get("/api/sessions/{sid}")
     async def snapshot(sid: str) -> dict[str, Any]:
@@ -203,9 +254,21 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
                 raise HTTPException(400, str(e)) from e
         if body.preset:
             ws.index.update_settings(sid, {"preset": body.preset})  # next run; the model is told via a notice
+        if body.title is not None:
+            ws.index.rename_session(sid, body.title.strip() or None)
+        if body.archived is not None:
+            ws.index.archive_session(sid, body.archived)
         session = ws.index.session(sid)
         runs.hub(log).publish({"type": "session", "session": session, "context": ws.context_usage(log)})
         return session
+
+    @app.delete("/api/sessions/{sid}")
+    async def delete_session(sid: str) -> dict[str, bool]:
+        session_log(sid)
+        idle([sid])
+        ws.delete_session(sid)
+        runs.hubs.pop(sid, None)
+        return {"ok": True}
 
     @app.get("/api/sessions/{sid}/events", response_class=EventSourceResponse)
     async def events(sid: str, request: Request, after: int = -1) -> AsyncIterator[ServerSentEvent]:
@@ -318,6 +381,8 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
         """User skills once, then each project's own; on/off is by name, like the model sees them."""
         out = [skill_view(s, None) for s in ws.skills(None, enabled=False).values()]
         for p in ws.index.projects():
+            if not p["trusted"]:
+                continue  # its skills are not loaded
             found = skills.discover(Path(p["root_path"]), ws.cfg.home)
             out += [skill_view(s, p["name"]) for s in found.values() if s.source == "project"]
         return out
@@ -387,10 +452,10 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     async def skill_dirs(body: SkillDirs) -> dict[str, Any]:
         return apply(lambda: settings.set_skill_dirs(ws.cfg.home, body.dirs))
 
-    @app.get("/api/sessions/{sid}/skills")
-    async def session_skills(sid: str) -> list[dict[str, str]]:
-        """Enabled skills for this session's project: what "/name" in the composer can invoke."""
-        found = ws.skills(ws.root_of(session_log(sid)))
+    @app.get("/api/skills")
+    async def project_skills(project_id: str | None = None) -> list[dict[str, str]]:
+        """Enabled skills for a project (or for chats without one): what "/name" in the composer can invoke."""
+        found = ws.skills(Path(project_row(project_id)["root_path"]) if project_id else None)
         return [{"name": s.name, "description": s.description} for s in found.values()]
 
     # --- memory files (D18): the user can always read and correct what the model saved ---
@@ -456,3 +521,17 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
             return FileResponse(static_dir / "index.html")  # single-page app: every other path is the UI
 
     return app
+
+
+async def choose_folder() -> str | None:
+    """Show the OS folder picker; None if the user cancelled. FileNotFoundError if there is none."""
+    if sys.platform == "darwin":
+        argv = ["osascript", "-e", "activate", "-e", 'POSIX path of (choose folder with prompt "选择项目文件夹")']
+    elif zenity := shutil.which("zenity"):
+        argv = [zenity, "--file-selection", "--directory", "--title=选择项目文件夹"]
+    else:
+        raise FileNotFoundError("no folder dialog on this system; type the path instead")
+    proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.PIPE,
+                                                stderr=asyncio.subprocess.DEVNULL)
+    out, _ = await proc.communicate()
+    return (out.decode().strip() or None) if proc.returncode == 0 else None  # cancelling exits non-zero

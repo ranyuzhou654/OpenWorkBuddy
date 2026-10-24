@@ -50,6 +50,8 @@ function onEvent(s: State, ev: any): State {
       return { ...s, leaf: ev.leaf_id };
     case "session":
       return { ...s, session: ev.session, context: ev.context ?? s.context };
+    case "context": // before each model request of a run
+      return { ...s, context: { tokens: ev.tokens, budget: ev.budget } };
     case "run.started":
       return { ...s, live: { ...live, run_id: ev.run_id }, error: null };
     case "run.finished":

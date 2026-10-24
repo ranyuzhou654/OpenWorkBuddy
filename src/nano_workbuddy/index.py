@@ -1,5 +1,5 @@
-"""SQLite index (D4). Authoritative here: projects, runs, approvals, and each session's model and
-settings. Cache rebuilt from the JSONL files: session titles, leaves and indexed sizes."""
+"""SQLite index (D4). Authoritative here: projects, runs, approvals, and each session's model, settings,
+name and archived state. Cache rebuilt from the JSONL files: session titles, leaves and indexed sizes."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ create table if not exists projects(
 create table if not exists sessions(
   id text primary key, project_id text not null, title text, file_path text not null,
   indexed_bytes integer not null default 0, leaf_id text, model_ref text, settings_json text not null default '{}',
-  updated_at real not null);
+  updated_at real not null, name text, archived_at real);
 create table if not exists runs(
   id text primary key, session_id text not null, request_id text unique, status text not null,
   model_ref text, resume_count integer not null default 0, started_at real not null, ended_at real,
@@ -40,6 +40,9 @@ create table if not exists approvals(
 # Append only: MIGRATIONS[i] upgrades schema version i to i + 1. SCHEMA always describes the latest shape.
 MIGRATIONS = [
     "alter table sessions add column settings_json text not null default '{}'",  # phase 2
+    "alter table sessions add column name text",  # renamed by the user; shown instead of the title
+    "alter table sessions add column archived_at real",
+    "update projects set trusted=1",  # projects added before trust existed were all chosen by the user
 ]
 
 
@@ -72,20 +75,30 @@ class Index:
 
     # projects
 
-    def project_for(self, root: Path) -> dict[str, Any]:
-        root_s = str(root.resolve())
-        sql = "select * from projects where owner_id=? and root_path=?"
-        if p := self._one(sql, OWNER, root_s):
+    def project_at(self, root: Path) -> dict[str, Any] | None:
+        return self._one("select * from projects where owner_id=? and root_path=?", OWNER, str(root.resolve()))
+
+    def project_for(self, root: Path, trusted: bool = False) -> dict[str, Any]:
+        """The project at root, created (with that trust) if it is new; an existing one keeps its trust."""
+        if p := self.project_at(root):
             return p
-        self.db.execute("insert into projects(id, owner_id, name, root_path, created_at) values (?,?,?,?,?)",
-                        (new_id("p"), OWNER, root.resolve().name, root_s, time.time()))
-        return self._one(sql, OWNER, root_s)
+        self.db.execute("insert into projects(id, owner_id, name, root_path, trusted, created_at) values (?,?,?,?,?,?)",
+                        (new_id("p"), OWNER, root.resolve().name, str(root.resolve()), int(trusted), time.time()))
+        return self.project_at(root)
 
     def project(self, project_id: str) -> dict[str, Any] | None:
         return self._one("select * from projects where id=? and owner_id=?", project_id, OWNER)
 
     def projects(self) -> list[dict[str, Any]]:
         return self._all("select * from projects where owner_id=? order by created_at", OWNER)
+
+    def update_project(self, project_id: str, name: str | None = None, trusted: bool | None = None) -> None:
+        self.db.execute("update projects set name=coalesce(?, name), trusted=coalesce(?, trusted) where id=?",
+                        (name, None if trusted is None else int(trusted), project_id))
+
+    def delete_project(self, project_id: str) -> None:
+        """Only the index row; the caller deletes the sessions first."""
+        self.db.execute("delete from projects where id=?", (project_id,))
 
     # sessions
 
@@ -108,6 +121,7 @@ class Index:
             if "mode" in stored:  # phase 2 settings: confirm / trust
                 stored = {"preset": "trust" if stored["mode"] == "trust" else "workspace"}
             row["settings"] = {**DEFAULT_SETTINGS, **stored}
+            row["title"] = row.pop("name") or row["title"]
         return row
 
     def session(self, session_id: str) -> dict[str, Any] | None:
@@ -116,6 +130,18 @@ class Index:
     def sessions(self, project_id: str) -> list[dict[str, Any]]:
         rows = self._all("select * from sessions where project_id=? order by updated_at desc", project_id)
         return [self._session(r) for r in rows]
+
+    def rename_session(self, session_id: str, name: str | None) -> None:
+        """None goes back to the title taken from the first message."""
+        self.db.execute("update sessions set name=? where id=?", (name, session_id))
+
+    def archive_session(self, session_id: str, archived: bool) -> None:
+        self.db.execute("update sessions set archived_at=? where id=?", (time.time() if archived else None, session_id))
+
+    def delete_session(self, session_id: str) -> None:
+        for table, key in (("sessions", "id"), ("runs", "session_id"), ("rules", "session_id"),
+                           ("approvals", "session_id")):
+            self.db.execute(f"delete from {table} where {key}=?", (session_id,))
 
     def update_settings(self, session_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         settings = {**self.session(session_id)["settings"], **patch}

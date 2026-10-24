@@ -38,7 +38,7 @@ class Server:
         await self.task
 
     async def session(self, project) -> str:
-        p = (await self.client.post("/api/projects", json={"path": str(project)})).json()
+        p = (await self.client.post("/api/projects", json={"path": str(project), "trusted": True})).json()
         return (await self.client.post(f"/api/projects/{p['id']}/sessions", json={})).json()["id"]
 
 

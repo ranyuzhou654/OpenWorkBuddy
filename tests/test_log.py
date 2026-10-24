@@ -90,7 +90,7 @@ def test_resolve_by_prefix(tmp_path):
 def test_index_migrates_a_phase1_database(tmp_path):
     import sqlite3
 
-    from nano_workbuddy.index import Index
+    from nano_workbuddy.index import MIGRATIONS, Index
 
     db = sqlite3.connect(tmp_path / "index.db")
     db.executescript("""
@@ -99,17 +99,17 @@ def test_index_migrates_a_phase1_database(tmp_path):
       insert into sessions values ('s_1', 'p_1', 't', '/x', 0, null, 'm', 0);""")
     db.close()
     idx = Index(tmp_path / "index.db")
-    assert idx.session("s_1")["settings"] == {"preset": "workspace"}
-    assert idx.db.execute("pragma user_version").fetchone()[0] == 1
+    assert idx.session("s_1")["settings"] == {"preset": "workspace"} and idx.session("s_1")["title"] == "t"
+    assert idx.db.execute("pragma user_version").fetchone()[0] == len(MIGRATIONS)
     Index(tmp_path / "index.db")  # reopening is a no-op
 
 
 def test_index_migration_tolerates_a_column_that_already_exists(tmp_path):
     import sqlite3
 
-    from nano_workbuddy.index import SCHEMA, Index
+    from nano_workbuddy.index import MIGRATIONS, SCHEMA, Index
 
     db = sqlite3.connect(tmp_path / "index.db")
     db.executescript(SCHEMA)  # latest shape, but user_version was never set
     db.close()
-    assert Index(tmp_path / "index.db").db.execute("pragma user_version").fetchone()[0] == 1
+    assert Index(tmp_path / "index.db").db.execute("pragma user_version").fetchone()[0] == len(MIGRATIONS)

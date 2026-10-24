@@ -74,18 +74,16 @@ async def fit(run: Run, overflow: bool = False) -> tuple[str, list[Message]]:
         return system, messages, request_tokens(system, messages, tools)
 
     system, messages, used = project()
-    if used <= limit and not overflow:
-        return system, messages
-    keep = min(KEEP_RECENT, limit // 4)
-    if prune(run, keep):
-        system, messages, used = project()
-        if used <= limit and not overflow:
-            return system, messages
-    if await compact(run, keep=keep):
-        system, messages, used = project()
-    if used > limit:
-        raise ContextTooLarge(f"the request needs about {used} tokens but {run.model.spec.name} allows {limit}, "
-                              "even after compaction; switch to a model with a larger context window")
+    if used > limit or overflow:
+        keep = min(KEEP_RECENT, limit // 4)
+        if prune(run, keep):
+            system, messages, used = project()
+        if (used > limit or overflow) and await compact(run, keep=keep):
+            system, messages, used = project()
+        if used > limit:
+            raise ContextTooLarge(f"the request needs about {used} tokens but {run.model.spec.name} allows "
+                                  f"{limit}, even after compaction; switch to a model with a larger context window")
+    run.emit({"type": "context", "tokens": used, "budget": limit})  # the header's meter, live during a run
     return system, messages
 
 

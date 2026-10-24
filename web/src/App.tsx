@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Info, type Preset, type Project } from "./api";
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
+import { Home } from "./Home";
 import { Settings } from "./Settings";
 import { useSession } from "./session";
+import { Sidebar, useAddProject } from "./Sidebar";
 import { Tree } from "./Tree";
 
-// The page lives in the URL hash (#/s/<id> or #/settings), so reloads and bookmarks keep it.
+// The page lives in the URL hash (#/s/<id>, #/new/<project id>, #/settings; anything else is the
+// new-chat page), so reloads and bookmarks keep it.
 function useHash(): string {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -23,6 +26,7 @@ export function App() {
   const [unauthorized, setUnauthorized] = useState(false);
   const hash = useHash();
   const sid = hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
+  const newIn = hash.match(/^#\/new\/(.+)$/)?.[1] ?? null;
   const select = (id: string) => (location.hash = `#/s/${id}`);
   const settingsOpen = hash === "#/settings";
   const [showTree, setShowTree] = useState(false);
@@ -40,10 +44,11 @@ export function App() {
     refreshInfo();
   }, [refresh, refreshInfo]);
   useEffect(() => {
-    if (!busy) refresh(); // titles and ordering change when a run ends
-  }, [busy, refresh]);
+    if (!busy) refresh(); // a new session appears, and titles and ordering change when a run ends
+  }, [busy, sid, refresh]);
   const showError = useCallback((message: string) => dispatch({ type: "error", message }), [dispatch]);
   const takeDropped = useCallback(() => dispatch({ type: "takeDropped" }), [dispatch]);
+  const adder = useAddProject(projects, refresh, showError);
 
   if (unauthorized)
     return <div className="login">未登录。请用 <code>nwb serve</code> 在终端里打印的登录链接打开本页。</div>;
@@ -51,7 +56,9 @@ export function App() {
   const session = state.session;
   return (
     <div className="app">
-      <Sidebar projects={projects} current={sid} onSelect={select} onChanged={refresh} onError={showError} />
+      <Sidebar projects={projects} current={sid} onChanged={refresh} onError={showError}
+        onAddProject={() => adder.add().then((p) => p && (location.hash = `#/new/${p.id}`))} />
+      {adder.dialog}
       <main>
         {state.error && (
           <div className="banner" onClick={() => dispatch({ type: "error", message: null })}>{state.error}（点击关闭）</div>
@@ -95,13 +102,18 @@ export function App() {
               <div className="conversation">
                 <Chat sid={sid} state={state}
                   onFork={(id) => api.fork(sid, id).then((s) => { refresh(); select(s.id); }).catch((e) => showError(String(e)))} />
-                <Composer sid={sid} busy={busy} dropped={state.dropped} onTakeDropped={takeDropped} onError={showError} />
+                <Composer projectId={session.project_id} busy={busy} dropped={state.dropped} onTakeDropped={takeDropped}
+                  onError={showError} submit={(text, delivery) => api.send(sid, { text, delivery })}
+                  onCancel={() => api.cancel(sid).catch((e) => showError(String(e)))} />
               </div>
               {showTree && <Tree sid={sid} state={state} busy={busy} />}
             </div>
           </>
+        ) : sid ? (
+          <div className="empty">加载中…</div>
         ) : (
-          <div className="empty">在左侧选择或新建一个会话。</div>
+          <Home key={newIn ?? ""} info={info} projects={projects} initial={newIn} onAddProject={adder.add}
+            onError={showError} />
         )}
       </main>
     </div>
@@ -115,52 +127,6 @@ const PRESET_HELP: Record<Preset, string> = {
 };
 
 function kTokens(n: number): string {
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-}
-
-function Sidebar({ projects, current, onSelect, onChanged, onError }: {
-  projects: Project[]; current: string | null; onSelect: (sid: string) => void; onChanged: () => void;
-  onError: (m: string) => void;
-}) {
-  const [adding, setAdding] = useState(false);
-  const [path, setPath] = useState("");
-  const add = async () => {
-    try {
-      await api.addProject(path);
-      setPath("");
-      setAdding(false);
-      onChanged();
-    } catch (e) {
-      onError(String(e));
-    }
-  };
-  return (
-    <nav className="sidebar">
-      <div className="brand">nano-workbuddy</div>
-      {projects.map((p) => (
-        <div key={p.id} className="project">
-          <div className="project-head" title={p.root_path}>
-            <span>{p.name}</span>
-            <button title="新会话" onClick={() => api.newSession(p.id).then((s) => { onChanged(); onSelect(s.id); })}>＋</button>
-          </div>
-          {p.sessions.map((s) => (
-            <button key={s.id} className={`session${s.id === current ? " on" : ""}`} onClick={() => onSelect(s.id)}>
-              {s.title ?? "新会话"}
-            </button>
-          ))}
-        </div>
-      ))}
-      {adding ? (
-        <div className="add-project">
-          <input placeholder="项目目录的绝对路径" value={path} onChange={(e) => setPath(e.target.value)} autoFocus
-            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && add()} />
-          <button onClick={add}>添加</button>
-        </div>
-      ) : (
-        <button className="link" onClick={() => setAdding(true)}>＋ 添加项目</button>
-      )}
-      <button className={`link settings-link${location.hash === "#/settings" ? " on" : ""}`}
-        onClick={() => (location.hash = "#/settings")}>⚙ 模型与密钥</button>
-    </nav>
-  );
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  return n >= 100_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
