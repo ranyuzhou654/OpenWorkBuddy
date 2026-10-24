@@ -18,6 +18,7 @@ from .connectors.feishu import Feishu, feishu
 from .connectors.feishu import notice as feishu_notice
 from .context import budget, estimate_tokens, in_view, loaded_tools, request_tokens, to_messages
 from .index import Index
+from .knowledge import Knowledge
 from .log import SessionBusy, SessionLog
 from .loop import SHUTDOWN, Inbox, Input, Run, close_pending, drive, user_data
 from .memory import memory_tool
@@ -53,6 +54,7 @@ class Workspace:
         self._feishu: Feishu | None = None
         self.browser_lease = browser.Lease()
         self.running: set[str] = set()  # sessions with a run in progress (the browser lease needs to know)
+        self._knowledge: Knowledge | None = None
         self.index.reindex(self.sessions_dir)
 
     @classmethod
@@ -117,6 +119,18 @@ class Workspace:
             specs[browser.NAME] = browser.spec(self.cfg.home.resolve(), self.cfg.browser.headless)
         return specs
 
+    @property
+    def knowledge(self) -> Knowledge:
+        if self._knowledge is None:
+            self._knowledge = Knowledge(self.cfg.home / "knowledge.db", self.store)
+        return self._knowledge
+
+    def recall(self, query: str, kind: str = "all", limit: int = 20) -> list[dict[str, Any]]:
+        """Search past records, after bringing the index up to date with every session's log."""
+        self.knowledge.sync([self.index.session(r["id"]) for r in self.index._all("select id from sessions")],
+                            self.open_session)
+        return self.knowledge.search(query, kind, limit)
+
     def records(self, log: SessionLog) -> tuple[dict, dict]:
         """The session's numbered sources and delivered versions, rebuilt from its log once per process."""
         if log.id not in self._records:
@@ -155,6 +169,7 @@ class Workspace:
         self._stamps.pop(session_id, None)
         self._records.pop(session_id, None)
         self.session_tools.pop(session_id, None)
+        self.knowledge.forget(session_id)
         Path(row["file_path"]).unlink(missing_ok=True)
         for d in (self.cfg.home / "spill" / session_id, tmp_dir(session_id)):
             shutil.rmtree(d, ignore_errors=True)
@@ -211,13 +226,18 @@ class Workspace:
         found = skills.discover(root, self.cfg.home, self.cfg.skill_dirs)
         return {n: s for n, s in found.items() if not (enabled and n in self.cfg.skills_disabled)}
 
-    async def toolset(self, spec: ModelSpec, root: Path) -> tuple[Registry, dict[str, str]]:
+    async def toolset(self, spec: ModelSpec, root: Path, scheduled: bool = False) -> tuple[Registry, dict[str, str]]:
         """Built-in tools, the skill tool and the tools of every enabled MCP server, read fresh at each run
         start so that a skill or server switched off in the settings is gone from the next run.
         Also returns the notices that tell the model what is available."""
         notices: dict[str, str] = {}
         searchable = self.search_provider() is not None
         base = [t for t in self.tools.tools.values() if t.name != "web_search" or searchable]
+        if scheduled:  # started by a schedule: the run reports its outcome, and knows nobody is watching
+            from .scheduler import SCHEDULED_NOTICE, task_result
+
+            base.append(task_result)
+            notices["scheduled"] = SCHEDULED_NOTICE
         if found := self.skills(root, enabled=False):  # then keep the model's list current, even if empty
             enabled = {n: s for n, s in found.items() if n not in self.cfg.skills_disabled}
             notices["skills"] = skills.listing(enabled) or "No skills are enabled."
@@ -388,7 +408,7 @@ class Workspace:
                       sandbox=policy.sandbox_policy(preset, root, tmp_dir(log.id), home, spill),
                       tmp=tmp_dir(log.id), tools=tools, question=question, store=self.store,
                       vision=self.cfg.model(model_ref).sees_images, search=self.search_provider(),
-                      sources=sources, versions=versions, feishu=self.feishu())
+                      sources=sources, versions=versions, feishu=self.feishu(), recall=self.recall)
         places = {"root": str(root), "home": str(home), "spill": str(spill)}
 
         async def gate(tool: Tool, call: ToolCall) -> Result | None:
@@ -447,7 +467,8 @@ class Workspace:
         self.running.add(log.id)
         try:
             ref = run_row["model_ref"] if run_row["model_ref"] in self.cfg.models else self.cfg.default_model
-            tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log))
+            tools, notices = await self.toolset(self.cfg.model(ref), self.root_of(log),
+                                                scheduled=(run_row.get("request_id") or "").startswith("sched:"))
             self.session_tools[log.id] = tools
             run = self.make_run(log, ref, run_row["id"], emit, inbox, ask, tools, notices, question)
             usage = run.usage

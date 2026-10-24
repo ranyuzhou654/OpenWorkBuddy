@@ -40,6 +40,16 @@ create table if not exists approvals(
 create table if not exists inputs(
   id text primary key, session_id text not null, delivery text not null, content text not null,
   parent_id text, status text not null, created_at real not null, done_at real, extra_json text);
+create table if not exists schedules(
+  id text primary key, name text not null, prompt text not null, session_id text not null, kind text not null,
+  at_time text not null, tz text not null, weekdays text not null default '', day text not null default '',
+  catch_up text not null default 'once', enabled integer not null default 1, next_run real,
+  template_json text not null default '{}', created_at real not null, updated_at real not null,
+  last_run_at real, last_outcome text, last_summary text);
+create table if not exists occurrences(
+  schedule_id text not null, planned_at real not null, missed integer not null default 1, status text not null,
+  request_id text, outcome text, summary text, created_at real not null, done_at real,
+  primary key(schedule_id, planned_at));
 create table if not exists requests(
   request_id text primary key, session_id text not null, payload_hash text not null, created_at real not null);
 """
@@ -153,7 +163,8 @@ class Index:
 
     def delete_session(self, session_id: str) -> None:
         for table, key in (("sessions", "id"), ("runs", "session_id"), ("rules", "session_id"),
-                           ("approvals", "session_id"), ("inputs", "session_id"), ("requests", "session_id")):
+                           ("approvals", "session_id"), ("inputs", "session_id"), ("requests", "session_id"),
+                           ("schedules", "session_id")):
             self.db.execute(f"delete from {table} where {key}=?", (session_id,))
 
     def update_settings(self, session_id: str, patch: dict[str, Any]) -> dict[str, Any]:
@@ -238,6 +249,66 @@ class Index:
         if session_id:
             return self._all(sql + " and session_id=? order by created_at, rowid", session_id)
         return self._all(sql + " order by created_at, rowid")
+
+    # schedules (M3): the rule and state live here; the work happens in the schedule's own session
+
+    SCHEDULE_FIELDS = ("name", "prompt", "kind", "at_time", "tz", "weekdays", "day", "catch_up", "enabled",
+                       "next_run", "template_json", "last_run_at", "last_outcome", "last_summary")
+
+    def add_schedule(self, session_id: str, **fields: Any) -> dict[str, Any]:
+        sid, now = new_id("sch"), time.time()
+        cols = {k: v for k, v in fields.items() if k in self.SCHEDULE_FIELDS}
+        names = ", ".join(cols)
+        self.db.execute(f"insert into schedules(id, session_id, created_at, updated_at, {names}) values "
+                        f"(?,?,?,?,{','.join('?' * len(cols))})", (sid, session_id, now, now, *cols.values()))
+        return self.schedule(sid)
+
+    def update_schedule(self, schedule_id: str, **fields: Any) -> dict[str, Any] | None:
+        cols = {k: v for k, v in fields.items() if k in self.SCHEDULE_FIELDS}
+        if cols:
+            sets = ", ".join(f"{k}=?" for k in cols)
+            self.db.execute(f"update schedules set {sets}, updated_at=? where id=?",
+                            (*cols.values(), time.time(), schedule_id))
+        return self.schedule(schedule_id)
+
+    def schedule(self, schedule_id: str) -> dict[str, Any] | None:
+        return self._one("select * from schedules where id=?", schedule_id)
+
+    def schedules(self) -> list[dict[str, Any]]:
+        return self._all("select * from schedules order by created_at")
+
+    def schedule_for_session(self, session_id: str) -> dict[str, Any] | None:
+        return self._one("select * from schedules where session_id=?", session_id)
+
+    def delete_schedule(self, schedule_id: str) -> None:
+        self.db.execute("delete from schedules where id=?", (schedule_id,))
+        self.db.execute("delete from occurrences where schedule_id=?", (schedule_id,))
+
+    def claim_occurrence(self, schedule_id: str, planned_at: float, missed: int, status: str,
+                         request_id: str | None = None) -> bool:
+        """Record that this occurrence is being handled. False if it already was: the (schedule, planned
+        instant) key is what keeps a restart, or a second server, from running it twice."""
+        cur = self.db.execute("insert or ignore into occurrences(schedule_id, planned_at, missed, status, request_id,"
+                              " created_at) values (?,?,?,?,?,?)",
+                              (schedule_id, planned_at, missed, status, request_id, time.time()))
+        return cur.rowcount == 1
+
+    def finish_occurrence(self, schedule_id: str, planned_at: float, outcome: str, summary: str = "") -> None:
+        self.db.execute("update occurrences set status='done', outcome=?, summary=?, done_at=? "
+                        "where schedule_id=? and planned_at=?",
+                        (outcome, summary, time.time(), schedule_id, planned_at))
+
+    def occurrences(self, schedule_id: str | None = None, status: str | None = None,
+                    limit: int = 50) -> list[dict[str, Any]]:
+        sql, args = "select * from occurrences where 1=1", []
+        if schedule_id:
+            sql, args = sql + " and schedule_id=?", [*args, schedule_id]
+        if status:
+            sql, args = sql + " and status=?", [*args, status]
+        return self._all(sql + " order by planned_at desc limit ?", *args, limit)
+
+    def run_for_request(self, request_id: str) -> dict[str, Any] | None:
+        return self._one("select * from runs where request_id=?", request_id)
 
     # rules approved by the user ("always allow")
 

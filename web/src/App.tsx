@@ -3,6 +3,7 @@ import { api, ApiError, type Entry, type Info, type Preset, type Project } from 
 import { Chat } from "./Chat";
 import { Composer } from "./Composer";
 import { Library } from "./Files";
+import { SearchPage, Tasks } from "./Tasks";
 import { Home } from "./Home";
 import { Settings } from "./Settings";
 import { textOf, useSession } from "./session";
@@ -76,7 +77,11 @@ export function App() {
         {state.error && (
           <div className="banner" onClick={() => dispatch({ type: "error", message: null })}>{state.error}（点击关闭）</div>
         )}
-        {settingsOpen ? (
+        {hash.startsWith("#/tasks") ? (
+          <Tasks info={info} projects={projects} onError={showError} />
+        ) : hash.startsWith("#/search") ? (
+          <SearchPage onError={showError} />
+        ) : settingsOpen ? (
           <Settings section={hash.split("/")[2] ?? "general"} onChanged={refreshInfo} onError={showError} />
         ) : sid && session ? (
           <>

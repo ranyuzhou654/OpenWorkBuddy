@@ -51,6 +51,61 @@ export interface Source {
   provider?: string;
 }
 
+// A scheduled task (M3): a rule, its own session, and what its runs found.
+export interface Occurrence {
+  schedule_id: string;
+  planned_at: number;
+  missed: number;
+  status: "submitted" | "done";
+  outcome: "changed" | "unchanged" | "failed" | "needs_user" | "unknown" | "cancelled" | "skipped" | "missed" | null;
+  summary: string | null;
+  created_at: number;
+}
+
+export interface Schedule {
+  id: string;
+  name: string;
+  prompt: string;
+  session_id: string;
+  kind: "once" | "daily" | "weekly";
+  at_time: string;
+  weekdays: number[];
+  day: string;
+  tz: string;
+  catch_up: "once" | "skip" | "ask";
+  enabled: boolean;
+  next_run: number | null;
+  next_local: string | null;
+  last_outcome: Occurrence["outcome"];
+  last_summary: string | null;
+  describe: string;
+  template: { template?: string; topic?: string; file?: string };
+  running: boolean;
+  recent: Occurrence[];
+}
+
+export interface ScheduleBody {
+  name: string;
+  prompt?: string;
+  template?: { kind: "weekly_research"; topic: string; file: string; extra?: string };
+  project_id: string | null;
+  kind: Schedule["kind"];
+  at: string;
+  weekdays: number[];
+  day?: string;
+  catch_up: Schedule["catch_up"];
+  model?: string;
+}
+
+export interface SearchHit {
+  title: string;
+  kind: "message" | "source" | "file" | "upload";
+  ref: string;
+  session_id: string;
+  at: number;
+  snippet: string;
+}
+
 export interface Entry {
   id: string;
   parent_id: string | null;
@@ -355,6 +410,14 @@ export const api = {
   putFeishu: (body: { enabled?: boolean; cli?: string }) => call<SettingsView>("PUT", "/api/settings/feishu", body),
   putBrowser: (body: { enabled?: boolean; headless?: boolean }) => call<SettingsView>("PUT", "/api/settings/browser", body),
   feishuStatus: () => call<FeishuStatus>("GET", "/api/connectors/feishu"),
+  schedules: () => call<Schedule[]>("GET", "/api/schedules"),
+  createSchedule: (body: ScheduleBody) => call<Schedule>("POST", "/api/schedules", body),
+  patchSchedule: (id: string, body: Partial<Omit<ScheduleBody, "template" | "project_id">> & { enabled?: boolean }) =>
+    call<Schedule>("PATCH", `/api/schedules/${id}`, body),
+  deleteSchedule: (id: string) => call<{ ok: boolean }>("DELETE", `/api/schedules/${id}`),
+  runSchedule: (id: string) => call<{ request_id: string }>("POST", `/api/schedules/${id}/run`),
+  searchRecords: (q: string, kind = "all") =>
+    call<SearchHit[]>("GET", `/api/search?q=${encodeURIComponent(q)}&kind=${kind}`),
   testSearch: () => call<{ ok: boolean; seconds?: number; results?: number; error?: string }>("POST", "/api/settings/search/test"),
   // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
   checkout: (sid: string, entry_id: string, descend = false, summarize = branchSummary.get()) =>

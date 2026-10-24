@@ -22,7 +22,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 
-from . import artifacts, documents, llm, sandbox, search, settings, skills
+from . import artifacts, documents, llm, sandbox, schedule, search, settings, skills
+from . import scheduler as sched_mod
 from .config import McpServer, key_status, secret
 from .connectors.feishu import Feishu
 from .log import SessionBusy, entry_json
@@ -30,6 +31,7 @@ from .memory import project_file
 from .policy import PRESETS
 from .runs import Busy, RunManager
 from .runtime import Workspace
+from .scheduler import Notify, Scheduler
 from .types import Message, text
 
 COOKIE = "nwb_token"
@@ -116,6 +118,32 @@ class BrowserBody(BaseModel):
     headless: bool | None = None
 
 
+class ScheduleBody(BaseModel):
+    name: str
+    prompt: str = ""
+    template: dict[str, str] | None = None  # {"kind": "weekly_research", "topic": ..., "file": ..., "extra": ...}
+    project_id: str | None = None  # None: the chat folder
+    kind: Literal["once", "daily", "weekly"] = "weekly"
+    at: str = "09:00"
+    weekdays: list[int] = [1]
+    day: str = ""
+    tz: str | None = None  # default: the machine's zone
+    catch_up: Literal["once", "skip", "ask"] = "once"
+    model: str | None = None
+
+
+class SchedulePatch(BaseModel):
+    name: str | None = None
+    prompt: str | None = None
+    enabled: bool | None = None
+    kind: Literal["once", "daily", "weekly"] | None = None
+    at: str | None = None
+    weekdays: list[int] | None = None
+    day: str | None = None
+    tz: str | None = None
+    catch_up: Literal["once", "skip", "ask"] | None = None
+
+
 class DefaultModel(BaseModel):
     name: str
 
@@ -157,20 +185,26 @@ class Decision(BaseModel):
     feedback: str | None = None
 
 
-def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> FastAPI:
+def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, scheduler_enabled: bool = True,
+               notify: Notify | None = None) -> FastAPI:
     """Every route is async: the run manager, logs and SQLite connection live on the event loop thread,
     and plain `def` routes would run in a thread pool."""
     runs = RunManager(ws)
+    scheduler = Scheduler(runs, notify)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         runs.resume_all()
+        if scheduler_enabled:
+            scheduler.start()
         yield
+        await scheduler.stop()
         await runs.shutdown()
         await ws.mcp.close()
 
     app = FastAPI(title="nano-workbuddy", lifespan=lifespan)
     app.state.runs = runs
+    app.state.scheduler = scheduler
 
     @app.exception_handler(SessionBusy)
     async def session_busy(request: Request, e: SessionBusy) -> JSONResponse:
@@ -537,6 +571,62 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None) -> Fas
     async def put_model(name: str, body: ModelBody) -> dict[str, Any]:
         return apply(lambda: settings.put_model(ws.cfg.home, name, body.provider, body.id, body.context_window,
                                                 body.max_output, body.params, body.vision))
+
+    @app.get("/api/schedules")
+    async def schedules_list() -> list[dict[str, Any]]:
+        return [sched_mod.view(ws, row) for row in ws.index.schedules()]
+
+    @app.post("/api/schedules")
+    async def schedules_create(body: ScheduleBody) -> dict[str, Any]:
+        root = Path(ws.index.project(body.project_id)["root_path"]) if body.project_id else ws.cfg.scratch_dir
+        template_json, prompt = "{}", body.prompt
+        if body.template and body.template.get("kind") == "weekly_research":
+            topic = body.template.get("topic", "").strip()
+            if not topic:
+                raise HTTPException(400, "the research topic is required")
+            template_json, prompt = sched_mod.weekly_research(topic, body.template.get("file") or "调研简报.md",
+                                                              body.template.get("extra", ""))
+        rule = schedule.Rule(body.kind, body.at, body.tz or schedule.local_zone(), tuple(body.weekdays), body.day)
+        try:
+            row = sched_mod.create(ws, body.name, prompt, root, rule, body.catch_up, body.model, template_json)
+        except (ValueError, KeyError) as e:
+            raise HTTPException(400, str(e)) from e
+        return sched_mod.view(ws, row)
+
+    @app.patch("/api/schedules/{schedule_id}")
+    async def schedules_update(schedule_id: str, body: SchedulePatch) -> dict[str, Any]:
+        fields = body.model_dump(exclude_none=True)
+        if "at" in fields:
+            fields["at_time"] = fields.pop("at")
+        try:
+            return sched_mod.view(ws, sched_mod.update(ws, schedule_id, **fields))
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/schedules/{schedule_id}")
+    async def schedules_delete(schedule_id: str) -> dict[str, bool]:
+        """The schedule goes; its session (the history of its runs) stays, like any other conversation."""
+        if ws.index.schedule(schedule_id) is None:
+            raise HTTPException(404, "no such task")
+        ws.index.delete_schedule(schedule_id)
+        return {"ok": True}
+
+    @app.post("/api/schedules/{schedule_id}/run")
+    async def schedules_run(schedule_id: str) -> dict[str, str]:
+        try:
+            return {"request_id": await scheduler.run_now(schedule_id)}
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except RuntimeError as e:
+            raise HTTPException(409, str(e)) from e
+
+    @app.get("/api/search")
+    async def search_records(q: str, kind: Literal["all", "messages", "sources", "files"] = "all",
+                             limit: int = 30) -> list[dict[str, Any]]:
+        """Full-text search over the assistant's own records, for the search page."""
+        return ws.recall(q, kind, min(limit, 100))  # on the loop thread: SQLite and the logs live there
 
     @app.put("/api/settings/feishu")
     async def put_feishu(body: FeishuBody) -> dict[str, Any]:

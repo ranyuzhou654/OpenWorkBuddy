@@ -60,7 +60,7 @@ def _deny_secrets(memory: Effect) -> tuple[Rule, ...]:
 
 # Harness tools that touch only the conversation (tool catalog, skills, the plan, a question) never need approval.
 HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"), Rule("todo", "*", "allow"),
-           Rule("ask_user", "*", "allow"))
+           Rule("ask_user", "*", "allow"), Rule("task_result", "*", "allow"), Rule("recall", "*", "allow"))
 
 # Reading through connectors (M2): Feishu read commands, and the browser tools that only look at the page.
 BROWSER_READ = ("snapshot", "find", "take_screenshot", "console_messages", "network_requests", "network_request",

@@ -8,6 +8,7 @@ import json
 import logging
 import signal
 import sys
+import time
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
@@ -299,6 +300,8 @@ def main(argv: list[str] | None = None) -> None:
         return serve_main(argv[1:])
     if argv[:1] == ["key"]:
         return key_main(argv[1:])
+    if argv[:1] in (["backup"], ["restore"], ["service"]):
+        return maintenance_main(argv)
     p = argparse.ArgumentParser(prog="nwb", description="nano-workbuddy developer CLI (`nwb serve` starts the web UI)")
     p.add_argument("prompt", nargs="?", help="run one prompt and exit")
     p.add_argument("-C", "--project", type=Path, default=Path("."), help="project directory (default: cwd)")
@@ -329,6 +332,42 @@ def main(argv: list[str] | None = None) -> None:
                                    question=terminal_question))
         sys.exit(0 if status in ("ok", "limit") else 1)
     repl(ws, log)
+
+
+def maintenance_main(argv: list[str]) -> None:
+    """nwb backup [FILE] [--with-secrets] [--with-browser] · nwb restore FILE [--force] · nwb service install|..."""
+    from . import maintenance
+    from .config import home_dir
+
+    p = argparse.ArgumentParser(prog=f"nwb {argv[0]}")
+    home = home_dir()
+    if argv[0] == "backup":
+        p.add_argument("file", nargs="?", type=Path,
+                       default=Path.home() / f"nwb-backup-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz")
+        p.add_argument("--with-secrets", action="store_true", help="include API keys (secrets.json)")
+        p.add_argument("--with-browser", action="store_true", help="include the browser profile (logged-in cookies)")
+        a = p.parse_args(argv[1:])
+        m = maintenance.backup(home, a.file, a.with_secrets, a.with_browser)
+        print(f"backed up {', '.join(m['included'])} to {a.file}" +
+              ("" if a.with_secrets else "\n(API keys not included: add them again after restoring, or use "
+                                         "--with-secrets)"))
+    elif argv[0] == "restore":
+        p.add_argument("file", type=Path)
+        p.add_argument("--force", action="store_true", help="move the existing data aside and restore anyway")
+        a = p.parse_args(argv[1:])
+        try:
+            m = maintenance.restore(a.file, home, a.force)
+        except (FileExistsError, ValueError) as e:
+            sys.exit(f"{RED}{e}{RESET}")
+        print(f"restored {', '.join(m['included'])} into {home}")
+    else:
+        p.add_argument("action", choices=["install", "uninstall", "status"])
+        p.add_argument("--port", type=int, default=8765)
+        a = p.parse_args(argv[1:])
+        try:
+            print(maintenance.service(a.action, home, a.port))
+        except RuntimeError as e:
+            sys.exit(f"{RED}{e}{RESET}")
 
 
 def ask_trust(root: Path) -> bool:

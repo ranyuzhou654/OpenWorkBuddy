@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ChevronsUpDown, CircleHelp, Ellipsis, Gauge, Plus, Settings, SquarePen } from "lucide-react";
+import { CalendarClock, ChevronsUpDown, CircleHelp, Ellipsis, Gauge, Plus, Search, Settings, SquarePen } from "lucide-react";
 import { api, ApiError, type Info, type Project, type SessionInfo } from "./api";
 
 // Adding a project: a native folder dialog (served by the backend, since a browser cannot reveal a real
@@ -174,8 +174,12 @@ export function Sidebar({ info, projects, current, running, onAddProject, onChan
   return (
     <nav className="sidebar">
       <div className="brand">nano-workbuddy</div>
-      <button className={`new-chat${current === null && !location.hash.startsWith("#/settings") ? " on" : ""}`}
+      <button className={`new-chat${current === null && !/^#\/(settings|tasks|search)/.test(location.hash) ? " on" : ""}`}
         onClick={() => (location.hash = "#/")}><SquarePen size={15} strokeWidth={1.75} />新对话</button>
+      <button className={`new-chat${location.hash.startsWith("#/tasks") ? " on" : ""}`}
+        onClick={() => (location.hash = "#/tasks")}><CalendarClock size={15} strokeWidth={1.75} />定时任务</button>
+      <button className={`new-chat${location.hash.startsWith("#/search") ? " on" : ""}`}
+        onClick={() => (location.hash = "#/search")}><Search size={15} strokeWidth={1.75} />搜索记录</button>
       {chats.length > 0 && (
         <div className="project plain">
           <div className="project-head"><span>对话</span></div>

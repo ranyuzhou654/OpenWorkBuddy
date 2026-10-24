@@ -40,6 +40,7 @@ class ToolCtx:
     versions: dict[str, list[str]] = field(default_factory=dict)  # path -> sha256 of each delivered version
     feishu: Any = None  # connectors.feishu.Feishu, or None: not enabled
     call_key: str = ""  # this call, stable across a crash and replay: "<assistant entry id>:<call id>"
+    recall: Callable[[str, str, int], list[dict[str, Any]]] | None = None  # search over past records (knowledge.py)
 
 
 @dataclass(slots=True)

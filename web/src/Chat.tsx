@@ -249,6 +249,8 @@ function summary(name: string, args: Record<string, any>): string {
   if (name === "web_fetch") return String(args.url ?? "");
   if (name === "web_search") return String(args.query ?? "");
   if (name === "feishu") return Array.isArray(args.command) ? args.command.join(" ") : "";
+  if (name === "recall") return String(args.query ?? "");
+  if (name === "task_result") return `${args.outcome ?? ""}：${args.summary ?? ""}`;
   if (name.startsWith("mcp__browser__")) return String(args.url ?? args.element ?? args.text ?? args.key ?? "");
   if (name === "create_document" || name === "present") return String(args.path ?? "");
   if (name === "ask_user") return String(args.question ?? "");
@@ -347,7 +349,7 @@ function StepGroup({ calls: steps, runs, last }: { calls: Step[]; runs: Runs; la
 
 const ICONS: Record<string, string> = {
   read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", web_search: "⌕", todo: "✓", ask_user: "?",
-  create_document: "D", present: "⇪", feishu: "飞",
+  create_document: "D", present: "⇪", feishu: "飞", recall: "↺", task_result: "◎",
   skill: "S", memory: "M", tool_search: "⌕",
 };
 

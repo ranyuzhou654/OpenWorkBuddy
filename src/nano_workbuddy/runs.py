@@ -35,9 +35,13 @@ MAX_PENDING_EVENTS = 5_000  # per subscriber; a client this far behind is cut of
 type Factory = Callable[[Emit, Inbox, Ask, Question], Awaitable[str | None]]
 
 
+def _extra(row: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(row.get("extra_json") or "{}")
+
+
 def _input(row: dict[str, Any]) -> Input:
     """A pending input as it was accepted, attachments included."""
-    extra = json.loads(row.get("extra_json") or "{}")
+    extra = _extra(row)
     return Input(row["content"], row["id"], tuple(extra.get("attachments", ())), tuple(extra.get("blocks", ())))
 
 
@@ -99,6 +103,8 @@ class RunManager:
         self.ws = ws
         self.hubs: dict[str, Hub] = {}
         self.live: dict[str, Live] = {}
+        # told when a run starts waiting for the user (kind "approval" or "question"); the scheduler uses it
+        self.attention: Callable[[SessionLog, str, str], None] | None = None
 
     # events
 
@@ -165,7 +171,8 @@ class RunManager:
             if claim == "conflict":
                 raise Busy(f"request_id {request_id} was already used for a different message")
         kind = ("queue" if delivery == "queue" else "steer") if live else "run"
-        extra = {"attachments": files, "blocks": blocks} if files else None
+        extra = {**({"attachments": files, "blocks": blocks} if files else {}),
+                 **({"request_id": request_id} if request_id else {})} or None
         msg = Input(content, self.ws.index.add_input(log.id, kind, content, parent_id, extra),  # durable before the ack
                     tuple(files), tuple(blocks))
         if live:
@@ -220,8 +227,9 @@ class RunManager:
                               queue=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "queue"])
                 self._start(log, lambda emit, inbox, ask, question, log=log: self.ws.resume(log, emit, inbox, ask,
                                                                                             question), inbox)
-            elif msgs:
-                self._submit(log, msgs[0], parent_id=rows[0]["parent_id"], inbox=Inbox(queue=msgs[1:]))
+            elif msgs:  # its request_id travels along: a scheduled task finds its run by it
+                self._submit(log, msgs[0], parent_id=rows[0]["parent_id"], inbox=Inbox(queue=msgs[1:]),
+                             request_id=_extra(rows[0]).get("request_id"))
 
     def _not_in_log(self, log: SessionLog, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pending inputs minus those whose user entry was written just before a crash (marked consumed now)."""
@@ -291,6 +299,8 @@ class RunManager:
             live.approvals[aid] = (view, fut)
             self.ws.index.add_approval(aid, log.id, live.run_id, call)
             hub.publish({"type": "approval.requested", "approval": view})
+            if self.attention:
+                self.attention(log, "approval", f"{tool.name} {check.resource}"[:120])
             try:
                 decision, feedback = await fut
             except asyncio.CancelledError:
@@ -317,6 +327,8 @@ class RunManager:
             fut: asyncio.Future[str] = asyncio.get_running_loop().create_future()
             live.questions[view["id"]] = (view, fut)
             hub.publish({"type": "question.requested", "question": view})
+            if self.attention:
+                self.attention(log, "question", str(q.get("question", ""))[:120])
             try:
                 return await fut
             finally:
