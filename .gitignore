@@ -13,3 +13,9 @@ web/playwright-report/
 
 # Advisory locks from archived local evaluation workspaces
 .home.maintenance.lock
+
+# Local career materials
+/career-claim-ledger.json
+/简历*
+/导学-*
+/面经-*
