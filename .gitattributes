@@ -17,3 +17,6 @@ docs/research/**/files/blobs/* binary
 # Preserve historical failure logs and patch context verbatim.
 docs/research/**/*.xml -whitespace
 docs/research/**/*.diff -whitespace
+
+# Frozen CSV evidence hashes include the original record line endings.
+docs/research/**/*.csv -text

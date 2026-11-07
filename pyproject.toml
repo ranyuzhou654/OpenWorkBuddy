@@ -35,6 +35,8 @@ build-backend = "hatchling.build"
 packages = ["src/nano_workbuddy"]
 
 [tool.pytest.ini_options]
+# Tests import repository-local evaluation scripts as well as the installed package.
+pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
