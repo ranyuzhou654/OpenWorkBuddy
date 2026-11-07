@@ -1,0 +1,83 @@
+{
+  "type": "trial.finished",
+  "id": "U1-1",
+  "process_status": "finished",
+  "status": "ok",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_1b9ba77b2267"
+  ],
+  "workflow_checks": [],
+  "model_calls": 11,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "brief.docx",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "39673 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as Word",
+          "ok": true,
+          "detail": "Word document",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "3000 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "cdafec8bed67a80a5596dc69a1e936bf028cef1e2cb7805158e33f65c60a853b"
+    },
+    {
+      "path": "brief.pdf",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "179322 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as PDF",
+          "ok": true,
+          "detail": "PDF, 2 pages",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "2897 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "c5da74001e655a5fbf923d1612b416e1146f5088cdb2ed229c464d714f0e7f49"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 109.51371554099023,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 112109,
+    "output": 15282,
+    "cache_read": 97024,
+    "cache_write": 0
+  }
+}

@@ -1,0 +1,3 @@
+继续此前任务。读取 input.json，按历史中已确定的负责人和禁止修改项，把 owner、total（整数）、protected_file 写入 result.json。不要修改输入文件。
+
+输出格式约定：将一个合法 JSON 对象保存到 result.json，且只能包含以下字段：owner=非空字符串；total=非负整数（不写小数）；protected_file=非空字符串。所有字段必填，禁止添加 project、note、说明或其它键；文件中不写 Markdown 代码围栏或 JSON 之外的文字。

@@ -1,0 +1,12 @@
+{
+  "trials": 12,
+  "calls": 53,
+  "responses": 51,
+  "limits_verified": true,
+  "source_archive_verified": true,
+  "same_source_before_each_trial": true,
+  "no_gold_in_public_cases": true,
+  "sdk_retries_zero": true,
+  "formal_trials": 0,
+  "code_files": 67
+}

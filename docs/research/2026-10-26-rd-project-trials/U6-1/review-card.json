@@ -1,0 +1,60 @@
+{
+  "type": "trial.finished",
+  "id": "U6-1",
+  "process_status": "finished",
+  "status": "error",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_11841e23bac2",
+    "s_d72e73c580dc"
+  ],
+  "workflow_checks": [
+    {
+      "check": "prior_blobs_accessible",
+      "ok": true
+    }
+  ],
+  "error_type": "BudgetExceeded",
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-1/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "recovered.md",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "2559 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "1235 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "ea2ab7d52e92df7c3248f7a2be561e7ed744cacbb580b845e718ebae37b47f9f"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 59.390608958899975,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 43092,
+    "output": 4726,
+    "cache_read": 36608,
+    "cache_write": 0
+  }
+}

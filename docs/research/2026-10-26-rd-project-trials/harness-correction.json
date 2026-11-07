@@ -1,0 +1,14 @@
+{
+  "original_runner_sha256": "085f84ceab5f10b2cf3464d401e3fca0ff6b2a79d9870afe3c0814d3f769f04e",
+  "corrected_runner_sha256": "ac72c55bc32deef256d2370e4344347471c7c3b87fcb422155308ec64c56097d",
+  "paid_trials_after_correction": 0,
+  "corrections": [
+    "separate scratch/project",
+    "assert scope",
+    "restore regression reads old note, not question",
+    "permit scoped glob",
+    "use product BudgetExceeded"
+  ],
+  "original_trials_modified": false,
+  "original_failures_removed": false
+}

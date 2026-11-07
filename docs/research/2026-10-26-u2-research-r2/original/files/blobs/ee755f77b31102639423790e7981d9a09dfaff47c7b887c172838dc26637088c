@@ -1,0 +1,3 @@
+Context Engineering for RAG Agents: Enterprise Guide 2026
+https://atlan.com/know/context-engineering/context-engineering-for-rag-agents
+Anthropic describes context engineering as the work of curating and maintaining the information that enters an agent’s context during inference, including tools, external data, message history, and MCP. Gartner’s July 2025 summary uses the same direction of travel: leaders need context-aware architectures and dynamic data, not prompt tweaks alone. For RAG builders, the message is simple. Do not throw RAG away. Upgrade what surrounds it. A context-engineered RAG agent adds: [...] In context-engin

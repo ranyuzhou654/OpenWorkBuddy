@@ -1,0 +1,52 @@
+{
+  "format": 2,
+  "created_at": 1792989900.564064,
+  "home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-2/home",
+  "included": [
+    "index.db",
+    "config.toml",
+    "sessions",
+    "files/blobs",
+    "usage"
+  ],
+  "secrets": false,
+  "browser_profile": false,
+  "consistency": "offline",
+  "files": {
+    "config.toml": {
+      "bytes": 1079,
+      "sha256": "83e8a1342f1b90bc8b377c52614ba14347dfb0518bba3e3cdeb67407004ed059"
+    },
+    "files/blobs/1ca14ca56aad0b457efe987e462b90cc57bdb5c4da5c75ede8b79e180c7a63ce": {
+      "bytes": 919,
+      "sha256": "1ca14ca56aad0b457efe987e462b90cc57bdb5c4da5c75ede8b79e180c7a63ce"
+    },
+    "files/blobs/57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb": {
+      "bytes": 628,
+      "sha256": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb"
+    },
+    "files/blobs/e0d827f6902433b1fb71c66027bfe1bd80492e49f105756fecf2c3c2552040a4": {
+      "bytes": 3837,
+      "sha256": "e0d827f6902433b1fb71c66027bfe1bd80492e49f105756fecf2c3c2552040a4"
+    },
+    "index.db": {
+      "bytes": 86016,
+      "sha256": "c75a3dd3916d09fa752d5d25f3f521ef4c245fc839c76cd4aa8c9a0adf7403d4"
+    },
+    "sessions/p_5f9ce6836098/s_be0873950e58.jsonl": {
+      "bytes": 22600,
+      "sha256": "96847a8e85fe44efdce77c7c0c9bad215f00cff2373df08edd586852ed68272c"
+    },
+    "usage/s_be0873950e58.jsonl": {
+      "bytes": 4764,
+      "sha256": "5b26504f2d8d34e49fc9302497748b4165f92ef66e1d1dff622d6b21642836bf"
+    }
+  },
+  "projects": [
+    {
+      "id": "p_5f9ce6836098",
+      "root_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-2/workspace"
+    }
+  ],
+  "project_worktrees_included": false
+}

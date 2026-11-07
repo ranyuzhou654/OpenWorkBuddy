@@ -1,0 +1,12 @@
+{
+  "system_http": 200,
+  "settings_http": 200,
+  "plugins": {
+    "documents": false,
+    "web": false,
+    "feishu": false,
+    "browser": false
+  },
+  "model_count": 1,
+  "service": "http://127.0.0.1:8765"
+}

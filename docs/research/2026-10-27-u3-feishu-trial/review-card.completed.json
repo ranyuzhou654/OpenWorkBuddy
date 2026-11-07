@@ -1,0 +1,174 @@
+{
+  "case_id": "U3-1",
+  "date": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "arm": "B1",
+  "sample_count": 1,
+  "requested_provider": "opendesign",
+  "requested_model": "deepseek-v4.1-flash",
+  "original_run": {
+    "session_id": "s_4d0f8a1209fe",
+    "status": "ok",
+    "model_calls": 3,
+    "id": "U3-1",
+    "process_status": "finished",
+    "model_responses": 3,
+    "observed_models": [
+      "deepseek-flash"
+    ],
+    "usage": {
+      "input": 19438,
+      "output": 3273,
+      "cache_read": 12416
+    },
+    "usage_complete": true,
+    "elapsed_seconds": 26.88684566738084,
+    "artifact_checks": [
+      {
+        "path": "meeting-prep.docx",
+        "sha256": "f7519e9aad3702680d2deb95f9c06daff372cf465e999b842ea08c27359c00d5",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "40341 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "opens as Word",
+            "ok": true,
+            "detail": "Word document",
+            "layer": "structure"
+          },
+          {
+            "name": "has readable text",
+            "ok": true,
+            "detail": "2488 characters",
+            "layer": "structure"
+          }
+        ]
+      },
+      {
+        "path": "meeting-prep.md",
+        "sha256": "09a00ddef9b07fa57110c81de279af8a090cd0cda86e08c8140828ced4cef039",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "4562 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "valid UTF-8 text",
+            "ok": true,
+            "detail": "2442 characters",
+            "layer": "structure"
+          }
+        ]
+      }
+    ],
+    "cost": null,
+    "factual_acceptance": "pending",
+    "human_acceptance": "pending"
+  },
+  "budget": {
+    "model_calls": 12,
+    "tool_calls": 20,
+    "wall_seconds": 180,
+    "sdk_retries": 0
+  },
+  "resources": {
+    "preparation_document_fetches": 4,
+    "sut_document_fetches": 2,
+    "calendar_reads": 0,
+    "tavily_calls": 0,
+    "remote_business_writes": 0
+  },
+  "assistance": {
+    "product_source_fix_before_run": true,
+    "during_run_rescues": 0,
+    "post_run_word_column_adjustments": 1,
+    "post_run_content_rewrite": false,
+    "additional_model_calls": 0,
+    "human_rework_minutes": null
+  },
+  "implementation_review": {
+    "independent": false,
+    "findings": [
+      {
+        "severity": "minor",
+        "issue": "纯汉字 900 个，略低于试跑约 1000–1500 的目标，未事后补写。"
+      },
+      {
+        "severity": "review",
+        "issue": "“项目自述”宜理解为个人笔记中的转述；本轮没有独立核验官方项目结论。"
+      },
+      {
+        "severity": "review",
+        "issue": "行动表是基于笔记的讨论建议；超时/幂等已有机制应先对照源码复核，不能据此断言当前项目缺失。"
+      }
+    ],
+    "body_cjk_characters": 900,
+    "body_total_characters_excluding_references": 1835,
+    "both_word_versions_pages": 3,
+    "all_pages_visually_inspected": true,
+    "both_word_text_equal_markdown": true,
+    "clickable_source_links_each": 2
+  },
+  "freeze": {
+    "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+    "code_sha256": "990d39c6a8dd78185c53738dcde9fa028624386da7b950894921543e3e0a41b7",
+    "scope_sha256": "fad609d434a47d27a41bd7462700b996ff65c69f70fa906931aad2ca167329d0",
+    "public_sha256": "177ab1fdc560f89f71eb62fac306eb38e72a1eb23b66e99e1e660f9ed15834ec",
+    "runner_sha256": "9a48d6a3ff9f167f94f093b508f8d2c5dd88b6de1e68c1998ba88c0c249c40d2"
+  },
+  "evidence_root": "../../../eval-runs/rd-feishu-2026-10-27/",
+  "delivery": [
+    {
+      "path": "meeting-prep.docx",
+      "sha256": "f7519e9aad3702680d2deb95f9c06daff372cf465e999b842ea08c27359c00d5",
+      "assisted_layout": false
+    },
+    {
+      "path": "meeting-prep.layout-reviewed.docx",
+      "sha256": "262fe0f75d7db106de643aa8a17bc4e41a4f5d5c8a6cb5e8017c3c2683091863",
+      "assisted_layout": true
+    },
+    {
+      "path": "meeting-prep.md",
+      "sha256": "09a00ddef9b07fa57110c81de279af8a090cd0cda86e08c8140828ced4cef039",
+      "assisted_layout": false
+    }
+  ],
+  "human_review": {
+    "reviewer": "user",
+    "reviewed_at": null,
+    "critical_fact_errors": null,
+    "usable": true,
+    "word_layout_accepted": null,
+    "suggestions_fit_current_project": null,
+    "rework_minutes": null,
+    "notes": "用户对已交付本地准备包确认人工验收通过。逐项评分、关键事实错误数和返工分钟未提供，保留 null。验收包含列宽辅助调整后的 Word，保留该人工辅助记录。",
+    "status": "passed",
+    "reviewer_role": "requesting_user",
+    "recorded_at": "2026-10-27T12:43:45+08:00",
+    "confirmation": "人工验收通过",
+    "confirmation_source": "current conversation user message",
+    "accepted_deliverables": [
+      {
+        "path": "meeting-prep.layout-reviewed.docx",
+        "sha256": "262fe0f75d7db106de643aa8a17bc4e41a4f5d5c8a6cb5e8017c3c2683091863",
+        "assisted_layout": true
+      },
+      {
+        "path": "meeting-prep.md",
+        "sha256": "09a00ddef9b07fa57110c81de279af8a090cd0cda86e08c8140828ced4cef039",
+        "assisted_layout": false
+      }
+    ]
+  },
+  "next_trial": "U3-2 remains unexecuted",
+  "original_review_card_sha256": "3aa5bc9d666b23b85a8666d9c767097379344ff924018614d2221006364c91ef",
+  "acceptance_status": "passed",
+  "acceptance_scope": "U3-1 delivered Markdown and layout-adjusted Word only"
+}

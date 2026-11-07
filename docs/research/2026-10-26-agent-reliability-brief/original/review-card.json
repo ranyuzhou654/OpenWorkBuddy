@@ -1,0 +1,40 @@
+{
+  "status": "timeout",
+  "id": "U2-1",
+  "process_status": "timeout",
+  "model_calls": 12,
+  "model_responses": 11,
+  "observed_models": [
+    "deepseek-flash"
+  ],
+  "usage": {
+    "input": 329378,
+    "output": 17896,
+    "cache_read": 282624
+  },
+  "usage_complete": false,
+  "elapsed_seconds": 180.01464054221287,
+  "artifact_checks": [
+    {
+      "path": "research-brief.md",
+      "sha256": "1eef1540c86317e7ad5220346a488562e0c9105731f7178b71279a3d60475339",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "8426 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "4851 characters",
+          "layer": "structure"
+        }
+      ]
+    }
+  ],
+  "cost": null,
+  "human_acceptance": "pending",
+  "factual_acceptance": "pending"
+}

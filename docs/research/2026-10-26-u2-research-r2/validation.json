@@ -1,0 +1,140 @@
+{
+  "trial": {
+    "session_id": "s_dc77050d008b",
+    "status": "error",
+    "error_type": "APITimeoutError",
+    "model_calls": 9,
+    "search_requests": 3,
+    "id": "U2-2",
+    "process_status": "finished",
+    "model_responses": 8,
+    "observed_models": [
+      "deepseek-flash"
+    ],
+    "usage": {
+      "input": 201314,
+      "output": 8997,
+      "cache_read": 163456
+    },
+    "usage_complete": false,
+    "elapsed_seconds": 124.99287758255377,
+    "artifact_checks": [
+      {
+        "path": "research-brief.docx",
+        "sha256": "2e2b45481db8974d5b797f326e1bc80f6fb9a94e646a005fd14a7291e3f23c48",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "42101 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "opens as Word",
+            "ok": true,
+            "detail": "Word document",
+            "layer": "structure"
+          },
+          {
+            "name": "has readable text",
+            "ok": true,
+            "detail": "4492 characters",
+            "layer": "structure"
+          }
+        ]
+      },
+      {
+        "path": "research-brief.md",
+        "sha256": "caff604a4271a48ca36a4f140ff408b068c121dcf200ba40d1734040f09cf98a",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "8292 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "valid UTF-8 text",
+            "ok": true,
+            "detail": "4700 characters",
+            "layer": "structure"
+          }
+        ]
+      }
+    ],
+    "cost": null,
+    "human_acceptance": "pending",
+    "factual_acceptance": "pending"
+  },
+  "same_baseline_task_and_project_context": true,
+  "trial_code_sha256": "a6478e88203b97dcf38c22e8204e7aac9d45fa170750fb3e334bfc45ed350a26",
+  "layout_fix_code_sha256": "206df104c571bbc929cbc6e8301ae8d7964e85c55d7f11d8b8fab407caf46043",
+  "trial_runner_sha256": "c303269807a452cd9a99490e1f1781cf66daf8d8fb410fb05f1fd3ed0f845e18",
+  "full_tests": {
+    "initial": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "417",
+      "time": "77.098",
+      "timestamp": "2026-10-26T22:10:51.952266+08:00",
+      "hostname": "MacBook-Pro-2.local"
+    },
+    "pretrial": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "417",
+      "time": "74.128",
+      "timestamp": "2026-10-26T22:12:45.621538+08:00",
+      "hostname": "MacBook-Pro-2.local"
+    },
+    "final": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "417",
+      "time": "82.220",
+      "timestamp": "2026-10-26T22:21:03.154904+08:00",
+      "hostname": "MacBook-Pro-2.local"
+    }
+  },
+  "ruff": "passed",
+  "diff_check": "passed",
+  "tools": {
+    "errors": 0,
+    "executed": 15,
+    "create_document": 1,
+    "export_document": 1
+  },
+  "official_cited_sources": 4,
+  "local_cited_sources": 1,
+  "retained_blobs_verified": 17,
+  "raw_trial_unchanged": true,
+  "body_cjk_characters": 1537,
+  "word_markdown_visible_text_equal": true,
+  "original_word_pages": 5,
+  "original_layout": "row split and orphan final page",
+  "assisted_word_pages": 4,
+  "assisted_all_pages_visually_checked": true,
+  "assisted_content_revision": false,
+  "factual_review": "Codex spot check; independent human acceptance pending",
+  "additional_trial_model_requests_after_run": 0,
+  "additional_tavily_requests_after_run": 0,
+  "real_finishing_threshold_triggered": false,
+  "finishing_local_regression": "passed",
+  "billing": {
+    "model": null,
+    "tavily": null,
+    "last_request_usage": "missing"
+  },
+  "external_business_writes": 0,
+  "live_server": {
+    "url": "http://127.0.0.1:8765",
+    "reloaded_current_source": true,
+    "api_system_status": 200
+  }
+}

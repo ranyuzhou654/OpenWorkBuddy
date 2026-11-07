@@ -11,3 +11,9 @@
 
 # Markdown uses trailing spaces for hard line breaks.
 *.md whitespace=-blank-at-eol
+
+# Content-addressed evidence blobs must retain their original bytes.
+docs/research/**/files/blobs/* binary
+# Preserve historical failure logs and patch context verbatim.
+docs/research/**/*.xml -whitespace
+docs/research/**/*.diff -whitespace

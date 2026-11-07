@@ -1,0 +1,23 @@
+{
+  "remote_model_calls": 0,
+  "trials_executed": 0,
+  "trials_proposed": 24,
+  "prior_evidence_files_verified": {
+    "2026-10-29-quantification-phase1": 627,
+    "2026-10-29-quantification-tools-format-v2": 213,
+    "2026-10-29-quantification-v2-real": 236
+  },
+  "source_run_file_set_unchanged": true,
+  "current_source_matches_v2_frozen_code": true,
+  "source_files_verified": 67,
+  "tool_events": 36,
+  "read_events": 19,
+  "artifact_verification_reads": 10,
+  "offline_query_replay": "immutable source SQLite -> in-memory copy; final index, not runtime snapshot",
+  "task_arm_cells": 8,
+  "repeats_per_cell": 3,
+  "request_limit": 288,
+  "trial_wall_seconds_limit": 4320,
+  "cost": null,
+  "checks": "Offline assertions and ruff only; no product changes or real-run execution"
+}

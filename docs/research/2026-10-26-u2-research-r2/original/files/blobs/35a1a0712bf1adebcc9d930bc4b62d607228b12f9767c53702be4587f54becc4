@@ -1,0 +1,3 @@
+Context engineering: memory, compaction, and tool clearing | Claude Cookbook
+https://platform.claude.com/cookbook/tool-use-context-engineering-context-engineering-tools
+Our engineering blog on effective context engineering for AI agents(opens in new tab) frames this as a resource problem: context is finite with diminishing marginal returns, and the core discipline is finding the smallest set of high-signal tokens that maximize the likelihood of your desired outcome. There are several levers for this: subagents that isolate work in their own context, programmatic tool calling that keeps large results out of the window entirely, and others.

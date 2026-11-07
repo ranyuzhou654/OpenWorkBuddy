@@ -1,0 +1,93 @@
+[
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/workspace/progress.md",
+    "name": "progress.md",
+    "mime": "text/markdown",
+    "size": 3478,
+    "sha256": "cdb3ea60dbf8bd5a75b7dd7e0adf59effeed136db23f4154cc96a9452d382fc5",
+    "version": 1,
+    "title": "OpenWorkBuddy 实施验证进度",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "3478 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "valid UTF-8 text",
+        "ok": true,
+        "detail": "2205 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citations refer to recorded sources",
+        "ok": true,
+        "layer": "citations",
+        "detail": "1 cited"
+      },
+      {
+        "name": "cited source excerpts entered model context",
+        "ok": true,
+        "layer": "citations",
+        "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+      },
+      {
+        "name": "cited versions have retained snapshots",
+        "ok": true,
+        "layer": "citations",
+        "detail": "content-addressed snapshots retained; no factual verification implied"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "headings": 9
+    },
+    "kept": true,
+    "created_at": 1792989790.899619,
+    "sources": [
+      {
+        "sha256": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "snapshot": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "text_ref": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/workspace/current.json",
+        "retrieved_at": "2026-10-26T04:42:53Z",
+        "locator": "lines 1-26 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_3deb4bd77de4",
+        "n": 1,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/workspace/current.json",
+        "kind": "file",
+        "title": "current.json",
+        "inspections": [
+          {
+            "entry_id": "e_e47e6507710d",
+            "locator": "lines 1-26 (line caps 2000)",
+            "excerpt_ref": "3a80c0348cbf061e08f3a9aa70a7370449f266228ccaba84b137b75331528485",
+            "excerpt_sha256": "3a80c0348cbf061e08f3a9aa70a7370449f266228ccaba84b137b75331528485",
+            "output_ranges": [
+              [
+                0,
+                919
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      }
+    ]
+  }
+]

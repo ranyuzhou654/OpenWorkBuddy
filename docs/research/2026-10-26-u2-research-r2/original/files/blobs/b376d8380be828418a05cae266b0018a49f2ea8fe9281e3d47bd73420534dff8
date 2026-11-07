@@ -1,0 +1,3 @@
+Persistence - Docs by LangChain
+https://docs.langchain.com/oss/python/langgraph/persistence
+Checkpointers persist a thread’s graph state as checkpoints. Use them for short-term, thread-scoped memory, including conversation continuity, human-in-the-loop workflows, time travel, and fault tolerance. Stores persist application-defined data outside the graph state. Use them for long-term, cross-thread memory, including user preferences, facts, and shared knowledge. [...] | Checkpointer | Store | --- | | Persists | Graph state snapshots | Application-defined key-value data | | Scope | A sing

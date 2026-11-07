@@ -1,0 +1,363 @@
+{
+  "config": {
+    "argv": [
+      "/opt/homebrew/Cellar/node/24.5.0/bin/node",
+      "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/node_modules/.bin/playwright",
+      "test"
+    ],
+    "configFile": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/playwright.config.ts",
+    "rootDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e",
+        "snapshotDir": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 30000,
+        "use": {
+          "baseURL": "http://127.0.0.1:8766",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          },
+          "trace": "retain-on-failure",
+          "screenshot": "only-on-failure"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": {
+      "command": "uv run --project .. python ../tests/fixtures/e2e_server.py",
+      "url": "http://127.0.0.1:8766/__test__/ready",
+      "reuseExistingServer": false
+    }
+  },
+  "suites": [
+    {
+      "title": "workflows.spec.ts",
+      "file": "workflows.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Tavily settings save locally, mask the key and stay separate from model credentials",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5538,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.test.ok')\nExpected substring: \u001b[32m\"搜索可用\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" locator('.test.ok') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.test.ok')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.test.ok')\nExpected substring: \u001b[32m\"搜索可用\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" locator('.test.ok') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.test.ok')\u001b[22m\n\n    at /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e/workflows.spec.ts:32:42",
+                    "location": {
+                      "file": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e/workflows.spec.ts",
+                      "column": 42,
+                      "line": 32
+                    },
+                    "snippet": "  30 |   await expect(key).toHaveValue(\"\");\n  31 |   await probe.click();\n> 32 |   await expect(page.locator(\".test.ok\")).toContainText(\"搜索可用\");\n     |                                          ^\n  33 |   expect(probes).toBe(1);\n  34 |   await key.fill(\"tvly-unsaved-value\");\n  35 |   await expect(probe).toBeDisabled();"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e/workflows.spec.ts",
+                        "column": 42,
+                        "line": 32
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.test.ok')\nExpected substring: \u001b[32m\"搜索可用\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" locator('.test.ok') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.test.ok')\u001b[22m\n\n\n  30 |   await expect(key).toHaveValue(\"\");\n  31 |   await probe.click();\n> 32 |   await expect(page.locator(\".test.ok\")).toContainText(\"搜索可用\");\n     |                                          ^\n  33 |   expect(probes).toBe(1);\n  34 |   await key.fill(\"tvly-unsaved-value\");\n  35 |   await expect(probe).toBeDisabled();\n    at /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e/workflows.spec.ts:32:42"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:35.280Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/test-results/workflows-Tavily-settings--0a09d-rate-from-model-credentials/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/test-results/workflows-Tavily-settings--0a09d-rate-from-model-credentials/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/test-results/workflows-Tavily-settings--0a09d-rate-from-model-credentials/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/web/e2e/workflows.spec.ts",
+                    "column": 42,
+                    "line": 32
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-fa85e404684bd4974b6f",
+          "file": "workflows.spec.ts",
+          "line": 9,
+          "column": 1
+        },
+        {
+          "title": "attachment reaches the model and remains previewable after reload",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 342,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:41.308Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-97013ae0cdee6195f2cf",
+          "file": "workflows.spec.ts",
+          "line": 57,
+          "column": 1
+        },
+        {
+          "title": "approval survives reload and executes only after the browser approves",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 312,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:41.715Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-4b70c36b06e0a1d51220",
+          "file": "workflows.spec.ts",
+          "line": 68,
+          "column": 1
+        },
+        {
+          "title": "closed SSE stream reconnects from a fresh snapshot without duplicate messages",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2234,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:42.032Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-eec7fd82a1e622103e0a",
+          "file": "workflows.spec.ts",
+          "line": 83,
+          "column": 1
+        },
+        {
+          "title": "download returns the delivered version and validation keeps four layers separate",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 322,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:44.270Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-04c70908a87083a06787",
+          "file": "workflows.spec.ts",
+          "line": 97,
+          "column": 1
+        },
+        {
+          "title": "scheduled task distinguishes approval wait from its verified artifact result",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 401,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-26T08:37:44.596Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "26aa48cee8983222f549-bdd5a1373c3312ad7d55",
+          "file": "workflows.spec.ts",
+          "line": 113,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-26T08:37:34.064Z",
+    "duration": 10966.327,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

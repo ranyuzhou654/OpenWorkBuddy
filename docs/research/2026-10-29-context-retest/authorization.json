@@ -1,0 +1,16 @@
+{
+  "user_message": "确认",
+  "scope": "Implement the submitted runner changes, verify offline, then execute the frozen 24-trial context retest once",
+  "proposal": "docs/research/2026-10-29-read-diagnosis-context-retest/PLAN.md",
+  "trials": 24,
+  "maximum_model_requests": 288,
+  "maximum_tool_calls_per_trial": 36,
+  "maximum_seconds_per_trial": 180,
+  "maximum_serial_trial_window_seconds": 4320,
+  "sdk_retries": 0,
+  "currency_cost": null,
+  "currency_note": "User confirmed the proposal with currency price unknown; token reference is not a hard token or cash cap",
+  "no_automatic_reruns": true,
+  "production_strategy_changes": false,
+  "history_memory_paid_trials": false
+}

@@ -1,0 +1,25 @@
+{
+  "case": {
+    "id": "U6-2",
+    "mode": "restore",
+    "inputs": [
+      "period-one.json",
+      "period-two.json"
+    ],
+    "turn": "读取 current.json，将 OpenWorkBuddy R-B 的验证结果和未验证边界写入 history-note.md，关键事实附 [S#]。这是用于以后查找的历史笔记，不得把测试数量当成真实使用成功率。",
+    "followup": "应用数据已从离线备份恢复到新 home，原 home 路径已不存在。请使用 recall 和 read_record 读取当前项目上一会话的 R-B 历史笔记，生成 recovered.md，报告当时的测试数、验证边界和原记录定位。不要跨项目；不要把当前文件替代旧记录。"
+  },
+  "provider": {
+    "name": "opendesign",
+    "protocol": "openai-chat",
+    "base_url": "https://amr-link.open-design.ai/v1"
+  },
+  "model": {
+    "name": "ds-flash",
+    "id": "deepseek-v4.1-flash",
+    "context_window": 1000000,
+    "max_output": 32000,
+    "params": {},
+    "vision": null
+  }
+}

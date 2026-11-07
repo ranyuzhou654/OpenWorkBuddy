@@ -1,0 +1,20 @@
+[
+  {
+    "name": "citations refer to recorded sources",
+    "ok": true,
+    "layer": "citations",
+    "detail": "6 cited"
+  },
+  {
+    "name": "cited source excerpts entered model context",
+    "ok": true,
+    "layer": "citations",
+    "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+  },
+  {
+    "name": "cited versions have retained snapshots",
+    "ok": true,
+    "layer": "citations",
+    "detail": "content-addressed snapshots retained; no factual verification implied"
+  }
+]

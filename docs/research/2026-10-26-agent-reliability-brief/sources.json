@@ -1,0 +1,315 @@
+[
+  {
+    "sha256": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+    "snapshot": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+    "text_ref": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+    "state": "inspected",
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/workspace/project-context.md",
+    "retrieved_at": "2026-10-26T13:31:23Z",
+    "locator": "lines 1-199 (line caps 2000)",
+    "access_scope": "session",
+    "session_id": "s_39d30d940512",
+    "n": 1,
+    "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/workspace/project-context.md",
+    "kind": "file",
+    "title": "project-context.md",
+    "inspections": [
+      {
+        "entry_id": "e_87e2eba90cdc",
+        "locator": "lines 1-199 (line caps 2000)",
+        "excerpt_ref": "e61e7dabbc2edd017b55588d25e939d2b4abe3463ad39f6ab499b41d3d7e7e26",
+        "excerpt_sha256": "e61e7dabbc2edd017b55588d25e939d2b4abe3463ad39f6ab499b41d3d7e7e26",
+        "output_ranges": [
+          [
+            0,
+            14778
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      }
+    ]
+  },
+  {
+    "snippet": "#### Compaction Compaction is the practice of taking a conversation nearing the context window limit, summarizing its contents, and reinitiating a new context window with the summary. Compaction typically serves as the first lever in context engineering to drive better long-term coherence. At its core, compaction distills the contents of a context window in a high-fidelity manner, enabling the agent to continue with minimal performance degradation. [...] The art of compaction lies in the selecti",
+    "retrieved_at": "2026-10-26T13:31:57Z",
+    "provider": "tavily",
+    "session_id": "s_39d30d940512",
+    "discovery_sha256": "48a9c70e060593b6bf552a3ac43d84232da394b975c13f62718c13f7eaedb361",
+    "snapshot": "66044d08063071ab6078ae58f392bc85117f59e0cebdd750f79ff92bcfe26cbc",
+    "n": 3,
+    "url": "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents",
+    "kind": "page",
+    "title": "Effective context engineering for AI agents \\ Anthropic",
+    "state": "inspected",
+    "access_scope": "session",
+    "sha256": "66044d08063071ab6078ae58f392bc85117f59e0cebdd750f79ff92bcfe26cbc",
+    "text_ref": "77fda6b8db77e3828d6f401c0538de4deb0b9580cfc0272806f48f836df87400",
+    "locator": "source text characters 0-24171",
+    "inspections": [
+      {
+        "entry_id": "e_0255611ceab9",
+        "locator": "source text characters 0-24171",
+        "excerpt_ref": "d00df63946fa0ae06c828978f7892a28545806035968080b05bab1fce128d0bb",
+        "excerpt_sha256": "d00df63946fa0ae06c828978f7892a28545806035968080b05bab1fce128d0bb",
+        "output_ranges": [
+          [
+            0,
+            24273
+          ]
+        ],
+        "source_ranges": [
+          [
+            0,
+            24171
+          ]
+        ],
+        "partial_output": false
+      }
+    ]
+  },
+  {
+    "snippet": "`\"async\"`: LangGraph persists changes asynchronously while the next step executes. This provides good performance and durability, but there is a small risk that LangGraph does not write checkpoints if the process crashes during execution. `\"sync\"`: LangGraph persists changes synchronously before the next step starts. This ensures that LangGraph writes every checkpoint before continuing execution, providing high durability at the cost of some performance overhead. [...] `\"exit\"`: LangGraph persis",
+    "retrieved_at": "2026-10-26T13:31:58Z",
+    "provider": "tavily",
+    "session_id": "s_39d30d940512",
+    "discovery_sha256": "441d9e6c8437c8d4c0d941a3c782c848e1b0b142c7e6e0d9655b395eb48aade2",
+    "snapshot": "1a93bdc1742b25648b1cb419ddc87ef718887dc199e5a9a3d9c7b4215bb40413",
+    "n": 9,
+    "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+    "kind": "page",
+    "title": "Checkpointers - Docs by LangChain",
+    "state": "inspected",
+    "access_scope": "session",
+    "sha256": "1a93bdc1742b25648b1cb419ddc87ef718887dc199e5a9a3d9c7b4215bb40413",
+    "text_ref": "f04aba41a64a463fb7e05f0d3c49f108dca6221cd295609ff44fb0ff3836917f",
+    "locator": "source text characters 0-48572",
+    "outputs": [
+      {
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/home/spill/s_39d30d940512/call_02_FRJipAenInp9bjyKSgou1335-0a83ec7f44dc.txt",
+        "sha256": "0a83ec7f44dc1bacf377472d0e96e8e5d650eadce9978416eab01abd8689f280"
+      }
+    ],
+    "inspections": [
+      {
+        "entry_id": "e_57017fd857d2",
+        "locator": "source text characters 0-48572",
+        "excerpt_ref": "62c53c79328715904b6fa76737a6f6b76a74a3e238735a356c55b3f4785f41c5",
+        "excerpt_sha256": "62c53c79328715904b6fa76737a6f6b76a74a3e238735a356c55b3f4785f41c5",
+        "output_ranges": [
+          [
+            0,
+            4000
+          ],
+          [
+            44657,
+            48657
+          ]
+        ],
+        "source_ranges": [
+          [
+            0,
+            3915
+          ],
+          [
+            44572,
+            48572
+          ]
+        ],
+        "partial_output": true
+      },
+      {
+        "entry_id": "e_2d2dc7666a34",
+        "locator": "lines 1-150 (line caps 2000)",
+        "excerpt_ref": "ac8ff8e0915527797cfdf42477c48ea72591b19af4a8a0519a35ee79e0da6f5b",
+        "excerpt_sha256": "ac8ff8e0915527797cfdf42477c48ea72591b19af4a8a0519a35ee79e0da6f5b",
+        "output_ranges": [
+          [
+            0,
+            4103
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      },
+      {
+        "entry_id": "e_3b62b3c88295",
+        "locator": "lines 190-309 (line caps 2000)",
+        "excerpt_ref": "203d5b95216b17a36e2dd1e13a46c1d0240af1b8295a7aad5022cf5451e577c1",
+        "excerpt_sha256": "203d5b95216b17a36e2dd1e13a46c1d0240af1b8295a7aad5022cf5451e577c1",
+        "output_ranges": [
+          [
+            0,
+            5360
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      },
+      {
+        "entry_id": "e_d5d798ec40c5",
+        "locator": "lines 430-549 (line caps 2000)",
+        "excerpt_ref": "da4f9d380898d1ab222ce6e6768cd4ce7786b2bfde9a91e9b97af59293ceb7fc",
+        "excerpt_sha256": "da4f9d380898d1ab222ce6e6768cd4ce7786b2bfde9a91e9b97af59293ceb7fc",
+        "output_ranges": [
+          [
+            0,
+            6220
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      }
+    ]
+  },
+  {
+    "snippet": "Span name SHOULD be `invoke_agent {gen_ai.agent.name}` if `gen_ai.agent.name` is readily available. When `gen_ai.agent.name` is not available, it SHOULD be `invoke_agent`. Semantic conventions for individual GenAI systems and frameworks MAY specify different span name format. `invoke_agent {gen_ai.agent.name}` `gen_ai.agent.name` `gen_ai.agent.name` `invoke_agent` Span kind SHOULD be `CLIENT`. `CLIENT` Span status SHOULD follow the Recording Errors document. [...] Span name SHOULD be `invoke_age",
+    "retrieved_at": "2026-10-26T13:31:57Z",
+    "provider": "tavily",
+    "session_id": "s_39d30d940512",
+    "discovery_sha256": "4bbe5ea204a28db20c815f85a4c337333950e5a94dd53ec26620df7c71f6f366",
+    "snapshot": "0aff37de7ae9071d4bc30329d2887c957abde9a346d87f1dbea5027397012fb2",
+    "n": 12,
+    "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md",
+    "kind": "page",
+    "title": "semantic-conventions-genai/docs/gen-ai/gen-ai-agent-spans.md at main · open-telemetry/semantic-conventions-genai · GitHub",
+    "state": "inspected",
+    "access_scope": "session",
+    "sha256": "0aff37de7ae9071d4bc30329d2887c957abde9a346d87f1dbea5027397012fb2",
+    "text_ref": "717ff319fa9f48656383f8f2f0b9aadc11bfffe130d4048d800522eaef4ded8e",
+    "locator": "source text characters 0-200362",
+    "outputs": [
+      {
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/home/spill/s_39d30d940512/call_03_34vWQQvs4gCcqsRIEFzU8463-daef15dd8380.txt",
+        "sha256": "daef15dd838042f51ad92c8574673aec31c3382fb517c118277ae0e3b4dfb30c"
+      }
+    ],
+    "inspections": [
+      {
+        "entry_id": "e_8594105fbde2",
+        "locator": "source text characters 0-200362",
+        "excerpt_ref": "b9c26a433409969ff0d2e1d3e9eb73bbf1bfc8f0603a932d6ec4b7fd68f3183c",
+        "excerpt_sha256": "b9c26a433409969ff0d2e1d3e9eb73bbf1bfc8f0603a932d6ec4b7fd68f3183c",
+        "output_ranges": [
+          [
+            0,
+            4000
+          ],
+          [
+            196491,
+            200491
+          ]
+        ],
+        "source_ranges": [
+          [
+            0,
+            3871
+          ],
+          [
+            196362,
+            200362
+          ]
+        ],
+        "partial_output": true
+      },
+      {
+        "entry_id": "e_37ce5225799b",
+        "locator": "lines 1-60 (line caps 2000)",
+        "excerpt_ref": "ad7eca076a853bddd2742a33012d3d09f12e38dec95cbb5e269a7c6efc29e8bd",
+        "excerpt_sha256": "ad7eca076a853bddd2742a33012d3d09f12e38dec95cbb5e269a7c6efc29e8bd",
+        "output_ranges": [
+          [
+            0,
+            2689
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      },
+      {
+        "entry_id": "e_ae364de6cf76",
+        "locator": "lines 290-399 (line caps 2000)",
+        "excerpt_ref": "30ae53b68d5e67fa23874a3770b27678517830dd5b7b192c9c907171071b9483",
+        "excerpt_sha256": "30ae53b68d5e67fa23874a3770b27678517830dd5b7b192c9c907171071b9483",
+        "output_ranges": [
+          [
+            0,
+            15487
+          ]
+        ],
+        "source_ranges": [],
+        "partial_output": false
+      }
+    ]
+  },
+  {
+    "sha256": "ba687a7f96355ff9dbb8e9e12bba4cf7e7756aec24f0bf253cb16ab79748f800",
+    "snapshot": "ba687a7f96355ff9dbb8e9e12bba4cf7e7756aec24f0bf253cb16ab79748f800",
+    "text_ref": "2dad609c0d5d05c6681351ca9566500208b83ed22596c30d48b1dafe27b5c70b",
+    "state": "inspected",
+    "retrieved_at": "2026-10-26T13:32:05Z",
+    "locator": "source text characters 0-28667",
+    "access_scope": "session",
+    "session_id": "s_39d30d940512",
+    "n": 17,
+    "url": "https://www.anthropic.com/research/multi-agent-research-system",
+    "kind": "page",
+    "title": "How we built our multi-agent research system \\ Anthropic",
+    "inspections": [
+      {
+        "entry_id": "e_abab4acee9b7",
+        "locator": "source text characters 0-28667",
+        "excerpt_ref": "97b8c9a766ce00c6b1d1226a81a37ce6a281c206a3f40fdebfa430e83809d7c1",
+        "excerpt_sha256": "97b8c9a766ce00c6b1d1226a81a37ce6a281c206a3f40fdebfa430e83809d7c1",
+        "output_ranges": [
+          [
+            0,
+            28754
+          ]
+        ],
+        "source_ranges": [
+          [
+            0,
+            28667
+          ]
+        ],
+        "partial_output": false
+      }
+    ]
+  },
+  {
+    "sha256": "88a0c9c1e3b345697c8a2272692081facfa74ca19566ad8dd5df58d08353d8f5",
+    "snapshot": "88a0c9c1e3b345697c8a2272692081facfa74ca19566ad8dd5df58d08353d8f5",
+    "text_ref": "bc9c57ebdc18dde35ae9f4f907c8aa7610295f9803fb43548e6d5bff4ff187f3",
+    "state": "inspected",
+    "retrieved_at": "2026-10-26T13:32:36Z",
+    "locator": "source text characters 0-12990",
+    "access_scope": "session",
+    "session_id": "s_39d30d940512",
+    "n": 18,
+    "url": "https://modelcontextprotocol.io/specification/2025-06-18/server/tools",
+    "kind": "page",
+    "title": "Tools - Model Context Protocol",
+    "inspections": [
+      {
+        "entry_id": "e_bdbbcbe81d10",
+        "locator": "source text characters 0-12990",
+        "excerpt_ref": "9a55c36f6009e608cb5f17495921bbab0918b3526a8c7891e276aeced87caa18",
+        "excerpt_sha256": "9a55c36f6009e608cb5f17495921bbab0918b3526a8c7891e276aeced87caa18",
+        "output_ranges": [
+          [
+            0,
+            13084
+          ]
+        ],
+        "source_ranges": [
+          [
+            0,
+            12990
+          ]
+        ],
+        "partial_output": false
+      }
+    ]
+  }
+]

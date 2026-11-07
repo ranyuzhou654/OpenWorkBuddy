@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-28",
+  "scope": [
+    "session",
+    "conversation",
+    "context",
+    "memory",
+    "tools",
+    "MCP",
+    "Skill"
+  ],
+  "backend_selected_tests": {
+    "tests.test_harness_core": 17,
+    "tests.test_log": 10,
+    "tests.test_api": 13,
+    "tests.test_loop": 18,
+    "tests.test_manage": 7,
+    "tests.test_compaction": 8,
+    "tests.test_branch_summary": 3,
+    "tests.test_skills_memory": 11,
+    "tests.test_mcp": 13,
+    "tests.test_policy": 5,
+    "tests.test_tools": 14,
+    "tests.test_more_tools": 16,
+    "tests.test_sandbox": 8,
+    "tests.test_next_step": 15,
+    "tests.test_finish_budget": 3
+  },
+  "backend_total": 161,
+  "backend_failures": 0,
+  "ui_passed": 11,
+  "ui_total": 11,
+  "real_trials": [
+    {
+      "path": "real.json",
+      "passed": false,
+      "calls": 12,
+      "elapsed_seconds": 44.18822979088873
+    },
+    {
+      "path": "real-r2.json",
+      "passed": false,
+      "calls": 11,
+      "elapsed_seconds": 37.4043212919496
+    },
+    {
+      "path": "real-r3.json",
+      "passed": true,
+      "calls": 11,
+      "elapsed_seconds": 37.62939650006592
+    }
+  ],
+  "real_model_calls_total": 34,
+  "usage_total": {
+    "input": 172390,
+    "output": 4221,
+    "cache_read": 130944
+  },
+  "cost": null,
+  "business_calls": {
+    "feishu": 0,
+    "tavily": 0,
+    "remote_business_writes": 0
+  },
+  "final_source": {
+    "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+    "code_sha256": "fd46647417ff2245f553bbcea9880dcdbaaf7e198071e0f4abd357f3d68eb81f"
+  },
+  "final_source_note": "After R3, restored context notices across compaction; covered by final local checks, no further model rerun."
+}

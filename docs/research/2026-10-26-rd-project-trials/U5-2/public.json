@@ -1,0 +1,25 @@
+{
+  "case": {
+    "id": "U5-2",
+    "mode": "schedule",
+    "inputs": [
+      "period-one.json",
+      "period-two.json"
+    ],
+    "same_period": true,
+    "turn": "主题为 OpenWorkBuddy 实施验证进度。每次读取本地 current.json，有旧 progress.md 时也读取并比较。首次创建 progress.md；确有变化时使用 create_document 覆盖为新版本，开头写本期变化，关键事实附 [S#]；没有变化时不写任何文件。比较 pytest、browser_e2e 和验证边界，失败不能算无变化，不能使用其他目录/网络。最后调用 task_result 一次：changed 的 evidence 用本轮交付路径，unchanged 的 evidence 用本轮成功读取的来源路径。"
+  },
+  "provider": {
+    "name": "opendesign",
+    "protocol": "openai-chat",
+    "base_url": "https://amr-link.open-design.ai/v1"
+  },
+  "model": {
+    "name": "ds-flash",
+    "id": "deepseek-v4.1-flash",
+    "context_window": 1000000,
+    "max_output": 32000,
+    "params": {},
+    "vision": null
+  }
+}

@@ -1,0 +1,155 @@
+[
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/progress.md",
+    "name": "progress.md",
+    "mime": "text/markdown",
+    "size": 7416,
+    "sha256": "b183a26638e5227b2e70481493c87925c48dacaae36b7d4b5809906994296ec1",
+    "version": 1,
+    "title": "OpenWorkBuddy 实施验证进度",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "7416 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "valid UTF-8 text",
+        "ok": true,
+        "detail": "4975 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citations refer to recorded sources",
+        "ok": true,
+        "layer": "citations",
+        "detail": "3 cited"
+      },
+      {
+        "name": "cited source excerpts entered model context",
+        "ok": true,
+        "layer": "citations",
+        "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+      },
+      {
+        "name": "cited versions have retained snapshots",
+        "ok": true,
+        "layer": "citations",
+        "detail": "content-addressed snapshots retained; no factual verification implied"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "headings": 8
+    },
+    "kept": true,
+    "created_at": 1793004404.933347,
+    "sources": [
+      {
+        "sha256": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "snapshot": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "text_ref": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/current.json",
+        "retrieved_at": "2026-10-26T08:46:10Z",
+        "locator": "lines 1-26 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_b4304e831a76",
+        "n": 1,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/current.json",
+        "kind": "file",
+        "title": "current.json",
+        "inspections": [
+          {
+            "entry_id": "e_852d2f17870f",
+            "locator": "lines 1-26 (line caps 2000)",
+            "excerpt_ref": "1b0cdd03f973b721a971f47f2ac415ad02224f2c9718b33749c5c88f272edc19",
+            "excerpt_sha256": "1b0cdd03f973b721a971f47f2ac415ad02224f2c9718b33749c5c88f272edc19",
+            "output_ranges": [
+              [
+                0,
+                922
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "snapshot": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "text_ref": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/period-one.json",
+        "retrieved_at": "2026-10-26T08:46:16Z",
+        "locator": "lines 1-26 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_b4304e831a76",
+        "n": 2,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/period-one.json",
+        "kind": "file",
+        "title": "period-one.json",
+        "inspections": [
+          {
+            "entry_id": "e_02c8a87e7beb",
+            "locator": "lines 1-26 (line caps 2000)",
+            "excerpt_ref": "a71897f91aae4610cf49d778269cd3198d9d10cda703ae95124a471d133a27d5",
+            "excerpt_sha256": "a71897f91aae4610cf49d778269cd3198d9d10cda703ae95124a471d133a27d5",
+            "output_ranges": [
+              [
+                0,
+                925
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "snapshot": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "text_ref": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/period-two.json",
+        "retrieved_at": "2026-10-26T08:46:16Z",
+        "locator": "lines 1-56 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_b4304e831a76",
+        "n": 3,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/workspace/period-two.json",
+        "kind": "file",
+        "title": "period-two.json",
+        "inspections": [
+          {
+            "entry_id": "e_42cefe54f60c",
+            "locator": "lines 1-56 (line caps 2000)",
+            "excerpt_ref": "d303ddfd386a5cb146686d20b4fb40914f26b63998ddf52a6da8810a0d4af2b9",
+            "excerpt_sha256": "d303ddfd386a5cb146686d20b4fb40914f26b63998ddf52a6da8810a0d4af2b9",
+            "output_ranges": [
+              [
+                0,
+                2553
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      }
+    ]
+  }
+]

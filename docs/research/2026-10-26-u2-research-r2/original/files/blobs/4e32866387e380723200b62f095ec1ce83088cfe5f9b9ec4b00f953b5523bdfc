@@ -1,0 +1,3 @@
+OpenTelemetry GenAI Semantic Conventions: A Practical Guide
+https://openobserve.ai/blog/opentelemetry-genai-semantic-conventions
+: OpenTelemetry GenAI semantic conventions are a standardized set of span, metric, and event attribute names, all under the gen\_ai.\ namespace, for instrumenting LLM and AI agent workloads. They define exactly how to name things like the model requested, tokens consumed, and operation type, so a chat completion instrumented in Python and one instrumented in Go produce telemetry that looks identical to a dashboard or query. [...] ## TL;DR OpenTelemetry's GenAI semantic conventions standardize LL

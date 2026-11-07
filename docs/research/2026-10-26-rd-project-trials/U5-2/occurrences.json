@@ -1,0 +1,26 @@
+[
+  {
+    "schedule_id": "sch_c25b75577035",
+    "planned_at": 1792989799.3791869,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_c25b75577035:manual:request_cd8f9a6ffab5",
+    "outcome": "unchanged",
+    "summary": "本轮成功读取 current.json 与已有 progress.md 并逐项对比：pytest 340/0/0/0 与耗时 64.464s、browser_e2e 字段依旧缺失、四项验证边界及代码标识全部与上期一致，无变化，故未写任何文件。",
+    "created_at": 1792989799.3793972,
+    "done_at": 1792989821.1524212,
+    "input_id": "in_07358be18870"
+  },
+  {
+    "schedule_id": "sch_c25b75577035",
+    "planned_at": 1792989770.9277282,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_c25b75577035:manual:request_ed04d5a515a6",
+    "outcome": "unknown",
+    "summary": "结果待核验：本轮存在未核验恢复的工具错误",
+    "created_at": 1792989770.927983,
+    "done_at": 1792989799.371472,
+    "input_id": "in_159151b21ef8"
+  }
+]

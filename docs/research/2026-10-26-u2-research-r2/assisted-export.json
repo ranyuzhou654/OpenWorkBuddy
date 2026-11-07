@@ -1,0 +1,332 @@
+{
+  "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-u2-research-r2/assisted/research-brief.docx",
+  "name": "research-brief.docx",
+  "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "size": 42149,
+  "sha256": "492fa001b8be6848a633db432fb200e758c9602aaae91ebc9d0cfbc113534de8",
+  "version": 1,
+  "title": "OpenWorkBuddy AI 技术研究简报 第 1 期：Agent 可靠性与上下文治理",
+  "checks": [
+    {
+      "name": "not empty",
+      "ok": true,
+      "detail": "42149 bytes",
+      "layer": "structure"
+    },
+    {
+      "name": "opens as Word",
+      "ok": true,
+      "detail": "Word document",
+      "layer": "structure"
+    },
+    {
+      "name": "has readable text",
+      "ok": true,
+      "detail": "4492 characters",
+      "layer": "structure"
+    },
+    {
+      "name": "citations refer to recorded sources",
+      "ok": true,
+      "layer": "citations",
+      "detail": "5 cited"
+    },
+    {
+      "name": "cited source excerpts entered model context",
+      "ok": true,
+      "layer": "citations",
+      "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+    },
+    {
+      "name": "cited versions have retained snapshots",
+      "ok": true,
+      "layer": "citations",
+      "detail": "content-addressed snapshots retained; no factual verification implied"
+    },
+    {
+      "name": "key numbers and calculations",
+      "ok": null,
+      "layer": "numbers",
+      "detail": "not assessed; opening a file does not verify its calculations"
+    },
+    {
+      "name": "human layout and factual review",
+      "ok": null,
+      "layer": "human",
+      "detail": "not assessed"
+    }
+  ],
+  "info": {
+    "description": "Word document"
+  },
+  "kept": true,
+  "created_at": 1793024534.431796,
+  "sources": [
+    {
+      "sha256": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+      "snapshot": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+      "text_ref": "5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1",
+      "state": "inspected",
+      "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/workspace/project-context.md",
+      "retrieved_at": "2026-10-26T14:14:27Z",
+      "locator": "lines 1-199 (line caps 2000)",
+      "access_scope": "session",
+      "session_id": "s_dc77050d008b",
+      "n": 1,
+      "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/workspace/project-context.md",
+      "kind": "file",
+      "title": "project-context.md",
+      "inspections": [
+        {
+          "entry_id": "e_63d99baaf707",
+          "locator": "lines 1-199 (line caps 2000)",
+          "excerpt_ref": "5c1b9a40c3e1fe8a4d1b3f715e616d7e4d50bca24025974bad6af18eacfc7e4f",
+          "excerpt_sha256": "5c1b9a40c3e1fe8a4d1b3f715e616d7e4d50bca24025974bad6af18eacfc7e4f",
+          "output_ranges": [
+            [
+              0,
+              14781
+            ]
+          ],
+          "source_ranges": [],
+          "partial_output": false
+        }
+      ]
+    },
+    {
+      "snippet": "In certain settings, the most effective agents might employ a hybrid strategy, retrieving some data up front for speed, and pursuing further autonomous exploration at its discretion. The decision boundary for the ‘right’ level of autonomy depends on the task. Claude Code is an agent that employs this hybrid model: CLAUDE.md files are naively dropped into context up front, while primitives like glob and grep allow it to navigate its environment and retrieve files just-in-time, effectively [...] A",
+      "retrieved_at": "2026-10-26T14:14:38Z",
+      "provider": "tavily",
+      "session_id": "s_dc77050d008b",
+      "discovery_sha256": "6a5edfb213df18fb9849543025d6b8952f1b8a080a374c26ab0a18a2f494857d",
+      "snapshot": "3cb879c63d2df435f14d2c9f74223439095fa1da456b399bc49c855fd9646ac9",
+      "n": 3,
+      "url": "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents",
+      "kind": "page",
+      "title": "Effective context engineering for AI agents \\ Anthropic",
+      "state": "inspected",
+      "access_scope": "session",
+      "sha256": "3cb879c63d2df435f14d2c9f74223439095fa1da456b399bc49c855fd9646ac9",
+      "text_ref": "77fda6b8db77e3828d6f401c0538de4deb0b9580cfc0272806f48f836df87400",
+      "locator": "source text characters 0-24171",
+      "inspections": [
+        {
+          "entry_id": "e_fafb45145359",
+          "locator": "source text characters 0-24171",
+          "excerpt_ref": "d00df63946fa0ae06c828978f7892a28545806035968080b05bab1fce128d0bb",
+          "excerpt_sha256": "d00df63946fa0ae06c828978f7892a28545806035968080b05bab1fce128d0bb",
+          "output_ranges": [
+            [
+              0,
+              24273
+            ]
+          ],
+          "source_ranges": [
+            [
+              0,
+              24171
+            ]
+          ],
+          "partial_output": false
+        }
+      ]
+    },
+    {
+      "snippet": "`\"exit\"`: LangGraph persists changes only when graph execution exits — successfully, with an error, or due to a human-in-the-loop interrupt. This provides the best performance for long-running graphs but means intermediate state is not saved, so you cannot recover from system failures (like process crashes) mid-execution. [...] > ## Documentation Index > > Fetch the complete documentation index at:</llms.txt> > > Use this file to discover all available pages before exploring further. Docs by Lan",
+      "retrieved_at": "2026-10-26T14:14:38Z",
+      "provider": "tavily",
+      "session_id": "s_dc77050d008b",
+      "discovery_sha256": "71eadc6639e7e2f79d801eaa1419f248e5226dc165f257659028086ca0afbccd",
+      "snapshot": "09c5e2d39729323b8288a24388e2c54f7682fe6e48fd28979023ed833615be37",
+      "n": 7,
+      "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "kind": "page",
+      "title": "Checkpointers - Docs by LangChain",
+      "state": "inspected",
+      "access_scope": "session",
+      "sha256": "09c5e2d39729323b8288a24388e2c54f7682fe6e48fd28979023ed833615be37",
+      "text_ref": "f04aba41a64a463fb7e05f0d3c49f108dca6221cd295609ff44fb0ff3836917f",
+      "locator": "source text characters 0-48572",
+      "outputs": [
+        {
+          "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/home/spill/s_dc77050d008b/call_01_JRZ8LmYPIhxdAB2kx7av1941-8b99ebd4d43f.txt",
+          "sha256": "8b99ebd4d43fed47611c5597a512738b0e195ea70c119c5b5c67f1c58bb5ef13"
+        }
+      ],
+      "inspections": [
+        {
+          "entry_id": "e_2e6868a04421",
+          "locator": "source text characters 0-48572",
+          "excerpt_ref": "c8b796b5ff5ef33e361b7dabba4fc13a5dc20101432531f057dc13783eceb855",
+          "excerpt_sha256": "c8b796b5ff5ef33e361b7dabba4fc13a5dc20101432531f057dc13783eceb855",
+          "output_ranges": [
+            [
+              0,
+              4000
+            ],
+            [
+              44657,
+              48657
+            ]
+          ],
+          "source_ranges": [
+            [
+              0,
+              3915
+            ],
+            [
+              44572,
+              48572
+            ]
+          ],
+          "partial_output": true
+        },
+        {
+          "entry_id": "e_1d406cdaf0f2",
+          "locator": "lines 120-239 (line caps 2000)",
+          "excerpt_ref": "52aff262b5a7b13c15724db9844b0bffe14fe0aaa59d3cbb0ce13d221fe589d6",
+          "excerpt_sha256": "52aff262b5a7b13c15724db9844b0bffe14fe0aaa59d3cbb0ce13d221fe589d6",
+          "output_ranges": [
+            [
+              0,
+              2871
+            ]
+          ],
+          "source_ranges": [],
+          "partial_output": false
+        },
+        {
+          "entry_id": "e_a6804cdbf114",
+          "locator": "lines 240-389 (line caps 2000)",
+          "excerpt_ref": "88304f132b402c6a5b3025e2c4a53707b5138319b46461edfc9c7b691341258c",
+          "excerpt_sha256": "88304f132b402c6a5b3025e2c4a53707b5138319b46461edfc9c7b691341258c",
+          "output_ranges": [
+            [
+              0,
+              10042
+            ]
+          ],
+          "source_ranges": [],
+          "partial_output": false
+        },
+        {
+          "entry_id": "e_14a2a91a5943",
+          "locator": "lines 430-559 (line caps 2000)",
+          "excerpt_ref": "e3a8fab239c261cc30f3f0d4476727b2ceff990f84d971f801d9056fd9953653",
+          "excerpt_sha256": "e3a8fab239c261cc30f3f0d4476727b2ceff990f84d971f801d9056fd9953653",
+          "output_ranges": [
+            [
+              0,
+              7294
+            ]
+          ],
+          "source_ranges": [],
+          "partial_output": false
+        },
+        {
+          "entry_id": "e_b8ac63bb957e",
+          "locator": "lines 553-642 (line caps 2000)",
+          "excerpt_ref": "3c0e7087e0ecde87918d37b6c7f5e34c11b8c022276f2394274105f2a324b006",
+          "excerpt_sha256": "3c0e7087e0ecde87918d37b6c7f5e34c11b8c022276f2394274105f2a324b006",
+          "output_ranges": [
+            [
+              0,
+              9104
+            ]
+          ],
+          "source_ranges": [],
+          "partial_output": false
+        }
+      ]
+    },
+    {
+      "sha256": "e2e33dabfbeee2387cbad86d522033fd2cf0c3e5e9112eddefa0ab7ff19ad961",
+      "snapshot": "e2e33dabfbeee2387cbad86d522033fd2cf0c3e5e9112eddefa0ab7ff19ad961",
+      "text_ref": "8832c40777de1e829c1e0d4f227af2adb050afb705c1bd653c1340343ba5e4c9",
+      "state": "inspected",
+      "retrieved_at": "2026-10-26T14:14:40Z",
+      "locator": "source text characters 0-8269",
+      "access_scope": "session",
+      "session_id": "s_dc77050d008b",
+      "n": 17,
+      "url": "https://modelcontextprotocol.io/specification/2026-07-28",
+      "kind": "page",
+      "title": "Specification - Model Context Protocol",
+      "inspections": [
+        {
+          "entry_id": "e_ba118664f5cf",
+          "locator": "source text characters 0-8269",
+          "excerpt_ref": "1c7b07d3dd11cb12af0b18839acb82c11c32287cf4dd5436fbd3b7531ea3cb68",
+          "excerpt_sha256": "1c7b07d3dd11cb12af0b18839acb82c11c32287cf4dd5436fbd3b7531ea3cb68",
+          "output_ranges": [
+            [
+              0,
+              8350
+            ]
+          ],
+          "source_ranges": [
+            [
+              0,
+              8269
+            ]
+          ],
+          "partial_output": false
+        }
+      ]
+    },
+    {
+      "sha256": "3b643ca21097d2889a87e714e01e8729b4729f636ff1df14a1cabaf2e0f93615",
+      "snapshot": "3b643ca21097d2889a87e714e01e8729b4729f636ff1df14a1cabaf2e0f93615",
+      "text_ref": "3b643ca21097d2889a87e714e01e8729b4729f636ff1df14a1cabaf2e0f93615",
+      "state": "inspected",
+      "retrieved_at": "2026-10-26T14:15:16Z",
+      "locator": "source text characters 0-147973",
+      "access_scope": "session",
+      "session_id": "s_dc77050d008b",
+      "n": 18,
+      "url": "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md",
+      "kind": "page",
+      "title": "",
+      "outputs": [
+        {
+          "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/home/spill/s_dc77050d008b/call_01_OKexgpZ1vOM9sEg03ANY6802-73810c53d407.txt",
+          "sha256": "73810c53d407cb6234c453d73a956699d7de0a1f43454bb40fab0942dd6650eb"
+        }
+      ],
+      "inspections": [
+        {
+          "entry_id": "e_a852e638c900",
+          "locator": "source text characters 0-147973",
+          "excerpt_ref": "b61cf5a2f5cd408b9199fa9b1242171101abc278009ca1c7e2e002419f94a627",
+          "excerpt_sha256": "b61cf5a2f5cd408b9199fa9b1242171101abc278009ca1c7e2e002419f94a627",
+          "output_ranges": [
+            [
+              0,
+              4000
+            ],
+            [
+              144113,
+              148113
+            ]
+          ],
+          "source_ranges": [
+            [
+              0,
+              3860
+            ],
+            [
+              143973,
+              147973
+            ]
+          ],
+          "partial_output": true
+        }
+      ]
+    }
+  ],
+  "derived_from": {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/workspace/research-brief.md",
+    "sha256": "caff604a4271a48ca36a4f140ff408b068c121dcf200ba40d1734040f09cf98a",
+    "version": 1
+  }
+}

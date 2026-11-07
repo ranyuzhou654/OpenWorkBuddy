@@ -1,0 +1,22 @@
+{
+  "trials": 12,
+  "remote_requests": 45,
+  "complete_responses": 45,
+  "usage_complete": true,
+  "no_implicit_retries": true,
+  "input_tokens": 312987,
+  "output_tokens": 4180,
+  "cache_read_included_in_input": 237312,
+  "matches_tested_v2_source_and_dataset": true,
+  "source_archive_verified": true,
+  "original_evidence_unchanged": {
+    "2026-10-29-quantification-phase1": 627,
+    "2026-10-29-quantification-tools-format-v2": 213
+  },
+  "json_outputs": 11,
+  "format_valid_outputs": 11,
+  "automatic_passes": 10,
+  "expected_control_failures": 2,
+  "formal_trials": 0,
+  "cost": null
+}

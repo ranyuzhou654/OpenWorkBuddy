@@ -1,0 +1,110 @@
+{
+  "mode": "real-model",
+  "provider": "opendesign",
+  "requested_model": "deepseek-v4.1-flash",
+  "budget": {
+    "model_calls_total": 12,
+    "wall_seconds_total": 180,
+    "sdk_retries": 0
+  },
+  "source": {
+    "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+    "code_sha256": "3e142dfee311588a7243b0ad2298ea7d3e0247578d76f6d730f474da8d60f8d0"
+  },
+  "business_plugins": [],
+  "phases": [
+    {
+      "phase": 1,
+      "status": "ok",
+      "model_calls": 6,
+      "tool_errors": 0
+    },
+    {
+      "phase": 2,
+      "status": "ok",
+      "model_calls": 5,
+      "tool_errors": 0
+    }
+  ],
+  "checks": [
+    {
+      "name": "phase_1_runtime_ok",
+      "ok": true
+    },
+    {
+      "name": "phase_1_actual_file_values",
+      "ok": true
+    },
+    {
+      "name": "phase_1_real_mcp_result",
+      "ok": true
+    },
+    {
+      "name": "memory_tool_persisted",
+      "ok": true
+    },
+    {
+      "name": "memory_update_visible_in_same_turn",
+      "ok": true
+    },
+    {
+      "name": "skill_loaded_on_demand",
+      "ok": true
+    },
+    {
+      "name": "raw_history_preserved_after_restart",
+      "ok": true
+    },
+    {
+      "name": "phase_2_runtime_ok",
+      "ok": true
+    },
+    {
+      "name": "phase_2_actual_file_values",
+      "ok": true
+    },
+    {
+      "name": "phase_2_real_mcp_result",
+      "ok": true
+    },
+    {
+      "name": "current_memory_and_rules_projected",
+      "ok": true
+    },
+    {
+      "name": "current_skill_projected",
+      "ok": true
+    },
+    {
+      "name": "raw_history_append_only",
+      "ok": true
+    },
+    {
+      "name": "no_business_tools_declared",
+      "ok": true
+    }
+  ],
+  "cost": null,
+  "restart_kind": "Workspace reconstruction, not process crash",
+  "mcp_fixture_sha256": "1cd0e1641427f3e88fc777210adca627f04a5d91f053d251f6a57f957e4f96c2",
+  "session_id": "s_c7b061ebd2eb",
+  "model_calls": 11,
+  "elapsed_seconds": 37.62939650006592,
+  "model_responses": 11,
+  "usage": {
+    "input": 56995,
+    "output": 1097,
+    "cache_read": 43392
+  },
+  "observed_models": [
+    "deepseek-flash"
+  ],
+  "usage_complete": true,
+  "passed": true,
+  "runner_sha256": "33ff046bdf7b50b5ba86410ac3eb3efdd3b84c13c5285d7e11c25c860fe68c03",
+  "evidence_root": "../../../eval-runs/core-2026-10-28-real-r3",
+  "artifact_sha256": {
+    "phase-1-result.json": "82f575e62ca6f9c6b293ad5ea0a8040de1bc256d0966365e71c8eae02e19efa0",
+    "phase-2-result.json": "7ea1fe41a0402bf676b3854e5250ee1423374096f9516f7fcc43d56532daf2b5"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "agent": {
+    "started": 94,
+    "responses": 94,
+    "errors": 0,
+    "observed_usage": {
+      "input": 1496729,
+      "output": 7873,
+      "cache_read": 1174784
+    }
+  },
+  "compaction": {
+    "started": 6,
+    "responses": 6,
+    "errors": 0,
+    "observed_usage": {
+      "input": 71082,
+      "output": 4140,
+      "cache_read": 58240
+    }
+  }
+}

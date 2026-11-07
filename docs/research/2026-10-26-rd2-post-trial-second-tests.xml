@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="102" time="10.619" timestamp="2026-10-26T16:53:19.253575+08:00" hostname="MacBook-Pro-2.local"><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1 p2]-known0-False-False]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1, \u7b2c 2 \u9875]-known1-False-False]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1; S2]-known2-False-True]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1\uff0c\u7b2c 2 \u9875\uff1bS2]-known3-False-True]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1, \u7b2c 2 \u9875\uff1bS99]-known4-True-False]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[Section1] and S99-known5-False-False]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_qualified_citations_preserve_sources_and_validation[[S1oops]-known6-False-False]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[facts_[final]_data.txt-.md]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[facts_[final]_data.txt-.docx]" time="0.017" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[facts_[final]_data.txt-.pdf]" time="0.181" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[-.md]" time="0.001" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[-.docx]" time="0.014" /><testcase classname="tests.test_rd_corrections" name="test_local_references_render_once_with_snapshot_and_no_file_hyperlink[-.pdf]" time="0.011" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[28]" time="0.010" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[29]" time="0.009" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[30]" time="0.009" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[31]" time="0.009" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[32]" time="0.010" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[33]" time="0.010" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[34]" time="0.012" /><testcase classname="tests.test_rd_corrections" name="test_pdf_heading_stays_with_its_body_near_page_boundary[35]" time="0.011" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[before_input]" time="0.326" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[after_input]" time="0.309" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[after_commit]" time="0.288" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[before_user]" time="0.305" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[after_user]" time="0.299" /><testcase classname="tests.test_delivery_recovery" name="test_input_retry_survives_real_process_exit[after_consumed]" time="0.320" /><testcase classname="tests.test_delivery_recovery" name="test_request_scope_delivery_and_terminal_receipt" time="0.029" /><testcase classname="tests.test_delivery_recovery" name="test_failed_accept_rolls_back_and_connection_remains_usable" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_schedule_acceptance_is_atomic_across_hard_exit[before_input]" time="0.315" /><testcase classname="tests.test_delivery_recovery" name="test_schedule_acceptance_is_atomic_across_hard_exit[after_input]" time="0.319" /><testcase classname="tests.test_delivery_recovery" name="test_schedule_acceptance_is_atomic_across_hard_exit[after_advance]" time="0.296" /><testcase classname="tests.test_delivery_recovery" name="test_schedule_acceptance_is_atomic_across_hard_exit[after_commit]" time="0.311" /><testcase classname="tests.test_delivery_recovery" name="test_busy_writer_is_retried_on_tick_without_restart_or_timeout_failure" time="0.069" /><testcase classname="tests.test_delivery_recovery" name="test_manual_runs_with_identical_clock_values_remain_independent" time="0.048" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[valid_file-changed]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[no_evidence-unknown]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[bad_reference-unknown]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[valid_inspection-unchanged]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[failed_inspection-unknown]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[contradictory-unknown]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[canonical_inspection-unchanged]" time="0.026"><failure message="AssertionError: assert 'unknown' == 'unchanged'&#10;  &#10;  - unchanged&#10;  + unknown">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-856/test_business_outcome_uses_exe6/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-856/test_business_outcome_uses_exe6/project')
+case = 'canonical_inspection', expected = 'unchanged'
+
+    @pytest.mark.parametrize(("case", "expected"), [
+        ("valid_file", "changed"), ("no_evidence", "unknown"), ("bad_reference", "unknown"),
+        ("valid_inspection", "unchanged"), ("failed_inspection", "unknown"), ("contradictory", "unknown"),
+        ("canonical_inspection", "unchanged"), ("file_uri_inspection", "unchanged"),
+        ("unread_canonical_path", "unknown"),
+        ("failure_after_proposal", "failed"), ("incomplete_after_proposal", "failed"), ("tampered_blob", "unknown"),
+        ("cancelled_after_proposal", "cancelled"), ("budget_after_proposal", "failed"),
+    ])
+    async def test_business_outcome_uses_execution_and_current_evidence(home, project, case, expected):
+        (project / "previous.md").write_text("上期结果：合成材料")
+        if case in ("valid_file", "tampered_blob", "bad_reference"):
+            calls = [call("create_document", path="brief.md", content="# 更新\n\n合成材料")]
+            calls.append(call("task_result", outcome="changed", summary="报告已交付",
+                              evidence=["absent.md" if case == "bad_reference" else "brief.md"]))
+        elif case == "no_evidence":
+            calls = [call("task_result", outcome="changed", summary="声称已完成")]
+        else:
+            source = "missing.md" if case == "failed_inspection" else "previous.md"
+            evidence = source
+            if case == "canonical_inspection":
+                evidence = str(project / source)
+            elif case == "file_uri_inspection":
+                evidence = (project / source).as_uri()
+            elif case == "unread_canonical_path":
+                (project / "unread.md").write_text("An existing file that this run did not read")
+                evidence = str(project / "unread.md")
+            calls = [call("read", path=source), call("task_result", outcome="unchanged",
+                                                    summary="与上期材料比较没有变化", evidence=[evidence])]
+            if case == "contradictory":
+                calls.append(call("task_result", outcome="changed", summary="又声称已变更"))
+        end = RuntimeError("provider failed after proposal") if case == "failure_after_proposal" else (
+            reply("partial", stop="incomplete") if case == "incomplete_after_proposal" else reply("done"))
+        if case == "cancelled_after_proposal":
+            end = asyncio.CancelledError()
+        steps = [reply(None, *calls), end]
+        if case in ("canonical_inspection", "file_uri_inspection", "unread_canonical_path"):
+            # These aliases come from inspected source metadata: let the model receive the read result
+            # before it proposes an outcome, as in the real scheduled trial.
+            steps = [reply(None, calls[0]), reply(None, *calls[1:]), end]
+        ws, runs, notes, worker, row = scheduled(home, project, FakeModel(*steps))
+        if case == "budget_after_proposal":
+            ws.cfg = dataclasses.replace(ws.cfg, max_turns=1)
+        await worker.run_now(row["id"])
+        await finish(runs, row["session_id"])
+        if case == "tampered_blob":
+            log = ws.open_session(row["session_id"])
+            digest = next(iter(artifacts.session_records(log)[1].values()))[0]
+            artifacts.blob(ws.store, digest).write_text("TAMPERED")
+        await worker.tick()
+        [occ] = ws.index.occurrences(row["id"])
+&gt;       assert occ["outcome"] == expected
+E       AssertionError: assert 'unknown' == 'unchanged'
+E         
+E         - unchanged
+E         + unknown
+
+tests/test_delivery_recovery.py:263: AssertionError</failure></testcase><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[file_uri_inspection-unchanged]" time="0.027"><failure message="AssertionError: assert 'unknown' == 'unchanged'&#10;  &#10;  - unchanged&#10;  + unknown">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-856/test_business_outcome_uses_exe7/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-856/test_business_outcome_uses_exe7/project')
+case = 'file_uri_inspection', expected = 'unchanged'
+
+    @pytest.mark.parametrize(("case", "expected"), [
+        ("valid_file", "changed"), ("no_evidence", "unknown"), ("bad_reference", "unknown"),
+        ("valid_inspection", "unchanged"), ("failed_inspection", "unknown"), ("contradictory", "unknown"),
+        ("canonical_inspection", "unchanged"), ("file_uri_inspection", "unchanged"),
+        ("unread_canonical_path", "unknown"),
+        ("failure_after_proposal", "failed"), ("incomplete_after_proposal", "failed"), ("tampered_blob", "unknown"),
+        ("cancelled_after_proposal", "cancelled"), ("budget_after_proposal", "failed"),
+    ])
+    async def test_business_outcome_uses_execution_and_current_evidence(home, project, case, expected):
+        (project / "previous.md").write_text("上期结果：合成材料")
+        if case in ("valid_file", "tampered_blob", "bad_reference"):
+            calls = [call("create_document", path="brief.md", content="# 更新\n\n合成材料")]
+            calls.append(call("task_result", outcome="changed", summary="报告已交付",
+                              evidence=["absent.md" if case == "bad_reference" else "brief.md"]))
+        elif case == "no_evidence":
+            calls = [call("task_result", outcome="changed", summary="声称已完成")]
+        else:
+            source = "missing.md" if case == "failed_inspection" else "previous.md"
+            evidence = source
+            if case == "canonical_inspection":
+                evidence = str(project / source)
+            elif case == "file_uri_inspection":
+                evidence = (project / source).as_uri()
+            elif case == "unread_canonical_path":
+                (project / "unread.md").write_text("An existing file that this run did not read")
+                evidence = str(project / "unread.md")
+            calls = [call("read", path=source), call("task_result", outcome="unchanged",
+                                                    summary="与上期材料比较没有变化", evidence=[evidence])]
+            if case == "contradictory":
+                calls.append(call("task_result", outcome="changed", summary="又声称已变更"))
+        end = RuntimeError("provider failed after proposal") if case == "failure_after_proposal" else (
+            reply("partial", stop="incomplete") if case == "incomplete_after_proposal" else reply("done"))
+        if case == "cancelled_after_proposal":
+            end = asyncio.CancelledError()
+        steps = [reply(None, *calls), end]
+        if case in ("canonical_inspection", "file_uri_inspection", "unread_canonical_path"):
+            # These aliases come from inspected source metadata: let the model receive the read result
+            # before it proposes an outcome, as in the real scheduled trial.
+            steps = [reply(None, calls[0]), reply(None, *calls[1:]), end]
+        ws, runs, notes, worker, row = scheduled(home, project, FakeModel(*steps))
+        if case == "budget_after_proposal":
+            ws.cfg = dataclasses.replace(ws.cfg, max_turns=1)
+        await worker.run_now(row["id"])
+        await finish(runs, row["session_id"])
+        if case == "tampered_blob":
+            log = ws.open_session(row["session_id"])
+            digest = next(iter(artifacts.session_records(log)[1].values()))[0]
+            artifacts.blob(ws.store, digest).write_text("TAMPERED")
+        await worker.tick()
+        [occ] = ws.index.occurrences(row["id"])
+&gt;       assert occ["outcome"] == expected
+E       AssertionError: assert 'unknown' == 'unchanged'
+E         
+E         - unchanged
+E         + unknown
+
+tests/test_delivery_recovery.py:263: AssertionError</failure></testcase><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[unread_canonical_path-unknown]" time="0.029" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[failure_after_proposal-failed]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[incomplete_after_proposal-failed]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[tampered_blob-unknown]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[cancelled_after_proposal-cancelled]" time="0.030" /><testcase classname="tests.test_delivery_recovery" name="test_business_outcome_uses_execution_and_current_evidence[budget_after_proposal-failed]" time="0.026" /><testcase classname="tests.test_delivery_recovery" name="test_old_artifact_cannot_confirm_a_new_run" time="0.041" /><testcase classname="tests.test_delivery_recovery" name="test_restore_works_without_original_home_and_serves_old_versions" time="0.319" /><testcase classname="tests.test_delivery_recovery" name="test_backup_and_restore_refuse_active_server" time="0.232" /><testcase classname="tests.test_delivery_recovery" name="test_force_restore_validates_before_moving_target_and_rolls_back" time="0.028" /><testcase classname="tests.test_delivery_recovery" name="test_hard_exit_during_restore_rolls_back_on_next_load" time="0.131" /><testcase classname="tests.test_delivery_recovery" name="test_pre_rb_request_claims_are_repaired_without_duplicating_input[False]" time="0.065" /><testcase classname="tests.test_delivery_recovery" name="test_pre_rb_request_claims_are_repaired_without_duplicating_input[True]" time="0.027" /><testcase classname="tests.test_delivery_recovery" name="test_new_independent_input_is_queued_behind_unfinished_run" time="0.025" /><testcase classname="tests.test_delivery_recovery" name="test_accepted_input_committed_during_live_run_is_delivered_once" time="0.036" /><testcase classname="tests.test_delivery_recovery" name="test_unknown_feishu_operation_remains_quarantined_after_relocation" time="2.102" /><testcase classname="tests.test_delivery_recovery" name="test_confirmed_feishu_receipt_replays_locally_after_relocation" time="0.615" /><testcase classname="tests.test_delivery_recovery" name="test_schedule_api_distinguishes_waiting_for_user_from_running" time="0.224" /><testcase classname="tests.test_delivery_recovery" name="test_config_only_home_and_legacy_backup_remain_restorable" time="0.024" /><testcase classname="tests.test_delivery_recovery" name="test_missing_external_project_is_reported_and_not_run" time="0.038" /><testcase classname="tests.test_documents" name="test_markdown_blocks_and_cjk_soft_breaks" time="0.001" /><testcase classname="tests.test_documents" name="test_rendered_documents_read_back[docx]" time="0.029" /><testcase classname="tests.test_documents" name="test_rendered_documents_read_back[pdf]" time="0.018" /><testcase classname="tests.test_documents" name="test_pdf_pages_and_scanned_pages" time="0.031" /><testcase classname="tests.test_documents" name="test_pptx_and_xlsx" time="0.092" /><testcase classname="tests.test_documents" name="test_conversions_are_cached_by_content" time="0.014" /><testcase classname="tests.test_documents" name="test_broken_document_is_a_clear_error" time="0.002" /><testcase classname="tests.test_documents" name="test_images_need_a_vision_model" time="0.001" /><testcase classname="tests.test_schedule" name="test_next_occurrences" time="0.001" /><testcase classname="tests.test_schedule" name="test_local_time_survives_daylight_saving" time="0.001" /><testcase classname="tests.test_schedule" name="test_invalid_rules[rule0-weekdays]" time="0.001" /><testcase classname="tests.test_schedule" name="test_invalid_rules[rule1-HH:MM]" time="0.001" /><testcase classname="tests.test_schedule" name="test_invalid_rules[rule2-time zone]" time="0.001" /><testcase classname="tests.test_schedule" name="test_invalid_rules[rule3-date]" time="0.001" /><testcase classname="tests.test_schedule" name="test_decide_on_time_late_and_missed" time="0.001" /><testcase classname="tests.test_schedule" name="test_due_task_runs_once_and_reports" time="0.050" /><testcase classname="tests.test_schedule" name="test_missed_occurrences_follow_catch_up" time="0.026" /><testcase classname="tests.test_schedule" name="test_busy_session_defers_and_waiting_notifies" time="0.120" /><testcase classname="tests.test_schedule" name="test_run_now_and_task_result_only_in_scheduled_runs" time="0.036" /><testcase classname="tests.test_schedule" name="test_scheduled_input_keeps_its_request_id_across_restart" time="0.027" /><testcase classname="tests.test_schedule" name="test_schedule_api" time="0.222" /><testcase classname="tests.test_schedule" name="test_recall_finds_chinese_text_sources_and_files" time="0.046" /><testcase classname="tests.test_schedule" name="test_backup_and_restore_round_trip" time="0.040" /><testcase classname="tests.test_schedule" name="test_restore_refuses_unsafe_archives" time="0.002" /><testcase classname="tests.test_schedule" name="test_launch_agent_plist" time="0.001" /><testcase classname="tests.test_project_trial" name="test_schedule_reopen_records_exactly_two_consumed_occurrences[False]" time="0.116" /><testcase classname="tests.test_project_trial" name="test_schedule_reopen_records_exactly_two_consumed_occurrences[True]" time="0.115" /><testcase classname="tests.test_project_trial" name="test_restore_removes_original_home_then_reads_history_in_new_home" time="0.053" /><testcase classname="tests.test_project_trial" name="test_total_call_limit_is_retained_across_reopened_workspaces" time="0.114" /><testcase classname="tests.test_project_trial" name="test_preflight_rejects_changed_frozen_input" time="0.001" /><testcase classname="tests.test_settings" name="test_secret_store_is_private_and_atomic" time="0.001" /><testcase classname="tests.test_settings" name="test_tavily_key_uses_model_secret_store_without_echo_or_network" time="0.223" /><testcase classname="tests.test_settings" name="test_put_provider_stores_key_outside_config_and_keeps_comments" time="0.009" /><testcase classname="tests.test_settings" name="test_invalid_changes_write_nothing[bad name-openai-chat-https://x]" time="0.002" /><testcase classname="tests.test_settings" name="test_invalid_changes_write_nothing[ok-grpc-https://x]" time="0.002" /><testcase classname="tests.test_settings" name="test_invalid_changes_write_nothing[ok-openai-chat-ftp://x]" time="0.002" /><testcase classname="tests.test_settings" name="test_models_defaults_and_deletion_rules" time="0.054" /><testcase classname="tests.test_settings" name="test_session_on_a_deleted_model_falls_back_to_the_default" time="0.018" /><testcase classname="tests.test_settings" name="test_settings_api_end_to_end" time="1.042" /></testsuite></testsuites>

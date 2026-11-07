@@ -1,0 +1,38 @@
+{
+  "targeted_tests": {
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_suite_rerun": false,
+  "prior_full_suite": 437,
+  "backend_code_changed": false,
+  "runner_case_id_labels_changed": true,
+  "u3_2_original_files_unchanged": 22,
+  "u3_1_original_files_unchanged": 22,
+  "u3_1_user_acceptance_preserved": true,
+  "source_ids_versions_and_hashes_verified": true,
+  "sources_match_first_trial": true,
+  "final_word_text_equal_corresponding_markdown": true,
+  "native_pages_inspected": 3,
+  "assisted_final_pages_inspected": 3,
+  "assisted_initial_pages_inspected": 3,
+  "word_clickable_source_links_each": 2,
+  "helper_initial_assertion_failure": true,
+  "helper_corrected_and_final_render_verified": true,
+  "configured_model_and_search_key_leaks": 0,
+  "evidence_hashes": {
+    "freeze.json": "f3b2e6b853ead8162d8d24ff2f12b86380cf77c49022998d201c9cddcc4a8275",
+    "source.zip": "3d369075cb116bcbbeabcec173a11b12092ff1d968bbc4afbe9a0bb01cfbbd4b",
+    "runner.py": "4a9f82b703aa30a4d2e4ed24d5996f90b848e1fadcef91c5ebb0d4c904429874",
+    "scope.json": "692d4eaa754d976c301efc0064ba843a87611d86d8afd1ee8dbc30ab53b72dff",
+    "original-trial-sha256.json": "439f4cdef5817d7de55bfed9d3f65b9d0681b54ae2a826185292d7b218e1355b",
+    "source-validation.json": "a3fa055ee271304b803115334c0cc1cdfa11044ce61adb88396d50cc4fa8901a",
+    "word-validation.json": "6b67470523d276886119bc538226027947e7638740760aca8e5e015a46f43997",
+    "assistance.json": "6b59b38cce927b10781600d2e8ed8a8f78d27e65586b120fbaf12debab718f28",
+    "secret-validation.json": "e2816f3bc265537d3db6456cc31f31ef398c0b50d7caa8a3a00eb4b18522b2cd"
+  },
+  "final_report_links_exist": true,
+  "latest_delivery_hashes_verified": true
+}

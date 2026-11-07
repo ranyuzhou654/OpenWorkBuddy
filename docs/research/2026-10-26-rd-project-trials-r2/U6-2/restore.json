@@ -1,0 +1,70 @@
+{
+  "format": 2,
+  "created_at": 1793004558.523066,
+  "home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-2/home",
+  "included": [
+    "index.db",
+    "config.toml",
+    "sessions",
+    "files/blobs",
+    "usage"
+  ],
+  "secrets": false,
+  "browser_profile": false,
+  "consistency": "offline",
+  "files": {
+    "config.toml": {
+      "bytes": 1080,
+      "sha256": "518d67817d169e1a2bc4ea3e8b4b42189c78a167a1c59b4938d2eda7cf2627cd"
+    },
+    "files/blobs/0e09774c71536a727b80df3b046ba23c72171e8024e3a8854598c566b2126959": {
+      "bytes": 2553,
+      "sha256": "0e09774c71536a727b80df3b046ba23c72171e8024e3a8854598c566b2126959"
+    },
+    "files/blobs/36bd410044d4aad64ea83714de40805b415815eb831fc9fbf6c7ffebd7b9b53e": {
+      "bytes": 5994,
+      "sha256": "36bd410044d4aad64ea83714de40805b415815eb831fc9fbf6c7ffebd7b9b53e"
+    },
+    "files/blobs/57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb": {
+      "bytes": 628,
+      "sha256": "57009dc158c86dfaa2af757d86f643e56c33399ed0919ea5fff30e54aa1933fb"
+    },
+    "files/blobs/6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc": {
+      "bytes": 2046,
+      "sha256": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc"
+    },
+    "files/blobs/bf4802831b9c0f091daeb060acebf717d0e590a5db93f7d699fee3df62dc3fb4": {
+      "bytes": 925,
+      "sha256": "bf4802831b9c0f091daeb060acebf717d0e590a5db93f7d699fee3df62dc3fb4"
+    },
+    "files/blobs/ef7e9a11f0c7cd9d6b070d876e5c876b521fa5eda2c89abd266b6ec38915c5e1": {
+      "bytes": 922,
+      "sha256": "ef7e9a11f0c7cd9d6b070d876e5c876b521fa5eda2c89abd266b6ec38915c5e1"
+    },
+    "index.db": {
+      "bytes": 86016,
+      "sha256": "23871c24f13afceaf573697d3eb27b4a3674f3dceabab885d6e2a00029805578"
+    },
+    "sessions/p_7ad1c74ecf53/s_3a6f00395a20.jsonl": {
+      "bytes": 38756,
+      "sha256": "907c869280fff739ae9c052888bbbe81903d583ef2bf57b324c33b85c6a31dd7"
+    },
+    "usage/s_3a6f00395a20.jsonl": {
+      "bytes": 7111,
+      "sha256": "6e9e92a27c36e48e8f99c6ff380d94bb1a73e2b7cb77947e61ec8aef3e1791d4"
+    }
+  },
+  "projects": [
+    {
+      "id": "p_7ad1c74ecf53",
+      "root_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-2/workspace"
+    }
+  ],
+  "project_worktrees_included": false,
+  "integrity_verified": true,
+  "relocation": {
+    "original_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-2/home",
+    "home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-2/restored-home",
+    "missing_projects": []
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "type": "trial.finished",
+  "id": "U5-2",
+  "process_status": "finished",
+  "status": "ok",
+  "phases": [
+    "ok",
+    "ok"
+  ],
+  "session_ids": [
+    "s_3deb4bd77de4"
+  ],
+  "workflow_checks": [
+    {
+      "check": "period_outcomes",
+      "ok": false,
+      "observed": [
+        "unknown",
+        "unchanged"
+      ],
+      "expected": [
+        "changed",
+        "unchanged"
+      ]
+    },
+    {
+      "check": "exactly_two_consumed_inputs",
+      "ok": true
+    }
+  ],
+  "model_calls": 10,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "progress.md",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "3478 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "2205 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "cdb3ea60dbf8bd5a75b7dd7e0adf59effeed136db23f4154cc96a9452d382fc5"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 51.026555999647826,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 53511,
+    "output": 3064,
+    "cache_read": 45568,
+    "cache_write": 0
+  }
+}

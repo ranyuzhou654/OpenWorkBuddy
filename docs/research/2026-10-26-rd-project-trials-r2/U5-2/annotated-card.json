@@ -1,0 +1,94 @@
+{
+  "type": "trial.finished",
+  "id": "U5-2",
+  "process_status": "finished",
+  "status": "ok",
+  "phases": [
+    "ok",
+    "ok"
+  ],
+  "session_ids": [
+    "s_b4304e831a76"
+  ],
+  "workflow_checks": [
+    {
+      "check": "period_outcomes",
+      "ok": false,
+      "observed": [
+        "changed",
+        "unknown"
+      ],
+      "expected": [
+        "changed",
+        "unchanged"
+      ]
+    },
+    {
+      "check": "exactly_two_consumed_inputs",
+      "ok": true
+    }
+  ],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_b4304e831a76"
+      ],
+      "project_id": "p_a24b6612e370",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-2/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "progress.md",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "7416 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "4975 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "b183a26638e5227b2e70481493c87925c48dacaae36b7d4b5809906994296ec1"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 83.32147079193965,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 94781,
+    "output": 6330,
+    "cache_read": 81920,
+    "cache_write": 0
+  },
+  "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials-r2/U5-2",
+  "interpretation": "pending_human_review",
+  "harness_issue": null,
+  "elapsed_scope": "execution through automatic checks; excludes later human review",
+  "completion_elapsed_seconds": null,
+  "calls_per_run": {
+    "r_35950945f4b8": 9,
+    "r_41e46d3e433f": 3
+  },
+  "tool_errors": 0,
+  "usage_complete": true,
+  "scope_blocks": 0
+}

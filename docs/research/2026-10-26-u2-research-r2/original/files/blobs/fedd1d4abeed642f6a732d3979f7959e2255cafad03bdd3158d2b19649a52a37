@@ -1,0 +1,3 @@
+Gen AI | OpenTelemetry
+https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai
+The `gen_ai.provider.name` attribute acts as a discriminator that identifies the GenAI telemetry format flavor specific to that provider within GenAI semantic conventions. It SHOULD be set consistently with provider-specific attributes and signals. For example, GenAI spans, metrics, and events related to AWS Bedrock should have the `gen_ai.provider.name` set to `aws.bedrock` and include applicable `aws.bedrock.` attributes and are not expected to include `openai.` attributes. [...] | `gen_ai.age

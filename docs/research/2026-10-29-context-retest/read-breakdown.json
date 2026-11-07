@@ -1,0 +1,10 @@
+{
+  "all_read_attempts": 44,
+  "post_write_artifact_verifications": 18,
+  "source_reads": 25,
+  "source_reads_with_all_target_facts_already_visible": 7,
+  "pre_write_artifact_read_errors": [
+    16
+  ],
+  "exact_repeat_reads": 0
+}

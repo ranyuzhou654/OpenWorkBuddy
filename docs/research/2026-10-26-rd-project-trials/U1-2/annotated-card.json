@@ -1,0 +1,94 @@
+{
+  "type": "trial.finished",
+  "id": "U1-2",
+  "process_status": "finished",
+  "status": "ok",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_0337797d93f7"
+  ],
+  "workflow_checks": [],
+  "model_calls": 6,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-2/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "memo.docx",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "40228 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as Word",
+          "ok": true,
+          "detail": "Word document",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "3363 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "d12c2acf480f8819f94d8c9d45ea6676118dd4b216869fb7077a6161402f30de"
+    },
+    {
+      "path": "memo.pdf",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "190608 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as PDF",
+          "ok": true,
+          "detail": "PDF, 2 pages",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "3241 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "3468e4523687d33ae5abc7bafdaad6eb743d5a45010c1d25ea9c7f4d662823c7"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 72.31132937502116,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 51584,
+    "output": 11895,
+    "cache_read": 40320,
+    "cache_write": 0
+  },
+  "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U1-2",
+  "interpretation": "pending_human_review",
+  "harness_issue": null,
+  "elapsed_scope": "execution through automatic checks; excludes later human review",
+  "completion_elapsed_seconds": null,
+  "calls_per_run": {
+    "r_3f4acb072ab8": 6
+  },
+  "tool_errors": 0,
+  "usage_complete": true,
+  "scope_blocks": 0
+}

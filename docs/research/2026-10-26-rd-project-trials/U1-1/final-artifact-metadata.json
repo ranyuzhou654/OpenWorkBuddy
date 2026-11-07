@@ -1,0 +1,321 @@
+[
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/brief.docx",
+    "name": "brief.docx",
+    "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "size": 39673,
+    "sha256": "cdafec8bed67a80a5596dc69a1e936bf028cef1e2cb7805158e33f65c60a853b",
+    "version": 2,
+    "title": "OpenWorkBuddy 项目状态简报",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "39673 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "opens as Word",
+        "ok": true,
+        "detail": "Word document",
+        "layer": "structure"
+      },
+      {
+        "name": "has readable text",
+        "ok": true,
+        "detail": "3000 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citations refer to recorded sources",
+        "ok": true,
+        "layer": "citations",
+        "detail": "3 cited"
+      },
+      {
+        "name": "cited source excerpts entered model context",
+        "ok": true,
+        "layer": "citations",
+        "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+      },
+      {
+        "name": "cited versions have retained snapshots",
+        "ok": true,
+        "layer": "citations",
+        "detail": "content-addressed snapshots retained; no factual verification implied"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "description": "Word document"
+    },
+    "kept": true,
+    "created_at": 1792989602.4103959,
+    "sources": [
+      {
+        "sha256": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "snapshot": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "text_ref": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/validation-history.csv",
+        "retrieved_at": "2026-10-26T04:38:36Z",
+        "locator": "lines 1-4 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 1,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/validation-history.csv",
+        "kind": "file",
+        "title": "validation-history.csv",
+        "inspections": [
+          {
+            "entry_id": "e_57b0e03f473f",
+            "locator": "lines 1-4 (line caps 2000)",
+            "excerpt_ref": "3b66248900944038796ef2779ab3e5ab10cfe256e3e1d9d3cc2db8cd11f7af85",
+            "excerpt_sha256": "3b66248900944038796ef2779ab3e5ab10cfe256e3e1d9d3cc2db8cd11f7af85",
+            "output_ranges": [
+              [
+                0,
+                409
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "b057a1ad4c5dc7007a4804c78f1f6abd3c765d0b133e4c38755b7eff89805b12",
+        "snapshot": "b057a1ad4c5dc7007a4804c78f1f6abd3c765d0b133e4c38755b7eff89805b12",
+        "text_ref": "5eafaaa56fb29fcffcf72ec071e06fae3d2a5677c7f6383bead211c9a75197f6",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/review-excerpt.pdf",
+        "retrieved_at": "2026-10-26T04:38:37Z",
+        "locator": "page 1-2; output lines 1-2000",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 2,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/review-excerpt.pdf",
+        "kind": "file",
+        "title": "review-excerpt.pdf",
+        "inspections": [
+          {
+            "entry_id": "e_e5ad8b308bba",
+            "locator": "page 1-2; output lines 1-2000",
+            "excerpt_ref": "e13d7948988d16c5d34258ed0ea2fed3ad9ba6337890e793fc38f462197ddaad",
+            "excerpt_sha256": "e13d7948988d16c5d34258ed0ea2fed3ad9ba6337890e793fc38f462197ddaad",
+            "output_ranges": [
+              [
+                0,
+                3062
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "e5ceb42feb388b6f57c7a4f361d6ac5510764a7893aca4c90d87cd9bf9ebff4c",
+        "snapshot": "e5ceb42feb388b6f57c7a4f361d6ac5510764a7893aca4c90d87cd9bf9ebff4c",
+        "text_ref": "1f228c4be60c3deb06920d2e70eae76c5a102f76d008f8dea86be1d7a4782c1e",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/current-status.docx",
+        "retrieved_at": "2026-10-26T04:38:37Z",
+        "locator": "document 1-1; output lines 1-2000",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 3,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/current-status.docx",
+        "kind": "file",
+        "title": "current-status.docx",
+        "inspections": [
+          {
+            "entry_id": "e_daea7c487ea7",
+            "locator": "document 1-1; output lines 1-2000",
+            "excerpt_ref": "c1fb9adb8fa148fdc8ab911ea3ffc7415e8bc4d7f66608b9e3c8533b08c9857c",
+            "excerpt_sha256": "c1fb9adb8fa148fdc8ab911ea3ffc7415e8bc4d7f66608b9e3c8533b08c9857c",
+            "output_ranges": [
+              [
+                0,
+                2805
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/brief.pdf",
+    "name": "brief.pdf",
+    "mime": "application/pdf",
+    "size": 179322,
+    "sha256": "c5da74001e655a5fbf923d1612b416e1146f5088cdb2ed229c464d714f0e7f49",
+    "version": 2,
+    "title": "OpenWorkBuddy 项目状态简报",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "179322 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "opens as PDF",
+        "ok": true,
+        "detail": "PDF, 2 pages",
+        "layer": "structure"
+      },
+      {
+        "name": "has readable text",
+        "ok": true,
+        "detail": "2897 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citations refer to recorded sources",
+        "ok": true,
+        "layer": "citations",
+        "detail": "3 cited"
+      },
+      {
+        "name": "cited source excerpts entered model context",
+        "ok": true,
+        "layer": "citations",
+        "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+      },
+      {
+        "name": "cited versions have retained snapshots",
+        "ok": true,
+        "layer": "citations",
+        "detail": "content-addressed snapshots retained; no factual verification implied"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "description": "PDF, 2 pages",
+      "pages": 2
+    },
+    "kept": true,
+    "created_at": 1792989611.632535,
+    "sources": [
+      {
+        "sha256": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "snapshot": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "text_ref": "45be383f4c6d29286e33de4a045e37f0d3845b30ea7b24eb229c49a3d02deaf3",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/validation-history.csv",
+        "retrieved_at": "2026-10-26T04:38:36Z",
+        "locator": "lines 1-4 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 1,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/validation-history.csv",
+        "kind": "file",
+        "title": "validation-history.csv",
+        "inspections": [
+          {
+            "entry_id": "e_57b0e03f473f",
+            "locator": "lines 1-4 (line caps 2000)",
+            "excerpt_ref": "3b66248900944038796ef2779ab3e5ab10cfe256e3e1d9d3cc2db8cd11f7af85",
+            "excerpt_sha256": "3b66248900944038796ef2779ab3e5ab10cfe256e3e1d9d3cc2db8cd11f7af85",
+            "output_ranges": [
+              [
+                0,
+                409
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "b057a1ad4c5dc7007a4804c78f1f6abd3c765d0b133e4c38755b7eff89805b12",
+        "snapshot": "b057a1ad4c5dc7007a4804c78f1f6abd3c765d0b133e4c38755b7eff89805b12",
+        "text_ref": "5eafaaa56fb29fcffcf72ec071e06fae3d2a5677c7f6383bead211c9a75197f6",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/review-excerpt.pdf",
+        "retrieved_at": "2026-10-26T04:38:37Z",
+        "locator": "page 1-2; output lines 1-2000",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 2,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/review-excerpt.pdf",
+        "kind": "file",
+        "title": "review-excerpt.pdf",
+        "inspections": [
+          {
+            "entry_id": "e_e5ad8b308bba",
+            "locator": "page 1-2; output lines 1-2000",
+            "excerpt_ref": "e13d7948988d16c5d34258ed0ea2fed3ad9ba6337890e793fc38f462197ddaad",
+            "excerpt_sha256": "e13d7948988d16c5d34258ed0ea2fed3ad9ba6337890e793fc38f462197ddaad",
+            "output_ranges": [
+              [
+                0,
+                3062
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "e5ceb42feb388b6f57c7a4f361d6ac5510764a7893aca4c90d87cd9bf9ebff4c",
+        "snapshot": "e5ceb42feb388b6f57c7a4f361d6ac5510764a7893aca4c90d87cd9bf9ebff4c",
+        "text_ref": "1f228c4be60c3deb06920d2e70eae76c5a102f76d008f8dea86be1d7a4782c1e",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/current-status.docx",
+        "retrieved_at": "2026-10-26T04:38:37Z",
+        "locator": "document 1-1; output lines 1-2000",
+        "access_scope": "session",
+        "session_id": "s_1b9ba77b2267",
+        "n": 3,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/workspace/current-status.docx",
+        "kind": "file",
+        "title": "current-status.docx",
+        "inspections": [
+          {
+            "entry_id": "e_daea7c487ea7",
+            "locator": "document 1-1; output lines 1-2000",
+            "excerpt_ref": "c1fb9adb8fa148fdc8ab911ea3ffc7415e8bc4d7f66608b9e3c8533b08c9857c",
+            "excerpt_sha256": "c1fb9adb8fa148fdc8ab911ea3ffc7415e8bc4d7f66608b9e3c8533b08c9857c",
+            "output_ranges": [
+              [
+                0,
+                2805
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      }
+    ]
+  }
+]

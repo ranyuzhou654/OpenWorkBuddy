@@ -1,0 +1,19 @@
+{
+  "status": "error",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_11841e23bac2",
+    "s_d72e73c580dc"
+  ],
+  "workflow_checks": [
+    {
+      "check": "prior_blobs_accessible",
+      "ok": true
+    }
+  ],
+  "error_type": "BudgetExceeded",
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-1/home"
+}

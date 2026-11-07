@@ -1,0 +1,83 @@
+[
+  {
+    "id": "RD-01",
+    "trials": [
+      "U1-1"
+    ],
+    "kind": "observed factual error",
+    "status": "pending independent human review",
+    "output": "U1-1/outputs/brief.docx",
+    "section": "2. 增量核对",
+    "actual": "把基线27.42秒与25.247秒，以及其他阶段的不同计时口径称为秒数取整不同",
+    "evidence": "inputs CSV及复审PDF保留原数字；27.42不是25.247的取整值，且源文件来自不同记录",
+    "severity": "P2"
+  },
+  {
+    "id": "RD-02",
+    "trials": [
+      "U1-1",
+      "U1-2"
+    ],
+    "kind": "observed unit/scope error",
+    "status": "pending independent human review",
+    "output": "U1-1/outputs/brief.docx; U1-2/outputs/memo.docx",
+    "section": "开发集 token / 开发 trial 与 token",
+    "actual": "分别写开发集12个任务、开发集12次调用",
+    "evidence": "真实开发记录为6个任务、12次trial、94次模型请求；不得混用单位",
+    "source": "../2026-10-25-dev-calibration/summary.json",
+    "severity": "P2"
+  },
+  {
+    "id": "RD-03",
+    "trials": [
+      "U5-1",
+      "U5-2"
+    ],
+    "kind": "workflow obstacle under constrained harness",
+    "status": "retained failed workflow checks; no paid rerun",
+    "actual": "第一期读取不存在的progress.md产生工具错误，changed被裁定unknown；U5-1还猜测额外附件并耗尽额度",
+    "evidence": "两份occurrences.json及会话记录；两次输入都恰好接收/消费一次",
+    "qualification": "首轮脚本无glob且未提供来源提及的额外附件，不能直接推断正常产品配置必然失败",
+    "local_correction": "新增trial根目录内glob，并说明附件可用范围；实际模型表现未重测",
+    "severity": "P2"
+  },
+  {
+    "id": "RD-04",
+    "trials": [
+      "U6-1",
+      "U6-2"
+    ],
+    "kind": "harness configuration error",
+    "status": "corrected locally, original trials retained and confounded",
+    "actual": "scratch_dir与project root相同，触发projectless的当前会话检索，命中自身提问",
+    "evidence": "会话recall结果Scope: 当前会话；原执行脚本raw.scratch_dir=str(root)",
+    "local_correction": "scratch与project分离；断言当前项目范围；回归读取旧笔记原文且含340",
+    "qualification": "不能把这两次失败归因于产品跨项目/跨会话检索，也未宣称修复后真实模型通过",
+    "severity": "P1"
+  },
+  {
+    "id": "RD-05",
+    "trials": [
+      "U1-1",
+      "U1-2"
+    ],
+    "kind": "export readability issue",
+    "status": "open",
+    "actual": "file://文献链接被Markdown解析器当作字面文本，导出显示[label](file://...)并重复长路径",
+    "evidence": "两份DOCX三页与PDF两页均逐页查看；信息存在但不适合作为简洁分享文献表",
+    "next_fix": "调整本地来源文献表的纯文本/链接展示，同时保留URI与hash",
+    "severity": "P2"
+  },
+  {
+    "id": "RD-06",
+    "trials": [
+      "U1-1"
+    ],
+    "kind": "scope ambiguity",
+    "status": "pending independent human review",
+    "actual": "在截止当日简报写本轮真实调用为0，未清晰限定为资料中的R-C阶段",
+    "evidence": "输入描述R-C验证未追加真实调用；另一个开发阶段已记录94次真实模型请求",
+    "qualification": "原文中的本轮随阶段变化，汇总时必须明确时点",
+    "severity": "P2"
+  }
+]

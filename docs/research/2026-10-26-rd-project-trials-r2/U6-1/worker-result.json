@@ -1,0 +1,40 @@
+{
+  "status": "error",
+  "phases": [
+    "ok",
+    "limit"
+  ],
+  "session_ids": [
+    "s_7ca0b0b18dde",
+    "s_93799084c0d7"
+  ],
+  "workflow_checks": [
+    {
+      "check": "prior_blobs_accessible",
+      "ok": true
+    }
+  ],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_7ca0b0b18dde"
+      ],
+      "project_id": "p_6babfd0ef6e3",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    },
+    {
+      "session_ids": [
+        "s_7ca0b0b18dde",
+        "s_93799084c0d7"
+      ],
+      "project_id": "p_6babfd0ef6e3",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-1/home"
+}

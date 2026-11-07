@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Hong_Kong",
+  "user_instruction": "下一轮实测",
+  "dataset_version": "development-v2-tools-format",
+  "trial_limit": 12,
+  "model_requests_per_trial": 12,
+  "total_model_request_limit": 144,
+  "seconds_per_trial": 180,
+  "sdk_retries": 0,
+  "model": "deepseek-v4.1-flash",
+  "provider": "opendesign",
+  "formal_trials_authorized": false
+}

@@ -1,0 +1,3 @@
+langgraph.checkpoint | LangChain Reference
+https://reference.langchain.com/python/langgraph.checkpoint
+## 🤔 What is this? This library defines the base interface for LangGraph checkpointers. Checkpointers provide a persistence layer for LangGraph: they save graph state at every superstep, enabling human-in-the-loop, memory between interactions, durable execution, and more. ## 📖 Documentation For full documentation, see the API reference. For conceptual guides on persistence and memory, see the LangGraph Docs. ## Key concepts ### Checkpoint [...] Checkpointers allow LangGraph agents to persist the

@@ -1,0 +1,23 @@
+{
+  "status": "error",
+  "phases": [
+    "limit"
+  ],
+  "session_ids": [
+    "s_3b5a79bbe917"
+  ],
+  "workflow_checks": [],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_3b5a79bbe917"
+      ],
+      "project_id": "p_6da23a885655",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U1-2/home"
+}

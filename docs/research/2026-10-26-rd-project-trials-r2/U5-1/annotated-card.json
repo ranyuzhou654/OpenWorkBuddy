@@ -1,0 +1,94 @@
+{
+  "type": "trial.finished",
+  "id": "U5-1",
+  "process_status": "finished",
+  "status": "ok",
+  "phases": [
+    "ok",
+    "ok"
+  ],
+  "session_ids": [
+    "s_5c9b45b7af80"
+  ],
+  "workflow_checks": [
+    {
+      "check": "period_outcomes",
+      "ok": true,
+      "observed": [
+        "changed",
+        "changed"
+      ],
+      "expected": [
+        "changed",
+        "changed"
+      ]
+    },
+    {
+      "check": "exactly_two_consumed_inputs",
+      "ok": true
+    }
+  ],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_5c9b45b7af80"
+      ],
+      "project_id": "p_fcd6fe97020c",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 10,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-1/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "progress.md",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "8662 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "5860 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "e1c44267821a3dac4e004078f51de90845acafafc40fe09b7e4a347df3526da5"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 84.52536804089323,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 78250,
+    "output": 8162,
+    "cache_read": 65280,
+    "cache_write": 0
+  },
+  "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials-r2/U5-1",
+  "interpretation": "pending_human_review",
+  "harness_issue": null,
+  "elapsed_scope": "execution through automatic checks; excludes later human review",
+  "completion_elapsed_seconds": null,
+  "calls_per_run": {
+    "r_4d6e404ec1d8": 6,
+    "r_1d9dab449062": 4
+  },
+  "tool_errors": 0,
+  "usage_complete": true,
+  "scope_blocks": 0
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "path": "progress.md",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "8662 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "valid UTF-8 text",
+        "ok": true,
+        "detail": "5860 characters",
+        "layer": "structure"
+      }
+    ],
+    "sha256": "e1c44267821a3dac4e004078f51de90845acafafc40fe09b7e4a347df3526da5"
+  }
+]

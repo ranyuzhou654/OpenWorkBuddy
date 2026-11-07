@@ -1,0 +1,337 @@
+[S7] https://docs.langchain.com/oss/python/langgraph/checkpointers (200, text/html)
+
+# Checkpointers - Docs by LangChain
+
+## Documentation Index
+
+Fetch the complete documentation index at: [/llms.txt](https://docs.langchain.com/llms.txt)
+
+Use this file to discover all available pages before exploring further.
+
+Skip to main content
+
+[Docs by LangChainhome page[image: light logo][image: dark logo]](https://docs.langchain.com/)
+
+Build
+
+Search...
+
+⌘K
+
+- [Ask AI](https://chat.langchain.com/)
+- [GitHub](https://github.com/langchain-ai)
+- [Try LangSmith](https://smith.langchain.com/)
+- [
+Try LangSmith
+](https://smith.langchain.com/)
+
+Search...
+
+Navigation
+
+Capabilities
+
+Checkpointers
+
+[Overview
+
+](https://docs.langchain.com/build-overview)[Deep Agents
+
+](https://docs.langchain.com/oss/python/deepagents/overview)[Managed Deep Agents
+
+](https://docs.langchain.com/langsmith/python/managed-deep-agents-overview)[LangChain
+
+](https://docs.langchain.com/oss/python/langchain/overview)[LangGraph
+
+](https://docs.langchain.com/oss/python/langgraph/overview)[OpenWiki
+
+](https://docs.langchain.com/oss/openwiki/overview)[Integrations
+
+](https://docs.langchain.com/oss/python/integrations/providers/overview)[Learn
+
+](https://docs.langchain.com/oss/python/learn)[Reference
+
+](https://docs.langchain.com/oss/python/reference/overview)[Contribute
+
+](https://docs.langchain.com/oss/python/contributing/overview)
+
+Python
+
+- [
+
+Overview
+
+](https://docs.langchain.com/oss/python/langgraph/overview)
+
+### Get started
+
+- [
+
+Install
+
+](https://docs.langchain.com/oss/python/langgraph/install)
+- [
+
+Quickstart
+
+](https://docs.langchain.com/oss/python/langgraph/quickstart)
+- [
+
+Local server
+
+](https://docs.langchain.com/oss/python/langgraph/local-server)
+- [
+
+Changelog
+
+](https://docs.langchain.com/oss/python/releases/changelog)
+- [
+
+Thinking in LangGraph
+
+](https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph)
+- [
+
+Workflows + agents
+
+](https://docs.langchain.com/oss/python/langgraph/workflows-agents)
+
+### Capabilities
+
+- [
+
+Persistence
+
+](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [
+
+Checkpointers
+
+](https://docs.langchain.com/oss/python/langgraph/checkpointers)
+- [
+
+Stores
+
+](https://docs.langchain.com/oss/python/langgraph/stores)
+- [
+
+Fault tolerance
+
+](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
+- [
+
+Event streaming
+
+](https://docs.langchain.com/oss/python/langgraph/event-streaming)
+- [
+
+Streaming
+
+](https://docs.langchain.com/oss/python/langgraph/streaming)
+- [
+
+Interrupts
+
+](https://docs.langchain.com/oss/python/langgraph/interrupts)
+- [
+
+Time travel
+
+](https://docs.langchain.com/oss/python/langgraph/use-time-travel)
+- [
+
+Memory
+
+](https://docs.langchain.com/oss/python/langgraph/add-memory)
+- [
+
+Subgraphs
+
+](https://docs.langchain.com/oss/python/langgraph/use-subgraphs)
+
+### Production
+
+- [
+
+Application structure
+
+](https://docs.langchain.com/oss/python/langgraph/application-structure)
+- [
+
+Test
+
+](https://docs.langchain.com/oss/python/langgraph/test)
+- [
+
+Backward compatibility
+
+](https://docs.langchain.com/oss/python/langgraph/backward-compatibility)
+- [
+
+LangSmith Studio
+
+](https://docs.langchain.com/oss/python/langgraph/studio)
+- [
+
+Agent Chat UI
+
+](https://docs.langchain.com/oss/python/langgraph/ui)
+- [
+
+Deployment
+
+](https://docs.langchain.com/oss/python/langgraph/deploy)
+- [
+
+LangSmith Observability
+
+](https://docs.langchain.com/oss/python/langgraph/observability)
+
+### Frontend
+
+- [
+
+Overview
+
+](https://docs.langchain.com/oss/python/langgraph/frontend/overview)
+- [
+
+Graph execution
+
+](https://docs.langchain.com/oss/python/langgraph/frontend/graph-execution)
+- [
+
+Custom stream channels
+
+](https://docs.langchain.com/oss/python/langgraph/frontend/custom-stream-channels)
+
+### LangGraph APIs
+
+-
+Graph API
+
+-
+Functional API
+
+- [
+
+Runtime
+
+](https://docs.langchain.com/oss/python/langgraph/pregel)
+
+- [
+
+Studio
+
+](https://docs.langchain.com/langsmith/studio)
+
+## On this page
+Back to top
+
+- Why use checkpoint
+
+[... 40657 characters omitted. Full output saved to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/home/spill/s_dc77050d008b/call_01_JRZ8LmYPIhxdAB2kx7av1941-8b99ebd4d43f.txt — inspect it with read (offset/limit) or bash grep ...]
+
+hread_id, checkpoint_ns, ch, *chain,
+        )
+        writes_by_cid: dict[str, list[PendingWrite]] = {}
+        for row in write_rows:
+            cid = row["checkpoint_id"]
+            value = self.serde.loads_typed((row["type"], row["value"]))
+            writes_by_cid.setdefault(cid, []).append((row["task_id"], ch, value))
+
+        # chain is newest-first; iterate oldest-first to get correct replay order
+        collected: list[PendingWrite] = []
+        for cid in reversed(chain):
+            collected.extend(writes_by_cid.get(cid, []))
+
+        entry = {"writes": collected}
+        if ch in seed_by_ch:
+            entry["seed"] = seed_by_ch[ch]
+        result[ch] = entry
+
+    return result
+
+```
+
+####
+​
+
+Pruning with delta channels
+DeltaChannelstate is not self-contained in a single checkpoint — it depends on the ancestor write chain back to the nearest _DeltaSnapshot. If you implement pruneor delete_for_runs, you must not delete write rows that a surviving checkpoint’s delta channels depend on. Safe options:
+
+- Walk before pruning— for each checkpoint you intend to keep, walk its ancestor chain and mark all write rows up to the nearest _DeltaSnapshotas non-deletable.
+- Force a snapshot before pruning— rewrite channel_values[ch] = _DeltaSnapshot(reconstructed_value)on the checkpoint you are keeping, then delete ancestors freely.
+- Skip pruning for delta-channel threads— the safest short-term option if you do not yet need pruning.
+
+####
+​
+
+Copy thread with delta channels
+When implementing copy_thread, copy the complete ancestor chain — not just the head checkpoint. The target thread must have write rows going back to at least one _DeltaSnapshotfor every delta channel, or those channels will reconstruct as empty after the copy.
+
+###
+​
+
+Testing with the conformance suite
+langgraph-checkpoint-conformancevalidates your implementation against the full contract, including delta channel history:
+
+```
+pip install langgraph-checkpoint-conformance
+
+```
+
+```
+import asyncio
+from langgraph.checkpoint.conformance import checkpointer_test, validate
+
+@checkpointer_test(name="MyCheckpointer")
+async def my_checkpointer():
+    async with MyCheckpointer.create() as saver:
+        yield saver
+
+async def main():
+    report = await validate(my_checkpointer)
+    report.print_report()
+    # Fails the process if any base capability is missing or broken
+    if not report.passed_all_base():
+        raise RuntimeError("Checkpointer failed conformance suite")
+
+asyncio.run(main())
+
+```
+
+The suite auto-detects which extended capabilities your checkpointer implements (including aget_delta_channel_history) and runs the relevant tests for each. Run it as part of your CI before shipping.
+
+[Connect these docs](https://docs.langchain.com/use-these-docs)to your agent of choice via MCP for real-time answers.
+
+[Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langgraph/checkpointers.mdx)or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+
+Was this page helpful?
+
+YesNo
+
+[
+
+Persistence
+
+Previous
+
+](https://docs.langchain.com/oss/python/langgraph/persistence)[
+
+Stores
+
+Next
+
+](https://docs.langchain.com/oss/python/langgraph/stores)
+
+[Docs by LangChainhome page[image: light logo][image: dark logo]](https://docs.langchain.com/)
+[github](https://github.com/langchain-ai)[x](https://x.com/LangChain)[linkedin](https://www.linkedin.com/company/langchain)[youtube](https://www.youtube.com/@LangChain)
+
+Resources
+[Forum](https://forum.langchain.com/)[Changelog](https://changelog.langchain.com/)[LangChain Academy](https://academy.langchain.com/)[Contact Sales](https://www.langchain.com/contact-sales)
+
+Company
+[Home](https://langchain.com/)[Trust Center](https://trust.langchain.com/)[Careers](https://langchain.com/careers)[Blog](https://blog.langchain.com/)
+
+[github](https://github.com/langchain-ai)[x](https://x.com/LangChain)[linkedin](https://www.linkedin.com/company/langchain)[youtube](https://www.youtube.com/@LangChain)

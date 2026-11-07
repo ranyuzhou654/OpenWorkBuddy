@@ -1,0 +1,3 @@
+semantic-conventions-genai/docs/gen-ai/gen-ai-agent-spans.md at main · open-telemetry/semantic-conventions-genai · GitHub
+https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md
+Span name SHOULD be `invoke_agent {gen_ai.agent.name}` if `gen_ai.agent.name` is readily available. When `gen_ai.agent.name` is not available, it SHOULD be `invoke_agent`. Semantic conventions for individual GenAI systems and frameworks MAY specify different span name format. `invoke_agent {gen_ai.agent.name}` `gen_ai.agent.name` `gen_ai.agent.name` `invoke_agent` Span kind SHOULD be `CLIENT`. `CLIENT` Span status SHOULD follow the Recording Errors document. [...] Span name SHOULD be `invoke_age

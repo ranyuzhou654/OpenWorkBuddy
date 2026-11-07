@@ -1,0 +1,23 @@
+{
+  "docs/research/2026-10-29-read-diagnosis-context-retest/PLAN.md": "659feafb4e2f3efdefdab32548a6a4554754f535d547f7d4ce9624ab6c11d772",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/README.md": "fb0e6525ad06d702b82a0e1c8b3bfb5b6079626278ad3d9ff6c939aae04c55db",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/build_plan.py": "8a3851db43fc91bb99bf9b3033cdb9385bc1abcb6d954b43a65912a76079bcbb",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/diagnose.py": "eed0049d49b56c287514d629f53c66d0d13454c89b49c595d06fad99e5f0463f",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/diagnosis.json": "7a78d40c5fbaf0ce938d6fb3786f9ffc720b6272850dac41775ccc97253ad68c",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/integrity.json": "461511780a8913a4ab12038c30aa8bca69cea51c78f6692d8dde80f4f82b4be3",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C1-COMPACT-REPLICATION/input.json": "5a759619f124f398ad2d3e97f9496c0a1f9a118c0e56c4c215f990735b0fdbd1",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C1-COMPACT-REPLICATION/seed-history.json": "1304683d0b4e70a13ddcffe0c51fa1a1af3f64a47f3dfbb10152680b8e559983",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C1-COMPACT-REPLICATION/task.txt": "00b6ab16dd46123d69224d971932e59153e319deb54ff863ded3821c694b5589",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C2-COMPACT-UPDATED-CONSTRAINT/input.json": "87af7669a450117c68c1b11710f4875e6f050dd50202a8c91aafb022681b7ad6",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C2-COMPACT-UPDATED-CONSTRAINT/seed-history.json": "0b9641a5ca19faa1d868a4b80c5eb84aa142394dce55da16d5040110be099a50",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/C2-COMPACT-UPDATED-CONSTRAINT/task.txt": "00b6ab16dd46123d69224d971932e59153e319deb54ff863ded3821c694b5589",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S1-SPILL-REPLICATION/material.txt": "91770cde09892bce021d6810dea79a10cb91fcc2fcf3386e0d777065a5509656",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S1-SPILL-REPLICATION/seed-history.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S1-SPILL-REPLICATION/task.txt": "8cb85f62524f549dee285ff86ff62ed6a7fd39a8a9d6fc9eb2cdd27f6c5b2da6",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S2-SPILL-MIDDLE/material.txt": "e94f75ff86b38f1081b0e4e5776243c06be0f78558aef0d65e74b987c75e2e6d",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S2-SPILL-MIDDLE/seed-history.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/proposed-materials/S2-SPILL-MIDDLE/task.txt": "8cb85f62524f549dee285ff86ff62ed6a7fd39a8a9d6fc9eb2cdd27f6c5b2da6",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/retest-plan.json": "4f3bc1a7f38e829ffa19ad66eaebd532a76fa819a9eac6cd267f071683590bec",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/tool-events.csv": "b373da1e50a955a49d4607c792789271bee4e614feea15c983bed187471bc0fd",
+  "docs/research/2026-10-29-read-diagnosis-context-retest/tool-events.json": "faac3fb1557bc56aa5bb2c74994b19f6468ed9625fd2849bae4e8d58b43babe4"
+}

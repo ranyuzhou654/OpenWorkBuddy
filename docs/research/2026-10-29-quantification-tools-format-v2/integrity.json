@@ -1,0 +1,12 @@
+{
+  "dataset_version": "development-v2-tools-format",
+  "tests_passed": 57,
+  "deterministic_trials": 12,
+  "expected_automatic_passes": 10,
+  "expected_control_failures": 2,
+  "remote_model_requests": 0,
+  "original_evidence_files_unchanged": 627,
+  "source_archive_verified": true,
+  "tool_manifest_verified": true,
+  "public_contracts_verified": true
+}

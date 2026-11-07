@@ -1,0 +1,7 @@
+{
+  "session_id": "s_dc77050d008b",
+  "status": "error",
+  "error_type": "APITimeoutError",
+  "model_calls": 9,
+  "search_requests": 3
+}

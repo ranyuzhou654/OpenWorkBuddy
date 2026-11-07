@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-26T17:09:36.134463+08:00",
+  "identity": "user",
+  "verified": true,
+  "user_name": "Ranyu",
+  "token_status": "valid",
+  "requested_scopes": [
+    "calendar:calendar:readonly",
+    "docx:document:readonly"
+  ],
+  "required_user_scopes_present": true,
+  "required_app_scopes_present": true,
+  "total_user_scope_count": 135,
+  "scope_note": "Existing server grants are cumulative; this flow requested only the two listed scopes.",
+  "connector_enabled": true,
+  "connector_user_available": true,
+  "tavily_saved": true,
+  "business_documents_read": 0,
+  "external_writes": 0
+}

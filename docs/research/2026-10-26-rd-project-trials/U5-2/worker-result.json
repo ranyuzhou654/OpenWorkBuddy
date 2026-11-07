@@ -1,0 +1,30 @@
+{
+  "status": "ok",
+  "phases": [
+    "ok",
+    "ok"
+  ],
+  "session_ids": [
+    "s_3deb4bd77de4"
+  ],
+  "workflow_checks": [
+    {
+      "check": "period_outcomes",
+      "ok": false,
+      "observed": [
+        "unknown",
+        "unchanged"
+      ],
+      "expected": [
+        "changed",
+        "unchanged"
+      ]
+    },
+    {
+      "check": "exactly_two_consumed_inputs",
+      "ok": true
+    }
+  ],
+  "model_calls": 10,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/home"
+}

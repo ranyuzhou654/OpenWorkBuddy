@@ -1,0 +1,41 @@
+{
+  "status": "ok",
+  "phases": [
+    "ok",
+    "ok"
+  ],
+  "session_ids": [
+    "s_5c9b45b7af80"
+  ],
+  "workflow_checks": [
+    {
+      "check": "period_outcomes",
+      "ok": true,
+      "observed": [
+        "changed",
+        "changed"
+      ],
+      "expected": [
+        "changed",
+        "changed"
+      ]
+    },
+    {
+      "check": "exactly_two_consumed_inputs",
+      "ok": true
+    }
+  ],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_5c9b45b7af80"
+      ],
+      "project_id": "p_fcd6fe97020c",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 10,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U5-1/home"
+}

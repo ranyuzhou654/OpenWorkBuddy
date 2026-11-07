@@ -1,0 +1,96 @@
+{
+  "timezone": "Asia/Shanghai",
+  "date": "2026-10-26",
+  "trial_product_code_sha256": "3b2aac1fa1d52a53fb565188a4b55cc7a9a37413c226c98cbc0fa14d978d1cc0",
+  "post_trial_product_code_sha256": "d1f52f5eb9a739c3e239f0041032ab4ebe4aadbf79714cdfd7be74254d652ba6",
+  "web_src_sha256": "1a02a9a491f8b8c0a821991f88d4ca66232eda6bad09d5bc11f4357d48839ec6",
+  "pytest": {
+    "2026-10-26-rd2-full-tests.xml": {
+      "tests": "392",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "74.310"
+    },
+    "2026-10-26-rd2-post-trial-fixed-tests.xml": {
+      "tests": "102",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "11.065"
+    },
+    "2026-10-26-rd2-post-trial-full-tests.xml": {
+      "tests": "402",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "65.429"
+    },
+    "2026-10-26-rd2-post-trial-second-tests.xml": {
+      "tests": "102",
+      "failures": "2",
+      "errors": "0",
+      "skipped": "0",
+      "time": "10.619"
+    },
+    "2026-10-26-rd2-post-trial-tests.xml": {
+      "tests": "102",
+      "failures": "2",
+      "errors": "0",
+      "skipped": "0",
+      "time": "8.509"
+    },
+    "2026-10-26-rd2-targeted-fixed-tests.xml": {
+      "tests": "76",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "4.688"
+    },
+    "2026-10-26-rd2-targeted-tests.xml": {
+      "tests": "69",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "5.095"
+    }
+  },
+  "browser": {
+    "file": "../2026-10-26-rd2-browser.json",
+    "passed": 6,
+    "retries": 0,
+    "duration_seconds": 6.1,
+    "mode": "isolated home, fake secrets, intercepted test search"
+  },
+  "checks": {
+    "ruff": "passed",
+    "frontend_build": "passed",
+    "git_diff_check": "passed"
+  },
+  "visual_review": {
+    "word_pages": [
+      2,
+      3
+    ],
+    "pdf_pages": [
+      2,
+      2
+    ],
+    "all_nine_pages_viewed": true,
+    "independent_human_acceptance": "pending"
+  },
+  "real_trial_usage_complete": false,
+  "post_trial_patches_real_model_trials": 0,
+  "feishu": {
+    "cli_installed": true,
+    "app_configured": true,
+    "user_authenticated": false,
+    "docx_readonly_scope_enabled": true,
+    "calendar_readonly_scope_enabled": false
+  },
+  "tavily": {
+    "user_saved_key_detected": true,
+    "test_result_observed": false,
+    "secret_values_collected": false
+  }
+}

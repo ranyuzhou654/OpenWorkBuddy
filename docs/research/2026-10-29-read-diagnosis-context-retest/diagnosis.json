@@ -1,0 +1,348 @@
+{
+  "remote_model_calls": 0,
+  "source_trials": 12,
+  "tool_calls": 36,
+  "read_calls": 19,
+  "classifications": {
+    "initial_input_read": 5,
+    "artifact_write": 11,
+    "artifact_verification": 10,
+    "needed_after_spill": 1,
+    "decision_version_confirmation": 1,
+    "required_fact_acquisition": 1,
+    "duplicate_fact_confirmation": 1,
+    "parallel_source_acquisition": 2,
+    "parallel_history_query": 2,
+    "optional_record_id_exploration": 1,
+    "repeat_content_confirmation": 1
+  },
+  "recall_target_hits": 1,
+  "recall_queries": 2,
+  "trials": [
+    {
+      "case_id": "HIST-VERSION",
+      "arm": "B",
+      "directory": "056900e88db14f59",
+      "request_fact_presence": [
+        [],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ]
+      ],
+      "recall_audits": [
+        {
+          "query": "南桥交付项目 deadline budget",
+          "returned_ids": [
+            "rec_142d49584a2c9e5a9b662282"
+          ],
+          "target_history_ids": [
+            "rec_989ab8bf3e2db1d1e05755be"
+          ],
+          "target_history_returned": false,
+          "requested_facts_in_snippet": [],
+          "same_decision_as_source_read": true,
+          "final_index_replay": {
+            "scope": "In-memory copy of final index; not a rerun of the Agent or a time-of-call snapshot",
+            "gold_text": "南桥交付项目最终确认：交付日期2026-11-18，预算72000元；此条替代草案。",
+            "query_terms_in_gold": {
+              "南桥交付项目": true,
+              "deadline": false,
+              "budget": false
+            },
+            "variants": [
+              {
+                "query": "南桥交付项目 deadline budget",
+                "ids": [
+                  "rec_fc84b313e096f8936d7963bc",
+                  "rec_142d49584a2c9e5a9b662282"
+                ],
+                "gold_hit": false,
+                "current_task_hit": true
+              },
+              {
+                "query": "南桥交付项目",
+                "ids": [
+                  "rec_92e0638e43128ac03a2f5184",
+                  "rec_989ab8bf3e2db1d1e05755be",
+                  "rec_dfa5692abd0cf4c31cb08413",
+                  "rec_fc84b313e096f8936d7963bc",
+                  "rec_142d49584a2c9e5a9b662282"
+                ],
+                "gold_hit": true,
+                "current_task_hit": true
+              },
+              {
+                "query": "南桥交付项目 最终确认",
+                "ids": [
+                  "rec_989ab8bf3e2db1d1e05755be",
+                  "rec_fc84b313e096f8936d7963bc",
+                  "rec_dfa5692abd0cf4c31cb08413",
+                  "rec_142d49584a2c9e5a9b662282"
+                ],
+                "gold_hit": true,
+                "current_task_hit": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "HIST-LOCATE",
+      "arm": "A",
+      "directory": "07352e3a2de94cb0",
+      "request_fact_presence": [
+        [],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "HIST-LOCATE",
+      "arm": "B",
+      "directory": "434da52cf3ce4a4e",
+      "request_fact_presence": [
+        [],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ]
+      ],
+      "recall_audits": [
+        {
+          "query": "北杉迁移 交付日期 预算",
+          "returned_ids": [
+            "rec_03b193682aa77ce31c3a73a4",
+            "rec_c207e848a352363abbc2d2e5"
+          ],
+          "target_history_ids": [
+            "rec_03b193682aa77ce31c3a73a4"
+          ],
+          "target_history_returned": true,
+          "requested_facts_in_snippet": [
+            "budget",
+            "deadline"
+          ],
+          "same_decision_as_source_read": true,
+          "final_index_replay": {
+            "scope": "In-memory copy of final index; not a rerun of the Agent or a time-of-call snapshot",
+            "gold_text": "北杉迁移项目最终确认：交付日期2026-11-18，预算72000元。",
+            "query_terms_in_gold": {
+              "北杉迁移": true,
+              "交付日期": true,
+              "预算": true
+            },
+            "variants": [
+              {
+                "query": "北杉迁移 交付日期 预算",
+                "ids": [
+                  "rec_03b193682aa77ce31c3a73a4",
+                  "rec_967a45fa5f4f9fd58a732e04",
+                  "rec_696dd47244666283a7cd8661",
+                  "rec_c207e848a352363abbc2d2e5"
+                ],
+                "gold_hit": true,
+                "current_task_hit": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "CTX-SPILL",
+      "arm": "B",
+      "directory": "47bf348ab9ae47d5",
+      "request_fact_presence": [
+        [],
+        [
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "MEM-FRESH",
+      "arm": "B",
+      "directory": "7bffeb1aed6740b9",
+      "request_fact_presence": [
+        null,
+        null,
+        null
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "MEM-REUSE",
+      "arm": "A",
+      "directory": "9113c5592faa4fec",
+      "request_fact_presence": [
+        [],
+        [
+          "format",
+          "locale"
+        ],
+        [
+          "format",
+          "locale"
+        ],
+        [
+          "format",
+          "locale"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "MEM-REUSE",
+      "arm": "B",
+      "directory": "92cecc9d2d86420a",
+      "request_fact_presence": [
+        [
+          "format",
+          "locale"
+        ],
+        [
+          "format",
+          "locale"
+        ],
+        [
+          "format",
+          "locale"
+        ],
+        [
+          "format",
+          "locale"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "HIST-VERSION",
+      "arm": "A",
+      "directory": "9942ecc5c7a34069",
+      "request_fact_presence": [
+        [],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ],
+        [
+          "budget",
+          "deadline"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "MEM-FRESH",
+      "arm": "A",
+      "directory": "c96f876f21a9487a",
+      "request_fact_presence": [
+        null,
+        null,
+        null
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "CTX-COMPACT",
+      "arm": "B",
+      "directory": "d20e3c995b17477f",
+      "request_fact_presence": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "CTX-SPILL",
+      "arm": "A",
+      "directory": "e8a1f7e41f5e43cb",
+      "request_fact_presence": [
+        [],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ],
+        [
+          "budget",
+          "deadline",
+          "supplier"
+        ]
+      ],
+      "recall_audits": []
+    },
+    {
+      "case_id": "CTX-COMPACT",
+      "arm": "A",
+      "directory": "f86c2a5c3df843b7",
+      "request_fact_presence": [],
+      "recall_audits": []
+    }
+  ],
+  "original_evidence_files_verified": 236,
+  "method": "Only visible text, tool arguments and batch membership; no reasoning blocks",
+  "causal_limit": "Observed information overlap is not proof of motive or avoidable provider-token cost"
+}

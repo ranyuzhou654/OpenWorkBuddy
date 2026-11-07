@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "prepared_on": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "scope": "U2 assisted deliverable human acceptance; original autonomous run results immutable",
+  "reviewer_independence": "User or reviewer other than the implementation agent; not completed by Codex",
+  "trials": [
+    {
+      "case_id": "U2-1",
+      "original_run": {
+        "status": "timeout",
+        "model_calls": 12,
+        "model_responses": 11,
+        "usage_complete": false,
+        "autonomous_completion": "failed",
+        "cost": null,
+        "source_record": "docs/research/2026-10-26-agent-reliability-brief/validation.json",
+        "source_record_sha256": "840807756e02ddf3edb46a4292fe0d44f24e3794c51326561f128decea9c7420"
+      },
+      "review_targets": {
+        "markdown": {
+          "path": "docs/research/2026-10-26-agent-reliability-brief/research-brief.md",
+          "sha256": "4362c67b85704740ad2a9167771ac29beb862cf2d8e4434db7ebb26a378a38d0"
+        },
+        "assisted_word": {
+          "path": "docs/research/2026-10-26-agent-reliability-brief/research-brief.docx",
+          "sha256": "1e39d47fd5a61e0d8b7e8c6333ec8aa79a99653f749463fc9e25cbf30921953a"
+        }
+      },
+      "assistance": {
+        "actor": "Codex",
+        "content_revision": true,
+        "offline_word_export": true
+      },
+      "human_review": {
+        "reviewer": null,
+        "reviewed_at": null,
+        "usable": null,
+        "critical_fact_errors": null,
+        "layout_acceptable": null,
+        "recommendations_actionable": null,
+        "issues": [],
+        "criteria": [
+          {
+            "id": "source_support",
+            "question": "关键事实与官方来源是否一致，版本/日期/适用条件是否清楚？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "project_accuracy",
+            "question": "项目已实现、历史测试结果和待实现建议是否区分正确？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "comparison",
+            "question": "两种方案的取舍是否足以支持本项目决策？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "actionability",
+            "question": "三项改进及验收条件能否在项目中落地？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "layout",
+            "question": "Word 是否易读，表格、链接、分页是否可接受？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "evidence_boundary",
+            "question": "首次基线、辅助导出和原失败状态是否说明清楚？",
+            "result": null,
+            "evidence": null
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "U2-2",
+      "original_run": {
+        "status": "error",
+        "model_calls": 9,
+        "model_responses": 8,
+        "usage_complete": false,
+        "autonomous_completion": "failed",
+        "cost": null,
+        "source_record": "docs/research/2026-10-26-u2-research-r2/validation.json",
+        "source_record_sha256": "8d862ead089faf18dd3dd49ee9f3b61a5a7e35a9ca54a057e3d5b97ca90f1a90"
+      },
+      "review_targets": {
+        "markdown": {
+          "path": "docs/research/2026-10-26-u2-research-r2/research-brief.md",
+          "sha256": "caff604a4271a48ca36a4f140ff408b068c121dcf200ba40d1734040f09cf98a"
+        },
+        "assisted_word": {
+          "path": "docs/research/2026-10-26-u2-research-r2/assisted/research-brief.docx",
+          "sha256": "492fa001b8be6848a633db432fb200e758c9602aaae91ebc9d0cfbc113534de8"
+        }
+      },
+      "assistance": {
+        "actor": "Codex",
+        "content_revision": false,
+        "offline_word_export": true
+      },
+      "human_review": {
+        "reviewer": null,
+        "reviewed_at": null,
+        "usable": null,
+        "critical_fact_errors": null,
+        "layout_acceptable": null,
+        "recommendations_actionable": null,
+        "issues": [],
+        "criteria": [
+          {
+            "id": "source_support",
+            "question": "关键事实与官方来源是否一致，版本/日期/适用条件是否清楚？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "project_accuracy",
+            "question": "项目已实现、历史测试结果和待实现建议是否区分正确？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "comparison",
+            "question": "两种方案的取舍是否足以支持本项目决策？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "actionability",
+            "question": "三项改进及验收条件能否在项目中落地？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "layout",
+            "question": "Word 是否易读，表格、链接、分页是否可接受？",
+            "result": null,
+            "evidence": null
+          },
+          {
+            "id": "evidence_boundary",
+            "question": "首次基线、辅助导出和原失败状态是否说明清楚？",
+            "result": null,
+            "evidence": null
+          }
+        ]
+      }
+    }
+  ]
+}

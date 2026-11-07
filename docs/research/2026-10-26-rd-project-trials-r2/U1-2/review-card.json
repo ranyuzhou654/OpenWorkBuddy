@@ -1,0 +1,94 @@
+{
+  "type": "trial.finished",
+  "id": "U1-2",
+  "process_status": "finished",
+  "status": "error",
+  "phases": [
+    "limit"
+  ],
+  "session_ids": [
+    "s_3b5a79bbe917"
+  ],
+  "workflow_checks": [],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_3b5a79bbe917"
+      ],
+      "project_id": "p_6da23a885655",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U1-2/home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [
+    {
+      "path": "memo.docx",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "40021 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as Word",
+          "ok": true,
+          "detail": "Word document",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "3039 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "e26efab30aa2a5705a1664c9ec056d81faace62879e9ca6a010e3d85b2e98642"
+    },
+    {
+      "path": "memo.pdf",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "169962 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as PDF",
+          "ok": true,
+          "detail": "PDF, 2 pages",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "2912 characters",
+          "layer": "structure"
+        }
+      ],
+      "sha256": "8a24369d39e4053e72a8b8d9357faff930bdc17ff03d55878f2364fb2e6e9c83"
+    }
+  ],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 159.01250025024638,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 137081,
+    "output": 20936,
+    "cache_read": 115712,
+    "cache_write": 0
+  }
+}

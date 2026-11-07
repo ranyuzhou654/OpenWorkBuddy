@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_1b9ba77b2267"
+  ],
+  "workflow_checks": [],
+  "model_calls": 11,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/home"
+}

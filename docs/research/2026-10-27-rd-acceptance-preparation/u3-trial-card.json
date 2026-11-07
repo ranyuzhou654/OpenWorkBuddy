@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "case_id": "U3-1",
+  "status": "awaiting_material_scope",
+  "question": "基于指定飞书文档，为 Agent 可靠性与上下文治理的周报复盘生成本地会议准备包。",
+  "inputs": {
+    "documents": [],
+    "calendar": null,
+    "meeting_time": null
+  },
+  "scope": {
+    "identity": "user",
+    "document_limit": 2,
+    "allowed_resources": [],
+    "calendar_requires_name_and_date_range": true,
+    "local_outputs": [
+      "meeting-prep.md",
+      "meeting-prep.docx"
+    ],
+    "remote_writes": false,
+    "web_search": false
+  },
+  "model": {
+    "provider": "opendesign",
+    "id": "deepseek-v4.1-flash",
+    "logical_call_limit": 12,
+    "wall_seconds": 180,
+    "sdk_implicit_retries": 0,
+    "price": null
+  },
+  "execution": {
+    "model_started": false,
+    "business_read_started": false,
+    "trial_count": 0,
+    "source_freeze": null,
+    "input_hashes": {},
+    "run_directory": null
+  },
+  "requirements": [
+    "只读取列出的文档及被明确指定的日历日期范围，不遍历其他资料。",
+    "保存来源定位、正文快照与 hash；正文引用不得只依靠搜索摘要。",
+    "提取已定事项、未决问题、决策点和建议议程，未知负责人或日期写 unknown。",
+    "没有日历输入时，不声称无会议或已核验日程；任务可按文档准备模式推进。",
+    "Markdown 成文一次，由 export_document 导出 Word，不重复生成正文。",
+    "逐条核对关键事实和引用，再单独做版式及人工验收。"
+  ],
+  "acceptance": {
+    "required_facts": [],
+    "status": "pending",
+    "reviewer": null
+  },
+  "next_action": "用户提供 1–2 个文档链接后冻结来源范围和本轮输入；开始首次执行前冻结当前源码与 runner。"
+}

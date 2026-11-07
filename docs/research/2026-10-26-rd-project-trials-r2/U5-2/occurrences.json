@@ -1,0 +1,26 @@
+[
+  {
+    "schedule_id": "sch_99ed9c118e63",
+    "planned_at": 1793004424.979991,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_99ed9c118e63:manual:request_64d905582f73",
+    "outcome": "unknown",
+    "summary": "结果待核验：报告缺少本轮有效交付或检查证据",
+    "created_at": 1793004424.980048,
+    "done_at": 1793004443.184754,
+    "input_id": "in_29d4671397b9"
+  },
+  {
+    "schedule_id": "sch_99ed9c118e63",
+    "planned_at": 1793004360.6315641,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_99ed9c118e63:manual:request_99c7e18a2512",
+    "outcome": "changed",
+    "summary": "首次创建 progress.md，记录 current.json 相对期二快照的验证边界收缩：browser_e2e 结果块整体缺失、pytest 用例 372→340、checks/artifacts 未记录；pytest 本身 0 失败但不足以判为\"无变化\"。",
+    "created_at": 1793004360.631723,
+    "done_at": 1793004424.977252,
+    "input_id": "in_3206a2ce8fbc"
+  }
+]

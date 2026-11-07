@@ -1,0 +1,124 @@
+{
+  "trial": {
+    "status": "timeout",
+    "id": "U2-1",
+    "process_status": "timeout",
+    "model_calls": 12,
+    "model_responses": 11,
+    "observed_models": [
+      "deepseek-flash"
+    ],
+    "usage": {
+      "input": 329378,
+      "output": 17896,
+      "cache_read": 282624
+    },
+    "usage_complete": false,
+    "elapsed_seconds": 180.01464054221287,
+    "artifact_checks": [
+      {
+        "path": "research-brief.md",
+        "sha256": "1eef1540c86317e7ad5220346a488562e0c9105731f7178b71279a3d60475339",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "8426 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "valid UTF-8 text",
+            "ok": true,
+            "detail": "4851 characters",
+            "layer": "structure"
+          }
+        ]
+      }
+    ],
+    "cost": null,
+    "human_acceptance": "pending",
+    "factual_acceptance": "pending"
+  },
+  "search_requests": 3,
+  "search_responses": 3,
+  "official_sources": 5,
+  "local_sources": 1,
+  "tool_errors": [
+    {
+      "tool": "read",
+      "error": [
+        {
+          "type": "text",
+          "text": "Error: /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/workspace/AGENTS.md does not exist"
+        }
+      ]
+    },
+    {
+      "tool": "bash",
+      "error": [
+        {
+          "type": "text",
+          "text": "Error: unknown tool 'bash'"
+        }
+      ]
+    },
+    {
+      "tool": "bash",
+      "error": [
+        {
+          "type": "text",
+          "text": "Error: unknown tool 'bash'"
+        }
+      ]
+    }
+  ],
+  "source_archive_sha256": "db43d11d494f3ad87136ad961ad7ae83bb9ae4535f48defc72c6f581ad6d4faa",
+  "product_code_sha256": "1ff9d52aafa7bc9883efd503a262b69b7f8ec1f929ccca50e3a4dbc0b87113ad",
+  "harness_tests": {
+    "tests": "2",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "time": "0.037"
+  },
+  "assisted_delivery": {
+    "actor": "Codex",
+    "content_revision": true,
+    "offline_word_conversion": true,
+    "additional_trial_model_requests": 0,
+    "additional_tavily_requests": 0,
+    "word_markdown_visible_text_equal": true,
+    "word_pages": 3,
+    "all_pages_visually_checked": true,
+    "clickable_official_links": 5,
+    "docx_checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "41758 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "opens as Word",
+        "ok": true,
+        "detail": "Word document",
+        "layer": "structure"
+      },
+      {
+        "name": "has readable text",
+        "ok": true,
+        "detail": "4034 characters",
+        "layer": "structure"
+      }
+    ],
+    "secret_scan": "passed",
+    "independent_human_acceptance": "pending"
+  },
+  "billing": {
+    "model_subscription": null,
+    "tavily": null,
+    "note": "Missing last-request usage and no verified monetary reconciliation"
+  },
+  "raw_trial_mutated": false,
+  "external_business_writes": 0
+}

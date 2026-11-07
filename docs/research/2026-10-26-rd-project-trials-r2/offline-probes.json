@@ -1,0 +1,26 @@
+{
+  "scope": "offline diagnostic only; original grades and logs unchanged; zero model calls",
+  "U5-2": {
+    "run_id": "r_41e46d3e433f",
+    "before": [
+      "unknown",
+      "结果待核验：报告缺少本轮有效交付或检查证据"
+    ],
+    "after": [
+      "unchanged",
+      "current.json 与已有 progress.md 记录逐项一致（pytest 340/0/0/0、64.464 s；无 browser 字段；边界 real_model_requests 0、real_external_writes 0、hosted_ci_verified false、power_loss_tested false；stage R-B、code_sha256 10a4af75…），快照时间仍为 2026-10-26T00:09:33，无新失败亦无新证据，故未写文件。"
+    ]
+  },
+  "U1-1": {
+    "before_source_ids": [
+      1,
+      3
+    ],
+    "after_source_ids": [
+      1,
+      2,
+      3
+    ]
+  },
+  "post_trial_code_sha256": "d1f52f5eb9a739c3e239f0041032ab4ebe4aadbf79714cdfd7be74254d652ba6"
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "in_40b4fd53a71e",
+    "session_id": "s_5c9b45b7af80",
+    "delivery": "run",
+    "content": "[定时任务「U5-1」· 计划时间 2026-10-26 08:44]\n\n主题为 OpenWorkBuddy 实施验证进度。每次读取本地 current.json，有旧 progress.md 时也读取并比较。首次创建 progress.md；确有变化时使用 create_document 覆盖为新版本，开头写本期变化，关键事实附 [S#]；没有变化时不写任何文件。比较 pytest、browser_e2e 和验证边界，失败不能算无变化，不能使用其他目录/网络。最后调用 task_result 一次：changed 的 evidence 用本轮交付路径，unchanged 的 evidence 用本轮成功读取的来源路径。",
+    "parent_id": null,
+    "status": "consumed",
+    "created_at": 1793004276.095077,
+    "done_at": 1793004276.0956202,
+    "extra_json": "{\"request_id\": \"sched:sch_6e7885f57fa7:manual:request_a8481a3508ec\"}",
+    "run_id": "r_4d6e404ec1d8"
+  },
+  {
+    "id": "in_c1a6720249d8",
+    "session_id": "s_5c9b45b7af80",
+    "delivery": "run",
+    "content": "[定时任务「U5-1」· 计划时间 2026-10-26 08:45]\n\n主题为 OpenWorkBuddy 实施验证进度。每次读取本地 current.json，有旧 progress.md 时也读取并比较。首次创建 progress.md；确有变化时使用 create_document 覆盖为新版本，开头写本期变化，关键事实附 [S#]；没有变化时不写任何文件。比较 pytest、browser_e2e 和验证边界，失败不能算无变化，不能使用其他目录/网络。最后调用 task_result 一次：changed 的 evidence 用本轮交付路径，unchanged 的 evidence 用本轮成功读取的来源路径。",
+    "parent_id": null,
+    "status": "consumed",
+    "created_at": 1793004317.987888,
+    "done_at": 1793004317.9895208,
+    "extra_json": "{\"request_id\": \"sched:sch_6e7885f57fa7:manual:request_a7552fd02d87\"}",
+    "run_id": "r_1d9dab449062"
+  }
+]

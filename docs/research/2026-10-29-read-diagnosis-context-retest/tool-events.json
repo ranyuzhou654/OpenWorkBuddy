@@ -1,0 +1,1034 @@
+[
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "A",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_6sqe7VS0PiXepIZhxEoe3365",
+    "tool": "read",
+    "args": {
+      "path": "material.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "initial_input_read",
+    "successful": true,
+    "response_chars": 69988,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/workspace/material.txt\n     1\t正式决定：supplier=北杉；其余附录只是背景。\n     2\t附录001：设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/home/sessions/p_5b41d2ecadc3/s_b89abfd47d6b.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 12,
+    "call_id": "call_00_PIPJ6vceZCwMiSjdBJL99008",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 66 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/home/sessions/p_5b41d2ecadc3/s_b89abfd47d6b.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "A",
+    "request_index": 3,
+    "assistant_log_line": 13,
+    "result_log_line": 15,
+    "call_id": "call_00_bLTqEJgpJtoUyLjjM4iS4091",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 214,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/workspace/result.json\n     1\t{\"supplier\": \"北杉\", \"budget\": 72800, \"deadline\": \"2026-11-18\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/e8a1f7e41f5e43cb/home/sessions/p_5b41d2ecadc3/s_b89abfd47d6b.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_mFYNXIHzsDIM17qKfL0v2628",
+    "tool": "read",
+    "args": {
+      "path": "material.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "initial_input_read",
+    "successful": true,
+    "response_chars": 8309,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "deadline",
+      "supplier"
+    ],
+    "new_literal_facts": [
+      "deadline",
+      "supplier"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/workspace/material.txt\n     1\t正式决定：supplier=北杉；其余附录只是背景。\n     2\t附录001：设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供背景参考。设备清单与例行维护记录，仅供",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/home/sessions/p_2e15247425fd/s_62f32c6aff9f.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 12,
+    "call_id": "call_00_lNTuycPsAHqKVXa6L0Du3175",
+    "tool": "grep",
+    "args": {
+      "pattern": "budget|预算|万元|美元|budget=",
+      "path": "material.txt",
+      "mode": "content",
+      "limit": 50
+    },
+    "batch_tools": [
+      "grep"
+    ],
+    "classification": "needed_after_spill",
+    "successful": true,
+    "response_chars": 45,
+    "literal_facts_before_decision": [
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [
+      "budget"
+    ],
+    "new_literal_facts": [
+      "budget"
+    ],
+    "response_preview": "material.txt:91:正式决定：budget=72800；这个金额替代早期草案。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/home/sessions/p_2e15247425fd/s_62f32c6aff9f.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "B",
+    "request_index": 3,
+    "assistant_log_line": 13,
+    "result_log_line": 15,
+    "call_id": "call_00_zkX3pLVoNUr9PZ4Es1JM9933",
+    "tool": "grep",
+    "args": {
+      "limit": 50,
+      "mode": "content",
+      "path": "material.txt",
+      "pattern": "正式决定|决定|草案|取消|作废"
+    },
+    "batch_tools": [
+      "grep"
+    ],
+    "classification": "decision_version_confirmation",
+    "successful": true,
+    "response_chars": 130,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "material.txt:1:正式决定：supplier=北杉；其余附录只是背景。\nmaterial.txt:91:正式决定：budget=72800；这个金额替代早期草案。\nmaterial.txt:180:正式决定：deadline=2026-11-18。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/home/sessions/p_2e15247425fd/s_62f32c6aff9f.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "B",
+    "request_index": 4,
+    "assistant_log_line": 16,
+    "result_log_line": 18,
+    "call_id": "call_00_ET_gb1aZ3rHaQSv0rVE6OtP7151",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 66 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/home/sessions/p_2e15247425fd/s_62f32c6aff9f.jsonl"
+  },
+  {
+    "case_id": "CTX-SPILL",
+    "arm": "B",
+    "request_index": 5,
+    "assistant_log_line": 19,
+    "result_log_line": 21,
+    "call_id": "call_00_ET_15tpyvZtS35S4dXwBqUF7147",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 214,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline",
+      "supplier"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/workspace/result.json\n     1\t{\"supplier\": \"北杉\", \"budget\": 72800, \"deadline\": \"2026-11-18\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/47bf348ab9ae47d5/home/sessions/p_2e15247425fd/s_62f32c6aff9f.jsonl"
+  },
+  {
+    "case_id": "CTX-COMPACT",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 29,
+    "result_log_line": 31,
+    "call_id": "call_00_nv8OikRW6EweN5yA5j215042",
+    "tool": "read",
+    "args": {
+      "path": "input.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "initial_input_read",
+    "successful": true,
+    "response_chars": 187,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/workspace/input.json\n     1\t{\"quantity\": 4, \"unit_price\": 1800}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/home/sessions/p_f8b96eeb93ab/s_81e009ab4136.jsonl"
+  },
+  {
+    "case_id": "CTX-COMPACT",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 33,
+    "result_log_line": 35,
+    "call_id": "call_00_mhdGGFQdIL4AmestBCwt9238",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "Wrote 67 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/home/sessions/p_f8b96eeb93ab/s_81e009ab4136.jsonl"
+  },
+  {
+    "case_id": "CTX-COMPACT",
+    "arm": "B",
+    "request_index": 3,
+    "assistant_log_line": 36,
+    "result_log_line": 38,
+    "call_id": "call_00_ET_9Qw5OZp6eUJTuEQiTZfn0486",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 215,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/workspace/result.json\n     1\t{\"owner\": \"林杉\", \"total\": 7200, \"protected_file\": \"input.json\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/d20e3c995b17477f/home/sessions/p_f8b96eeb93ab/s_81e009ab4136.jsonl"
+  },
+  {
+    "case_id": "MEM-FRESH",
+    "arm": "A",
+    "request_index": 1,
+    "assistant_log_line": 8,
+    "result_log_line": 10,
+    "call_id": "call_00_nNrimNl79j96Ag78v4At2024",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "Wrote 47 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/home/sessions/p_76dbdc00d0a6/s_41596e0add7a.jsonl"
+  },
+  {
+    "case_id": "MEM-FRESH",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 11,
+    "result_log_line": 13,
+    "call_id": "call_00_ET_jL489KHOSe0LzIZfqw4R8269",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 199,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/workspace/result.json\n     1\t{\"locale\": \"en-US\", \"project_rule\": \"RULE_V1\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/c96f876f21a9487a/home/sessions/p_76dbdc00d0a6/s_41596e0add7a.jsonl"
+  },
+  {
+    "case_id": "MEM-FRESH",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 9,
+    "result_log_line": 11,
+    "call_id": "call_00_CtX1a8yikt5boIZ9Jwgc5821",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "Wrote 43 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/home/sessions/p_0c7ce6f94abf/s_5911aa67455f.jsonl"
+  },
+  {
+    "case_id": "MEM-FRESH",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 12,
+    "result_log_line": 14,
+    "call_id": "call_00_Mlq2IChMxRHXlKaYmZvy4607",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 196,
+    "literal_facts_before_decision": null,
+    "literal_facts_in_response": null,
+    "new_literal_facts": null,
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/workspace/result.json\n     1\t{\"locale\":\"ja-JP\",\"project_rule\":\"RULE_V2\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/7bffeb1aed6740b9/home/sessions/p_0c7ce6f94abf/s_5911aa67455f.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "A",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_4Cc47RJKXGEQ6ZA8oyVi3270",
+    "tool": "read",
+    "args": {
+      "path": "original-notes.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "required_fact_acquisition",
+    "successful": true,
+    "response_chars": 7714,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "format",
+      "locale"
+    ],
+    "new_literal_facts": [
+      "format",
+      "locale"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/workspace/original-notes.txt\n     1\t此前约定：preferred_locale=ja-JP；output_format=bullet_list。\n     2\t历史备忘：按需检索资料并保留来源。\n     3\t历史备忘：按需检索资料并保留来源。\n     4\t历史备忘：按需检索资料并保留来源。\n     5\t历史备忘：按需检索资料并保留来源。\n     6\t历史备忘：按需检索资料并保留来源。\n     7\t历史备忘：按需检索资料并保留来源。\n     8\t历史备忘：按需检索资料并保留来源。\n     9\t历史备忘：按需检索资料并保留来源。\n    10\t历史备忘：按需检索资料并保留来源。\n    11\t历史备忘：按需检索资料并保留来源。\n    12\t历史备忘：按需检索资料并保留来源。\n    13\t历史备忘：按需检索资料并保留来源。\n    14\t历史备忘：按需检索资料并保留来源。\n    15\t历史备",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/home/sessions/p_eefc1306d2b0/s_2836c631a08a.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 12,
+    "call_id": "call_00_vEQLr24NHFol1avURhdK8196",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "format",
+      "locale"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 45 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/home/sessions/p_eefc1306d2b0/s_2836c631a08a.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "A",
+    "request_index": 3,
+    "assistant_log_line": 13,
+    "result_log_line": 15,
+    "call_id": "call_00_ET_JyRaHd5YWPEjJ2LakDJY3710",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 197,
+    "literal_facts_before_decision": [
+      "format",
+      "locale"
+    ],
+    "literal_facts_in_response": [
+      "format",
+      "locale"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/workspace/result.json\n     1\t{\"locale\": \"ja-JP\", \"format\": \"bullet_list\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9113c5592faa4fec/home/sessions/p_eefc1306d2b0/s_2836c631a08a.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_qccUuWAonahAeUTSt8Wf7224",
+    "tool": "read",
+    "args": {
+      "path": "original-notes.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "duplicate_fact_confirmation",
+    "successful": true,
+    "response_chars": 7714,
+    "literal_facts_before_decision": [
+      "format",
+      "locale"
+    ],
+    "literal_facts_in_response": [
+      "format",
+      "locale"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/workspace/original-notes.txt\n     1\t此前约定：preferred_locale=ja-JP；output_format=bullet_list。\n     2\t历史备忘：按需检索资料并保留来源。\n     3\t历史备忘：按需检索资料并保留来源。\n     4\t历史备忘：按需检索资料并保留来源。\n     5\t历史备忘：按需检索资料并保留来源。\n     6\t历史备忘：按需检索资料并保留来源。\n     7\t历史备忘：按需检索资料并保留来源。\n     8\t历史备忘：按需检索资料并保留来源。\n     9\t历史备忘：按需检索资料并保留来源。\n    10\t历史备忘：按需检索资料并保留来源。\n    11\t历史备忘：按需检索资料并保留来源。\n    12\t历史备忘：按需检索资料并保留来源。\n    13\t历史备忘：按需检索资料并保留来源。\n    14\t历史备忘：按需检索资料并保留来源。\n    15\t历史备",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/home/sessions/p_f68dff4ba3fe/s_ff6f6eeb595d.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 12,
+    "call_id": "call_00_ET_tRF1RY25iOkpqupIL2eb7916",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "format",
+      "locale"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 42 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/home/sessions/p_f68dff4ba3fe/s_ff6f6eeb595d.jsonl"
+  },
+  {
+    "case_id": "MEM-REUSE",
+    "arm": "B",
+    "request_index": 3,
+    "assistant_log_line": 13,
+    "result_log_line": 15,
+    "call_id": "call_00_ET_m1cXvmwutE3QM1RxAQSJ0365",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 194,
+    "literal_facts_before_decision": [
+      "format",
+      "locale"
+    ],
+    "literal_facts_in_response": [
+      "format",
+      "locale"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/workspace/result.json\n     1\t{\"locale\":\"ja-JP\",\"format\":\"bullet_list\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/92cecc9d2d86420a/home/sessions/p_f68dff4ba3fe/s_ff6f6eeb595d.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "A",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_Ee8H7DEBpqKYbKQBz9xG0342",
+    "tool": "read",
+    "args": {
+      "path": "previous-notes.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "initial_input_read",
+    "successful": true,
+    "response_chars": 211,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/workspace/previous-notes.txt\n     1\t北杉迁移项目最终确认：交付日期2026-11-18，预算72000元。\n     2\t这是已确认决定。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/home/sessions/p_bc08d21f4d9b/s_3ad210815494.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 12,
+    "call_id": "call_00_o2JTiyEtzklFcqO1a9Up8056",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 72 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/07352e3a2de94cb0/home/sessions/p_bc08d21f4d9b/s_3ad210815494.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_23CTTmluuVEsDKDzYU8g7047",
+    "tool": "read",
+    "args": {
+      "path": "previous-notes.txt"
+    },
+    "batch_tools": [
+      "read",
+      "recall"
+    ],
+    "classification": "parallel_source_acquisition",
+    "successful": true,
+    "response_chars": 211,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/workspace/previous-notes.txt\n     1\t北杉迁移项目最终确认：交付日期2026-11-18，预算72000元。\n     2\t这是已确认决定。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/home/sessions/p_960a7786f6ae/s_47ca783e452c.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 10,
+    "call_id": "call_01_ET_BCDrcE1u4QTCrqyLpVSE8404",
+    "tool": "recall",
+    "args": {
+      "query": "北杉迁移 交付日期 预算"
+    },
+    "batch_tools": [
+      "read",
+      "recall"
+    ],
+    "classification": "parallel_history_query",
+    "successful": true,
+    "response_chars": 450,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline"
+    ],
+    "response_preview": "Scope: 当前项目. 2 result(s) for '北杉迁移 交付日期 预算':\n- [conversation] 2026-10-29 · session s_62e11eae2acc (untitled)\n  record=rec_03b193682aa77ce31c3a73a4\n  北杉迁移项目最终确认：交付日期2026-11-18，预算72000元。\n- [conversation] 2026-10-29 · session s_47ca783e452c (untitled)\n  record=rec_c207e848a352363abbc2d2e5\n  找出以前确定的北杉迁移项目交付日期和预算，写入 result.json：deadline、budget（整数）、evidence（所用历史 record ID 或原始文件相对路径）。原始材料 previous-notes.txt 可读。 输出格式约定：将一个合法 JSON 对象保存到 result.json，且只能包含…",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/home/sessions/p_960a7786f6ae/s_47ca783e452c.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 12,
+    "result_log_line": 14,
+    "call_id": "call_00_F0Zto9BqrbfhTA0asjy42107",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 72 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/home/sessions/p_960a7786f6ae/s_47ca783e452c.jsonl"
+  },
+  {
+    "case_id": "HIST-LOCATE",
+    "arm": "B",
+    "request_index": 3,
+    "assistant_log_line": 15,
+    "result_log_line": 17,
+    "call_id": "call_00_ET_ke1IjHt7w0zNwurRAPoM5137",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 225,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/workspace/result.json\n     1\t{\"deadline\":\"2026-11-18\",\"budget\":72000,\"evidence\":\"previous-notes.txt\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/434da52cf3ce4a4e/home/sessions/p_960a7786f6ae/s_47ca783e452c.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "A",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_ET_gcJkerTyQjJHaJOH4eWF9675",
+    "tool": "read",
+    "args": {
+      "path": "previous-notes.txt"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "initial_input_read",
+    "successful": true,
+    "response_chars": 243,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/workspace/previous-notes.txt\n     1\t南桥交付项目草案：交付日期2026-11-04，预算61000元。\n     2\t南桥交付项目最终确认：交付日期2026-11-18，预算72000元；此条替代草案。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/home/sessions/p_1b9b0b68850c/s_56c08dd1300e.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 13,
+    "call_id": "call_00_i0nFuYAskL51gOJsQ4kZ8584",
+    "tool": "grep",
+    "args": {
+      "pattern": "rec_[0-9a-f]{24}",
+      "path": ".",
+      "mode": "content"
+    },
+    "batch_tools": [
+      "grep",
+      "grep"
+    ],
+    "classification": "optional_record_id_exploration",
+    "successful": true,
+    "response_chars": 190,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "No matches for rec_[0-9a-f]{24} under /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/workspace (authorized files only)",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/home/sessions/p_1b9b0b68850c/s_56c08dd1300e.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "A",
+    "request_index": 2,
+    "assistant_log_line": 10,
+    "result_log_line": 14,
+    "call_id": "call_01_VSjn0Vp4XqvE3EuaoOKZ9347",
+    "tool": "grep",
+    "args": {
+      "pattern": "南桥",
+      "path": ".",
+      "mode": "content"
+    },
+    "batch_tools": [
+      "grep",
+      "grep"
+    ],
+    "classification": "repeat_content_confirmation",
+    "successful": true,
+    "response_chars": 118,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "previous-notes.txt:1:南桥交付项目草案：交付日期2026-11-04，预算61000元。\nprevious-notes.txt:2:南桥交付项目最终确认：交付日期2026-11-18，预算72000元；此条替代草案。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/home/sessions/p_1b9b0b68850c/s_56c08dd1300e.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "A",
+    "request_index": 3,
+    "assistant_log_line": 15,
+    "result_log_line": 17,
+    "call_id": "call_00_duZX9sw9j2tRrBWypBBc0287",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 73 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/home/sessions/p_1b9b0b68850c/s_56c08dd1300e.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "A",
+    "request_index": 4,
+    "assistant_log_line": 18,
+    "result_log_line": 20,
+    "call_id": "call_00_ET_fYELuv9SwECHXXKoaoZt6129",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 225,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/workspace/result.json\n     1\t{\"deadline\":\"2026-11-18\",\"budget\":72000,\"evidence\":\"previous-notes.txt\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/9942ecc5c7a34069/home/sessions/p_1b9b0b68850c/s_56c08dd1300e.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 8,
+    "call_id": "call_00_KShhmDF2bGY6HHgJl0tr1531",
+    "tool": "read",
+    "args": {
+      "path": "previous-notes.txt"
+    },
+    "batch_tools": [
+      "read",
+      "recall"
+    ],
+    "classification": "parallel_source_acquisition",
+    "successful": true,
+    "response_chars": 243,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [
+      "budget",
+      "deadline"
+    ],
+    "response_preview": "[S1] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/workspace/previous-notes.txt\n     1\t南桥交付项目草案：交付日期2026-11-04，预算61000元。\n     2\t南桥交付项目最终确认：交付日期2026-11-18，预算72000元；此条替代草案。",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/home/sessions/p_dd5ded64a610/s_9bc086fb9356.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "B",
+    "request_index": 1,
+    "assistant_log_line": 6,
+    "result_log_line": 10,
+    "call_id": "call_01_Py0zrKrLpKpsgutCkInT2535",
+    "tool": "recall",
+    "args": {
+      "query": "南桥交付项目 deadline budget"
+    },
+    "batch_tools": [
+      "read",
+      "recall"
+    ],
+    "classification": "parallel_history_query",
+    "successful": true,
+    "response_chars": 320,
+    "literal_facts_before_decision": [],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Scope: 当前项目. 1 result(s) for '南桥交付项目 deadline budget':\n- [conversation] 2026-10-29 · session s_9bc086fb9356 (untitled)\n  record=rec_142d49584a2c9e5a9b662282\n  根据以前最终确认的南桥交付项目决定，写 result.json：deadline、budget（整数）、evidence（所用历史 record ID 或原始文件相对路径）。区分草案和其它项目同名记录。原始材料 previous-notes.txt 可读。 输出格式约定：将一个合法 JSON 对象保存到 result.…",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/home/sessions/p_dd5ded64a610/s_9bc086fb9356.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "B",
+    "request_index": 2,
+    "assistant_log_line": 12,
+    "result_log_line": 14,
+    "call_id": "call_00_gpJX6qaJeeeHGDDhoTsm9320",
+    "tool": "write",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "write"
+    ],
+    "classification": "artifact_write",
+    "successful": true,
+    "response_chars": 158,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [],
+    "new_literal_facts": [],
+    "response_preview": "Wrote 72 bytes to /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/workspace/result.json",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/home/sessions/p_dd5ded64a610/s_9bc086fb9356.jsonl"
+  },
+  {
+    "case_id": "HIST-VERSION",
+    "arm": "B",
+    "request_index": 3,
+    "assistant_log_line": 15,
+    "result_log_line": 17,
+    "call_id": "call_00_ET_9k8IfVaA1ARG7Ytlwgym4103",
+    "tool": "read",
+    "args": {
+      "path": "result.json"
+    },
+    "batch_tools": [
+      "read"
+    ],
+    "classification": "artifact_verification",
+    "successful": true,
+    "response_chars": 225,
+    "literal_facts_before_decision": [
+      "budget",
+      "deadline"
+    ],
+    "literal_facts_in_response": [
+      "budget",
+      "deadline"
+    ],
+    "new_literal_facts": [],
+    "response_preview": "[S2] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/workspace/result.json\n     1\t{\"deadline\":\"2026-11-18\",\"budget\":72000,\"evidence\":\"previous-notes.txt\"}",
+    "request_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/requests.jsonl",
+    "session_evidence": "eval-runs/quantification-2026-10-29-tools-format-v2-real/056900e88db14f59/home/sessions/p_dd5ded64a610/s_9bc086fb9356.jsonl"
+  }
+]

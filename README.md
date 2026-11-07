@@ -4,6 +4,14 @@
 
 设计文档：[docs/design/2026-10-23-architecture-plan.md](docs/design/2026-10-23-architecture-plan.md)
 
+当前开发主线：[个人助手内核与扩展边界](docs/design/2026-10-27-harness-core.md)。先做好 session、对话循环、上下文、记忆、工具、MCP 和 Skill；文档、联网、飞书、浏览器按需要在“设置 → 插件”启用。插件关闭后保留连接和密钥。
+
+最新[内核评测与修复记录](docs/research/2026-10-28-core-evaluation/README.md)：161 项定向检查、11 项前端交互通过；真实模型发现的旧记忆覆盖问题已修复，组合复测通过。
+
+完整会话历史、每次请求的上下文投影和长期记忆分别管理。已有会话会在下次模型请求读取最新记忆和项目规则；已加载的 Skill 更新或停用也会同步生效。
+
+基础助手模式可在 `config.toml` 配置 `[plugins] enabled = []`。开发者可通过 Python entry point 或 `Workspace(..., extensions=(plugin,))` 添加能力，共用同一工具权限与执行入口。
+
 已完成：
 
 - 阶段 1 核心闭环：树形 JSONL 会话日志、可崩溃续跑的 Agent 循环、OpenAI Chat 协议适配、read/write/edit/bash、开发用 CLI。教程：[01-核心闭环](docs/tutorial/01-核心闭环.md)
@@ -23,6 +31,7 @@
 - 文件与调研（M1）：消息可带附件（拖入、粘贴截图、选择文件）；`read` 能按页读 PDF / Word / PPT / Excel；`web_search`（Tavily）与来源编号 [S1]…，回答里可点开；`create_document` 把 Markdown 排成 .md / .docx / .pdf（中文字体内嵌），`present` 交付其他文件，交付前重新打开检查并核对引用，每一版都留副本；模型可设置是否支持看图。教程：[14-文件与调研](docs/tutorial/14-文件与调研.md)
 - 飞书与浏览器（M2）：`feishu` 工具通过官方 lark-cli 以你本人身份读文档、日程、任务、消息；发消息、回复、建/改文档、导入文件每次按具体内容审批（带 dry-run 预览、幂等键和回执，任何档位都不能“总是允许”），删除和改权限不开放；内置 Playwright MCP 浏览器使用独立配置，读页面不询问、打开网站按站点确认、点击输入需确认，同一时间只有一个会话能操作。教程：[15-飞书与浏览器](docs/tutorial/15-飞书与浏览器.md)
 - 定时任务与个人知识（M3）：任务页新建每周 / 每天 / 单次任务（含“每周调研更新”模板），到点在任务自己的会话里运行，错过时合并补跑一次（可改跳过或询问），重启不会重复执行；结果用 `task_result` 报告，有变化、失败或需要你确认时发 macOS 通知，无变化不打扰；“搜索记录”和 `recall` 工具检索以前的对话、来源和文件（支持中文）；`nwb backup` / `nwb restore` 备份恢复，`nwb service install` 随登录启动。教程：[16-定时任务与个人知识](docs/tutorial/16-定时任务与个人知识.md)
+- R-C 文档证据与试用：来源按内容版本保留获取、提取和上下文片段记录；MD/Word/PDF 自动附参考文献，文件结构、引用、数字、人工验收分别显示。模型检索默认当前项目（无项目时限本会话），跨项目在会话中主动启用，项目菜单可排除索引；`read_record` 读取命中上下文。会话“诊断与预算”可设置下次运行的请求/工具/墙钟上限，并查看失败与 token；套餐费用未知。浏览器交互有独立的本地模拟 E2E，不能据此声称真实任务或内容已验收。
 
 默认“工作区”档：项目内读写不询问，命令在沙箱里运行（只能写项目目录、不能联网）；写项目外的文件或在沙箱外运行命令时会请你确认。Web 界面弹审批卡片，CLI 在终端里问 y / a / n。
 
@@ -83,6 +92,8 @@ writable = ["~/.cache/uv", "~/.local/share/uv"]
 交互模式下按 Ctrl-C 取消当前运行（会结束它启动的子进程），在空提示符下按 Ctrl-C 或 Ctrl-D 退出。输入 `/help` 查看 `/tree`、`/edit`、`/checkout`、`/fork` 等命令。
 
 ## 开发
+
+历史改进与业务试跑记录：[实施进度](docs/design/2026-10-25-resume-implementation-status.md)、[本地评测说明](evals/README.md)。这些记录保留，后续开发按内核和实际使用推进。
 
 ```bash
 uv run pytest

@@ -1,0 +1,85 @@
+{
+  "observed_at": "2026-10-25T10:59:53.347155+08:00",
+  "git_revision": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+  "tracked_diff_present": false,
+  "environment": {
+    "os": "Darwin",
+    "release": "27.2.0",
+    "machine": "arm64",
+    "python": "3.12.12"
+  },
+  "pytest": {
+    "command": ".venv/bin/pytest -q --junitxml=/tmp/nwb-resume-baseline-2026-10-25.xml",
+    "tests": 221,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_suite_duration_seconds": 25.247,
+    "console_duration_seconds": 25.39,
+    "modules": 22,
+    "cases_by_module": {
+      "tests.test_anthropic": 3,
+      "tests.test_api": 13,
+      "tests.test_branch_summary": 3,
+      "tests.test_compaction": 8,
+      "tests.test_connectors": 19,
+      "tests.test_deliver": 11,
+      "tests.test_documents": 8,
+      "tests.test_hooks": 7,
+      "tests.test_log": 10,
+      "tests.test_loop": 18,
+      "tests.test_manage": 7,
+      "tests.test_mcp": 13,
+      "tests.test_more_tools": 16,
+      "tests.test_next_step": 15,
+      "tests.test_openai_chat": 4,
+      "tests.test_openai_responses": 3,
+      "tests.test_policy": 5,
+      "tests.test_sandbox": 8,
+      "tests.test_schedule": 17,
+      "tests.test_settings": 8,
+      "tests.test_skills_memory": 11,
+      "tests.test_tools": 14
+    }
+  },
+  "protocol_adapters": {
+    "count": 3,
+    "names": [
+      "OpenAI Chat Completions",
+      "OpenAI Responses",
+      "Anthropic Messages"
+    ],
+    "protocol_test_cases": 10
+  },
+  "context_governance_test_cases": 8,
+  "execution_and_step_derivation_test_cases": 33,
+  "document_input_families": [
+    "PDF",
+    "Word",
+    "PowerPoint",
+    "Excel"
+  ],
+  "create_document_outputs": [
+    "Markdown",
+    "DOCX",
+    "PDF"
+  ],
+  "review_probe_observations": 11,
+  "not_measured": [
+    "real_task_success_rate",
+    "token_savings",
+    "cache_hit_improvement",
+    "cost_per_success",
+    "process_kill_recovery_rate",
+    "external_write_delivery_success",
+    "line_or_branch_coverage",
+    "hosted_CI_execution"
+  ],
+  "scope_note": "Local regression execution and isolated probes only; counts do not establish production reliability or LLM task quality.",
+  "provenance": {
+    "src/nano_workbuddy/context.py": "dc5b43ed5b69b2b5768028058a74a98378c394401cd2e7136ac16e0f0d7747a5",
+    "src/nano_workbuddy/compaction.py": "798c9d16c8e7b41566c12dae16ad0765a3a55c287ae2fc3dc1a07e34475ac15a",
+    "src/nano_workbuddy/llm/anthropic.py": "760edec3bfdf0bd0ed1873e58ce68e4130baafb4fc6dee08e86e504f4732c83e",
+    "docs/research/2026-10-24-re-review-probes.py": "8ce7ab16e75bb1134eb1ff6a1fdac2397ac322de6b188921da07e41c3b1e7c82"
+  }
+}

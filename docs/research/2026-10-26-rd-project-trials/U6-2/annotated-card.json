@@ -1,0 +1,57 @@
+{
+  "type": "trial.finished",
+  "id": "U6-2",
+  "process_status": "finished",
+  "status": "error",
+  "phases": [
+    "ok"
+  ],
+  "session_ids": [
+    "s_be0873950e58",
+    "s_c0a315a23099"
+  ],
+  "workflow_checks": [
+    {
+      "check": "original_home_absent",
+      "ok": true
+    },
+    {
+      "check": "prior_blobs_accessible",
+      "ok": true
+    }
+  ],
+  "error_type": "BudgetExceeded",
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-2/restored-home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 60.988095541950315,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 46129,
+    "output": 4679,
+    "cache_read": 38784,
+    "cache_write": 0
+  },
+  "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U6-2",
+  "interpretation": "harness_configuration_confounded",
+  "harness_issue": "scratch_dir == project root imposed session-only recall",
+  "elapsed_scope": "execution through automatic checks; excludes later human review",
+  "completion_elapsed_seconds": null,
+  "calls_per_run": {
+    "r_620ce10ece36": 4,
+    "r_71f65011afc4": 8
+  },
+  "tool_errors": 1,
+  "usage_complete": true,
+  "scope_blocks": 0
+}

@@ -1,0 +1,13 @@
+case_id,arm,passed,status,error_type,facts_correct,facts_required,format_valid,format_errors,model_calls,responses,usage_complete,input_tokens,observed_input,observed_output,observed_cache_read,seconds,grep_calls,recall_calls,read_record_calls,read_calls,source_read_attempts,exact_repeat_reads,spill_results,summary_calls,projection_reduction,directory
+CTX-SPILL,A,True,ok,,3,3,True,,4,4,True,130162,130162,288,88448,12.706781833432615,0,0,0,2,1,0,0,0,0.0,e8a1f7e41f5e43cb
+CTX-SPILL,B,True,ok,,3,3,True,,6,6,True,38897,38897,486,32512,17.357453249860555,2,0,0,2,1,0,1,0,0.7562460352315425,47bf348ab9ae47d5
+CTX-COMPACT,A,False,error,ContextTooLarge,0,3,False,$: expected object,0,0,False,,0,0,0,0.008856417145580053,0,0,0,0,0,0,0,0,,f86c2a5c3df843b7
+CTX-COMPACT,B,True,ok,,3,3,True,,5,5,True,35400,35400,874,30464,15.33049587532878,0,0,0,2,1,0,0,1,0.5647304414703318,d20e3c995b17477f
+MEM-FRESH,A,False,ok,,0,2,True,,3,3,True,7702,7702,245,5632,7.118157208897173,0,0,0,1,0,0,0,0,0.0,c96f876f21a9487a
+MEM-FRESH,B,True,ok,,2,2,True,,3,3,True,8317,8317,219,6016,7.603653291705996,0,0,0,1,0,0,0,0,0.0,7bffeb1aed6740b9
+MEM-REUSE,A,True,ok,,2,2,True,,4,4,True,22518,22518,234,17024,9.226260082796216,0,0,0,2,1,0,0,0,0.0,9113c5592faa4fec
+MEM-REUSE,B,True,ok,,2,2,True,,4,4,True,22821,22821,289,17024,10.157415166962892,0,0,0,2,1,0,0,0,0.0,92cecc9d2d86420a
+HIST-LOCATE,A,True,ok,,2,2,True,,3,3,True,7650,7650,167,6272,7.700272417161614,0,0,0,1,1,0,0,0,0.0,07352e3a2de94cb0
+HIST-LOCATE,B,True,ok,,2,2,True,,4,4,True,12818,12818,373,10752,9.734483542386442,0,1,0,2,1,0,0,0,0.0,434da52cf3ce4a4e
+HIST-VERSION,A,True,ok,,2,2,True,,5,5,True,14030,14030,626,12288,13.916157125029713,2,0,0,2,1,0,0,0,0.0,9942ecc5c7a34069
+HIST-VERSION,B,True,ok,,2,2,True,,4,4,True,12672,12672,379,10880,9.621877915691584,0,1,0,2,1,0,0,0,0.0,056900e88db14f59

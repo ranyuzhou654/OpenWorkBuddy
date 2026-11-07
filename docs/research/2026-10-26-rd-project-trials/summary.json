@@ -1,0 +1,540 @@
+{
+  "scope": "Six local trials using real repository materials; historical replay, not natural longitudinal usage",
+  "provider": "opendesign",
+  "requested_model": "deepseek-v4.1-flash",
+  "observed_models": [
+    "deepseek-flash"
+  ],
+  "trials": 6,
+  "model_requests": 63,
+  "model_responses": 63,
+  "sdk_retries": [
+    0
+  ],
+  "runtime_status_counts": {
+    "ok": 3,
+    "error": 3
+  },
+  "harness_confounded_trials_retained": [
+    "U6-1",
+    "U6-2"
+  ],
+  "usage": {
+    "input": 386101,
+    "output": 48787,
+    "cache_read": 325760,
+    "cache_write": 0
+  },
+  "usage_complete": true,
+  "cache_note": "input includes cache_read; do not add cache_read to input again",
+  "cost": {
+    "amount": null,
+    "complete": false,
+    "reason": "subscription billing unknown"
+  },
+  "sum_trial_seconds": 428.3621904575266,
+  "human_acceptance_elapsed_seconds": null,
+  "human_reviews_completed": 0,
+  "task_completion_rate": null,
+  "actual_external_writes": 0,
+  "scope_blocks": 0,
+  "remaining_unexecuted_slots": [
+    "U2-1",
+    "U2-2",
+    "U3-1",
+    "U3-2",
+    "U4-1",
+    "U4-2"
+  ],
+  "natural_restart_sleep_observed": false,
+  "trials_summary": [
+    {
+      "type": "trial.finished",
+      "id": "U1-1",
+      "process_status": "finished",
+      "status": "ok",
+      "phases": [
+        "ok"
+      ],
+      "session_ids": [
+        "s_1b9ba77b2267"
+      ],
+      "workflow_checks": [],
+      "model_calls": 11,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-1/home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [
+        {
+          "path": "brief.docx",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "39673 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "opens as Word",
+              "ok": true,
+              "detail": "Word document",
+              "layer": "structure"
+            },
+            {
+              "name": "has readable text",
+              "ok": true,
+              "detail": "3000 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "cdafec8bed67a80a5596dc69a1e936bf028cef1e2cb7805158e33f65c60a853b"
+        },
+        {
+          "path": "brief.pdf",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "179322 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "opens as PDF",
+              "ok": true,
+              "detail": "PDF, 2 pages",
+              "layer": "structure"
+            },
+            {
+              "name": "has readable text",
+              "ok": true,
+              "detail": "2897 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "c5da74001e655a5fbf923d1612b416e1146f5088cdb2ed229c464d714f0e7f49"
+        }
+      ],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 109.51371554099023,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 112109,
+        "output": 15282,
+        "cache_read": 97024,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U1-1",
+      "interpretation": "pending_human_review",
+      "harness_issue": null,
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_c06b40523c64": 11
+      },
+      "tool_errors": 0,
+      "usage_complete": true,
+      "scope_blocks": 0
+    },
+    {
+      "type": "trial.finished",
+      "id": "U1-2",
+      "process_status": "finished",
+      "status": "ok",
+      "phases": [
+        "ok"
+      ],
+      "session_ids": [
+        "s_0337797d93f7"
+      ],
+      "workflow_checks": [],
+      "model_calls": 6,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U1-2/home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [
+        {
+          "path": "memo.docx",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "40228 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "opens as Word",
+              "ok": true,
+              "detail": "Word document",
+              "layer": "structure"
+            },
+            {
+              "name": "has readable text",
+              "ok": true,
+              "detail": "3363 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "d12c2acf480f8819f94d8c9d45ea6676118dd4b216869fb7077a6161402f30de"
+        },
+        {
+          "path": "memo.pdf",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "190608 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "opens as PDF",
+              "ok": true,
+              "detail": "PDF, 2 pages",
+              "layer": "structure"
+            },
+            {
+              "name": "has readable text",
+              "ok": true,
+              "detail": "3241 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "3468e4523687d33ae5abc7bafdaad6eb743d5a45010c1d25ea9c7f4d662823c7"
+        }
+      ],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 72.31132937502116,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 51584,
+        "output": 11895,
+        "cache_read": 40320,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U1-2",
+      "interpretation": "pending_human_review",
+      "harness_issue": null,
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_3f4acb072ab8": 6
+      },
+      "tool_errors": 0,
+      "usage_complete": true,
+      "scope_blocks": 0
+    },
+    {
+      "type": "trial.finished",
+      "id": "U5-1",
+      "process_status": "finished",
+      "status": "error",
+      "phases": [
+        "ok",
+        "error"
+      ],
+      "session_ids": [
+        "s_2dd5c3b68cef"
+      ],
+      "workflow_checks": [
+        {
+          "check": "period_outcomes",
+          "ok": false,
+          "observed": [
+            "unknown",
+            "failed"
+          ],
+          "expected": [
+            "changed",
+            "changed"
+          ]
+        },
+        {
+          "check": "exactly_two_consumed_inputs",
+          "ok": true
+        }
+      ],
+      "model_calls": 12,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [
+        {
+          "path": "progress.md",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "10184 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "valid UTF-8 text",
+              "ok": true,
+              "detail": "6754 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "5a2388db76712cb65daa86a96dc91d3da63689c96440277efe86cc673936b9ea"
+        }
+      ],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 75.13188504101709,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 79676,
+        "output": 9141,
+        "cache_read": 67456,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U5-1",
+      "interpretation": "pending_human_review",
+      "harness_issue": null,
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_fc582a714096": 7,
+        "r_847f4fc39b03": 5
+      },
+      "tool_errors": 5,
+      "usage_complete": true,
+      "scope_blocks": 0
+    },
+    {
+      "type": "trial.finished",
+      "id": "U5-2",
+      "process_status": "finished",
+      "status": "ok",
+      "phases": [
+        "ok",
+        "ok"
+      ],
+      "session_ids": [
+        "s_3deb4bd77de4"
+      ],
+      "workflow_checks": [
+        {
+          "check": "period_outcomes",
+          "ok": false,
+          "observed": [
+            "unknown",
+            "unchanged"
+          ],
+          "expected": [
+            "changed",
+            "unchanged"
+          ]
+        },
+        {
+          "check": "exactly_two_consumed_inputs",
+          "ok": true
+        }
+      ],
+      "model_calls": 10,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-2/home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [
+        {
+          "path": "progress.md",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "3478 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "valid UTF-8 text",
+              "ok": true,
+              "detail": "2205 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "cdb3ea60dbf8bd5a75b7dd7e0adf59effeed136db23f4154cc96a9452d382fc5"
+        }
+      ],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 51.026555999647826,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 53511,
+        "output": 3064,
+        "cache_read": 45568,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U5-2",
+      "interpretation": "pending_human_review",
+      "harness_issue": null,
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_a333c3f3f7d0": 6,
+        "r_dd2a99fe995f": 4
+      },
+      "tool_errors": 1,
+      "usage_complete": true,
+      "scope_blocks": 0
+    },
+    {
+      "type": "trial.finished",
+      "id": "U6-1",
+      "process_status": "finished",
+      "status": "error",
+      "phases": [
+        "ok"
+      ],
+      "session_ids": [
+        "s_11841e23bac2",
+        "s_d72e73c580dc"
+      ],
+      "workflow_checks": [
+        {
+          "check": "prior_blobs_accessible",
+          "ok": true
+        }
+      ],
+      "error_type": "BudgetExceeded",
+      "model_calls": 12,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-1/home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [
+        {
+          "path": "recovered.md",
+          "checks": [
+            {
+              "name": "not empty",
+              "ok": true,
+              "detail": "2559 bytes",
+              "layer": "structure"
+            },
+            {
+              "name": "valid UTF-8 text",
+              "ok": true,
+              "detail": "1235 characters",
+              "layer": "structure"
+            }
+          ],
+          "sha256": "ea2ab7d52e92df7c3248f7a2be561e7ed744cacbb580b845e718ebae37b47f9f"
+        }
+      ],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 59.390608958899975,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 43092,
+        "output": 4726,
+        "cache_read": 36608,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U6-1",
+      "interpretation": "harness_configuration_confounded",
+      "harness_issue": "scratch_dir == project root imposed session-only recall",
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_9c711f46fcb1": 5,
+        "r_0ea63fdbbb77": 7
+      },
+      "tool_errors": 1,
+      "usage_complete": true,
+      "scope_blocks": 0
+    },
+    {
+      "type": "trial.finished",
+      "id": "U6-2",
+      "process_status": "finished",
+      "status": "error",
+      "phases": [
+        "ok"
+      ],
+      "session_ids": [
+        "s_be0873950e58",
+        "s_c0a315a23099"
+      ],
+      "workflow_checks": [
+        {
+          "check": "original_home_absent",
+          "ok": true
+        },
+        {
+          "check": "prior_blobs_accessible",
+          "ok": true
+        }
+      ],
+      "error_type": "BudgetExceeded",
+      "model_calls": 12,
+      "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-2/restored-home",
+      "completion": null,
+      "factual_errors": null,
+      "human_review": "pending",
+      "artifact_checks": [],
+      "clarifications": 0,
+      "necessary_approvals": 0,
+      "denied_extra_approvals": 0,
+      "rescue_count": 0,
+      "elapsed_seconds": 60.988095541950315,
+      "human_wait_seconds": 0,
+      "cost": null,
+      "cost_reason": "subscription billing unknown",
+      "material_mode": "repository_history_replay",
+      "usage": {
+        "input": 46129,
+        "output": 4679,
+        "cache_read": 38784,
+        "cache_write": 0
+      },
+      "evidence_path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/docs/research/2026-10-26-rd-project-trials/U6-2",
+      "interpretation": "harness_configuration_confounded",
+      "harness_issue": "scratch_dir == project root imposed session-only recall",
+      "elapsed_scope": "execution through automatic checks; excludes later human review",
+      "completion_elapsed_seconds": null,
+      "calls_per_run": {
+        "r_620ce10ece36": 4,
+        "r_71f65011afc4": 8
+      },
+      "tool_errors": 1,
+      "usage_complete": true,
+      "scope_blocks": 0
+    }
+  ],
+  "raw_source": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26",
+  "source_archive_sha256": "250db1be72fb6757bbae4b631fa4d20a8ad54b6fe54cff9cf5183c437e28d11e",
+  "executed_runner_sha256": "085f84ceab5f10b2cf3464d401e3fca0ff6b2a79d9870afe3c0814d3f769f04e",
+  "all_paid_trials_use_original_executed_runner": true,
+  "product_code_sha256": "ee5f13e078ede8793f26530eb0adc93c0a5dfcbbe04965014739b47d8e1510c6"
+}

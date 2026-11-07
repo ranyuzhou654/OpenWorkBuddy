@@ -1,0 +1,26 @@
+[
+  {
+    "schedule_id": "sch_4efc345ba118",
+    "planned_at": 1792989727.482122,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_4efc345ba118:manual:request_870de156783b",
+    "outcome": "failed",
+    "summary": "运行未正常完成（error）",
+    "created_at": 1792989727.4822452,
+    "done_at": 1792989770.193828,
+    "input_id": "in_b29439b3d871"
+  },
+  {
+    "schedule_id": "sch_4efc345ba118",
+    "planned_at": 1792989695.7398012,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_4efc345ba118:manual:request_f7e80c3a7b7e",
+    "outcome": "unknown",
+    "summary": "结果待核验：本轮存在未核验恢复的工具错误",
+    "created_at": 1792989695.7399812,
+    "done_at": 1792989727.4747279,
+    "input_id": "in_b1ab55c0ebe5"
+  }
+]

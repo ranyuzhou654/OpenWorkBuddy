@@ -1,0 +1,153 @@
+{
+  "task_count": 1,
+  "repetitions": 2,
+  "same_task_text": true,
+  "same_documents_and_revisions": true,
+  "same_backend_code_sha256": true,
+  "runner_changed": "case ID validation, output directory and labels only; frozen separately",
+  "trials": [
+    {
+      "id": "U3-1",
+      "runtime": {
+        "session_id": "s_4d0f8a1209fe",
+        "status": "ok",
+        "model_calls": 3,
+        "id": "U3-1",
+        "process_status": "finished",
+        "model_responses": 3,
+        "observed_models": [
+          "deepseek-flash"
+        ],
+        "usage": {
+          "input": 19438,
+          "output": 3273,
+          "cache_read": 12416
+        },
+        "usage_complete": true,
+        "elapsed_seconds": 26.88684566738084,
+        "artifact_checks": [
+          {
+            "path": "meeting-prep.docx",
+            "sha256": "f7519e9aad3702680d2deb95f9c06daff372cf465e999b842ea08c27359c00d5",
+            "checks": [
+              {
+                "name": "not empty",
+                "ok": true,
+                "detail": "40341 bytes",
+                "layer": "structure"
+              },
+              {
+                "name": "opens as Word",
+                "ok": true,
+                "detail": "Word document",
+                "layer": "structure"
+              },
+              {
+                "name": "has readable text",
+                "ok": true,
+                "detail": "2488 characters",
+                "layer": "structure"
+              }
+            ]
+          },
+          {
+            "path": "meeting-prep.md",
+            "sha256": "09a00ddef9b07fa57110c81de279af8a090cd0cda86e08c8140828ced4cef039",
+            "checks": [
+              {
+                "name": "not empty",
+                "ok": true,
+                "detail": "4562 bytes",
+                "layer": "structure"
+              },
+              {
+                "name": "valid UTF-8 text",
+                "ok": true,
+                "detail": "2442 characters",
+                "layer": "structure"
+              }
+            ]
+          }
+        ],
+        "cost": null,
+        "factual_acceptance": "pending",
+        "human_acceptance": "pending"
+      },
+      "human_acceptance": "passed",
+      "assistance": "layout only"
+    },
+    {
+      "id": "U3-2",
+      "runtime": {
+        "session_id": "s_dc5b1634e962",
+        "status": "ok",
+        "model_calls": 6,
+        "id": "U3-2",
+        "process_status": "finished",
+        "model_responses": 6,
+        "observed_models": [
+          "deepseek-flash"
+        ],
+        "usage": {
+          "input": 43842,
+          "output": 4785,
+          "cache_read": 35968
+        },
+        "usage_complete": true,
+        "elapsed_seconds": 49.00886891596019,
+        "artifact_checks": [
+          {
+            "path": "meeting-prep.docx",
+            "sha256": "86ae519834d13c3f0d142752df69aef8069f95f3442cd278fb1497ef4abe17b4",
+            "checks": [
+              {
+                "name": "not empty",
+                "ok": true,
+                "detail": "40692 bytes",
+                "layer": "structure"
+              },
+              {
+                "name": "opens as Word",
+                "ok": true,
+                "detail": "Word document",
+                "layer": "structure"
+              },
+              {
+                "name": "has readable text",
+                "ok": true,
+                "detail": "2843 characters",
+                "layer": "structure"
+              }
+            ]
+          },
+          {
+            "path": "meeting-prep.md",
+            "sha256": "8b2eb11b0900e1e636e506e013e6513d89b5846c05523771533d3dbd510389e6",
+            "checks": [
+              {
+                "name": "not empty",
+                "ok": true,
+                "detail": "5448 bytes",
+                "layer": "structure"
+              },
+              {
+                "name": "valid UTF-8 text",
+                "ok": true,
+                "detail": "2814 characters",
+                "layer": "structure"
+              }
+            ]
+          }
+        ],
+        "cost": null,
+        "factual_acceptance": "pending",
+        "human_acceptance": "pending"
+      },
+      "human_acceptance": "pending",
+      "assistance": "two content paragraphs and table column widths"
+    }
+  ],
+  "business_success_rate": null,
+  "end_to_end_time_saving": null,
+  "cost": null
+}

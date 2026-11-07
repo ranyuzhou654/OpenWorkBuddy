@@ -1,0 +1,15 @@
+{
+  "case_id": "U3-1",
+  "acceptance_status": "passed",
+  "source": "explicit user confirmation",
+  "original_review_card_sha256": "3aa5bc9d666b23b85a8666d9c767097379344ff924018614d2221006364c91ef",
+  "completed_review_card_sha256": "af50cb18b1accd2d7fc9929cf984a9d527e8d2d20045febcaabdcc7e9a4941e3",
+  "original_review_card_unchanged": true,
+  "original_runtime_record_unchanged": true,
+  "original_trial_files_unchanged": 22,
+  "all_delivery_hashes_match": true,
+  "new_model_calls": 0,
+  "new_feishu_reads": 0,
+  "remote_business_writes": 0,
+  "product_code_changed": false
+}

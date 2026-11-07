@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-25T15:00:40.129632+00:00",
+  "model_requests": 0,
+  "real_feishu_writes": 0,
+  "external_sites": 0,
+  "cli": {
+    "version": "1.0.98",
+    "exit": 0,
+    "ok": true,
+    "dry_run": true,
+    "stdin_exact": true
+  },
+  "browser": {
+    "package": "@playwright/mcp@0.0.83",
+    "advertised_tools": 25,
+    "exposed_tools": 21,
+    "navigation": "about:blank",
+    "screenshot_bytes": 4254,
+    "screenshot_sha256": "3878570f4a62a0d65f57cf1754e0269e56ec797f4e36e26b44c172eb6e800401",
+    "isolated_profile": true,
+    "output_in_session": true
+  }
+}

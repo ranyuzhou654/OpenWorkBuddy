@@ -1,0 +1,430 @@
+{
+  "date": "2026-10-25",
+  "timezone": "Asia/Shanghai",
+  "scope": "Development calibration only; no holdout scores or human acceptance.",
+  "provider": "opendesign",
+  "base_url": "https://amr-link.open-design.ai/v1",
+  "requested_model": "deepseek-v4.1-flash",
+  "observed_models": [
+    "deepseek-flash"
+  ],
+  "git_base_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+  "code_sha256": "ac655be86616b994a0faee4c1dbed916d77ca64a2fa51d6585c39ddd91b525b8",
+  "dataset_sha256": "29c1643220914374c75b7fef9f732f6a0d5e98d105ce1d35fec60bc8bc07f080",
+  "trials": 12,
+  "model_requests": 94,
+  "sdk_retries": 0,
+  "runtime_ok": 10,
+  "runtime_budget_failed": 2,
+  "initial_automatic_checks_passed": 5,
+  "regraded_automatic_checks_passed": 9,
+  "verdict_pending": 9,
+  "failed_retained": 3,
+  "human_reviews_completed": 0,
+  "completion_rate": null,
+  "pass3": null,
+  "usage": {
+    "input_total": 619064,
+    "output_total": 27327,
+    "cache_read": 529664,
+    "cache_write": 0
+  },
+  "monetary_cost": {
+    "currency": null,
+    "amount": null,
+    "complete": false,
+    "reason": "No applicable subscription billing/price snapshot supplied."
+  },
+  "sum_trial_agent_seconds": 431.757,
+  "limits": {
+    "model_calls": 12,
+    "seconds": 180,
+    "max_turns": 12,
+    "sdk_retries": 0
+  },
+  "calibration_corrections": "evals/calibration-01-grading-corrections.json",
+  "evidence_directory": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/2026-10-25-dev-calibration-01",
+  "source_archive": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/2026-10-25-dev-calibration-01/source.zip",
+  "trials_summary": [
+    {
+      "trial_id": "DEV-DOC-01-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-DOC-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 9,
+      "usage": {
+        "input_total": 54094,
+        "output_total": 4450,
+        "cache_read": 45312,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 54094,
+          "output": 4450,
+          "cache_read": 45312,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "numbers.json",
+          "sha256": "3983ae9a202bb98d84380f8a299eea72e81dc230c58d3590b24baa4ecea92330"
+        },
+        {
+          "path": "report.docx",
+          "sha256": "b34b5d2087e88266f55c79857becb7bdc42b857d3dce9c93629ef61c8ee1bda2"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-DOC-01-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-DOC-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 4,
+      "usage": {
+        "input_total": 13407,
+        "output_total": 1984,
+        "cache_read": 9600,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 13407,
+          "output": 1984,
+          "cache_read": 9600,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "numbers.json",
+          "sha256": "3983ae9a202bb98d84380f8a299eea72e81dc230c58d3590b24baa4ecea92330"
+        },
+        {
+          "path": "report.docx",
+          "sha256": "16fb9739277ef41671f067507f808584285dbfb1b174762a6633ae88a383299a"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-DOC-02-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-DOC-02",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 7,
+      "usage": {
+        "input_total": 28308,
+        "output_total": 1835,
+        "cache_read": 23424,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 28308,
+          "output": 1835,
+          "cache_read": 23424,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "brief.md",
+          "sha256": "672628b8bab978aad924752c0b609927522597e97091211a05dac12228de9e8c"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-DOC-02-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-DOC-02",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 4,
+      "usage": {
+        "input_total": 13466,
+        "output_total": 1199,
+        "cache_read": 10112,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 13466,
+          "output": 1199,
+          "cache_read": 10112,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "brief.md",
+          "sha256": "8e73a6857fa03dcc1865a4aca9f7acc6034a4d6fbac159bd78e58953277a31b5"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-RES-01-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-RES-01",
+      "status": "error",
+      "passed": false,
+      "failure_kind": "budget",
+      "model_calls": 12,
+      "usage": {
+        "input_total": 45833,
+        "output_total": 3427,
+        "cache_read": 39808,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 45833,
+          "output": 3427,
+          "cache_read": 39808,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [],
+      "annotations": [
+        {
+          "category": "harness",
+          "cause": "missing_public_input_inventory",
+          "detail": "Prompt named a directory, but file names were not supplied and enumeration was unavailable. Twelve completed requests reached the declared cap; failure retained."
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-RES-01-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-RES-01",
+      "status": "error",
+      "passed": false,
+      "failure_kind": "budget",
+      "model_calls": 12,
+      "usage": {
+        "input_total": 47485,
+        "output_total": 3328,
+        "cache_read": 41856,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 47485,
+          "output": 3328,
+          "cache_read": 41856,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [],
+      "annotations": [
+        {
+          "category": "harness",
+          "cause": "missing_public_input_inventory",
+          "detail": "Same inventory defect in B1; the failure remains in the main denominator."
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-RES-02-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-RES-02",
+      "status": "ok",
+      "passed": false,
+      "failure_kind": "model_judgment",
+      "model_calls": 10,
+      "usage": {
+        "input_total": 42853,
+        "output_total": 3703,
+        "cache_read": 36992,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 42853,
+          "output": 3703,
+          "cache_read": 36992,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "evidence.md",
+          "sha256": "ed52673e5ed832c6f24b8fc0e682f6a8b474e8c777fee73b2629eb5e1b7840c7"
+        }
+      ],
+      "annotations": [
+        {
+          "category": "harness",
+          "cause": "root_directory_rule",
+          "detail": "The initial eval rules allowed root/* but omitted root itself. A read of the trial workspace root was denied; this is a harness restriction, not evidence of executed access outside the scope. Original strict scope failure is retained."
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-RES-02-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-RES-02",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 7,
+      "usage": {
+        "input_total": 23845,
+        "output_total": 3023,
+        "cache_read": 19200,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 23845,
+          "output": 3023,
+          "cache_read": 19200,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "evidence.md",
+          "sha256": "3256f4bc96d1a213b7cf95b115eeeaabf187cbafd4f5e0a457deda45d3ac47e3"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-CTX-01-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-CTX-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 9,
+      "usage": {
+        "input_total": 232443,
+        "output_total": 1254,
+        "cache_read": 203136,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 232443,
+          "output": 1254,
+          "cache_read": 203136,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "drafts/constraints.md",
+          "sha256": "8c03b0f1ffd4dd7a6f984ad675d18129f6b8c98fcaa71f6a528bc1c5da8ee62b"
+        },
+        {
+          "path": "state.json",
+          "sha256": "256f62d433be3ae9676ea40c832e3ec7d6f3ea5ca67c2aa7a248cc889c4d22a8"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-CTX-01-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-CTX-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 9,
+      "usage": {
+        "input_total": 84691,
+        "output_total": 1524,
+        "cache_read": 73216,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 84691,
+          "output": 1524,
+          "cache_read": 73216,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "draft/constraints.md",
+          "sha256": "b4752f5a0b572415e4c7a3be4a628ca0d1537f75d7a04b0d812c64c0f7635618"
+        },
+        {
+          "path": "state.json",
+          "sha256": "256f62d433be3ae9676ea40c832e3ec7d6f3ea5ca67c2aa7a248cc889c4d22a8"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-WF-01-B1-1",
+      "arm": "B1",
+      "case_id": "DEV-WF-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 5,
+      "usage": {
+        "input_total": 14728,
+        "output_total": 936,
+        "cache_read": 11904,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 14728,
+          "output": 936,
+          "cache_read": 11904,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "workflow/updated.md",
+          "sha256": "7039f46a72d499899e724682d3a48f7ba6e3ddd0a1eb72cfe07fa354af5fbdcc"
+        }
+      ]
+    },
+    {
+      "trial_id": "DEV-WF-01-B0-1",
+      "arm": "B0",
+      "case_id": "DEV-WF-01",
+      "status": "ok",
+      "passed": null,
+      "failure_kind": null,
+      "model_calls": 6,
+      "usage": {
+        "input_total": 17911,
+        "output_total": 664,
+        "cache_read": 15104,
+        "cache_write": 0,
+        "complete": true,
+        "observed_partial": {
+          "input": 17911,
+          "output": 664,
+          "cache_read": 15104,
+          "cache_write": 0
+        }
+      },
+      "artifact_hashes": [
+        {
+          "path": "workflow/updated.md",
+          "sha256": "c07103472fecb851b02a36965f9cd8e4209bf37956f838e109ec4bac7150e051"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "One repeat per task, six development tasks only.",
+    "All human fact/layout rubrics remain unreviewed.",
+    "Initial paths exposed A/B labels and system prompts included physical roots; no causal benefit claim.",
+    "Two inventory failures and one root-rule failure are retained and annotated as harness problems.",
+    "This run calibrates spill only; it did not exercise all context tiers.",
+    "No real Feishu/browser/scheduler or external search acceptance.",
+    "Regraded results preserve the original JSONL, per-trial files, initial reports and frozen code archive.",
+    "Provider backend weight revision was not exposed; requested/returned model IDs are retained."
+  ],
+  "test_evidence": {
+    "tests": 249,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit": "docs/research/2026-10-25-eval-preparation-tests.xml"
+  }
+}

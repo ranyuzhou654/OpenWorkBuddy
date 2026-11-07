@@ -1,0 +1,49 @@
+[
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U6-1/workspace/recovered.md",
+    "name": "recovered.md",
+    "mime": "text/markdown",
+    "size": 2559,
+    "sha256": "ea2ab7d52e92df7c3248f7a2be561e7ed744cacbb580b845e718ebae37b47f9f",
+    "version": 1,
+    "title": "R-B 验证结论恢复记录（未取回）",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "2559 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "valid UTF-8 text",
+        "ok": true,
+        "detail": "1235 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citation evidence",
+        "ok": null,
+        "layer": "citations",
+        "detail": "not assessed; no structured citation check for this file"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "headings": 5
+    },
+    "kept": true,
+    "created_at": 1792989880.5660648,
+    "sources": []
+  }
+]

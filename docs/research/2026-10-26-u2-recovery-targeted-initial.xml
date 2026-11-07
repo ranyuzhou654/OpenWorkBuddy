@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="6" time="1.385" timestamp="2026-10-26T22:59:39.045610+08:00" hostname="MacBook-Pro-2.local"><testcase classname="tests.test_delivered_failure" name="test_failure_notice_survives_reopen_and_failed_requests_never_auto_resume" time="0.085" /><testcase classname="tests.test_delivered_failure" name="test_local_inspection_and_download_do_not_call_models_or_change_failed_run[available]" time="0.242"><failure message="AttributeError: 'Server' object has no attribute 'new_session'">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down0/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down0/project')
+state = 'available'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10ae42de0&gt;
+
+    @pytest.mark.parametrize("state", ["available", "missing", "corrupt", "unreadable"])
+    async def test_local_inspection_and_download_do_not_call_models_or_change_failed_run(home, project, state, monkeypatch):
+        model = failed_model()
+        ws = Workspace(load(home), connect=model.connect)
+        async with Server(ws) as server:
+&gt;           sid = await server.new_session(project)
+                        ^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Server' object has no attribute 'new_session'
+
+tests/test_delivered_failure.py:62: AttributeError</failure></testcase><testcase classname="tests.test_delivered_failure" name="test_local_inspection_and_download_do_not_call_models_or_change_failed_run[missing]" time="0.221"><failure message="AttributeError: 'Server' object has no attribute 'new_session'">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down1/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down1/project')
+state = 'missing'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b41e270&gt;
+
+    @pytest.mark.parametrize("state", ["available", "missing", "corrupt", "unreadable"])
+    async def test_local_inspection_and_download_do_not_call_models_or_change_failed_run(home, project, state, monkeypatch):
+        model = failed_model()
+        ws = Workspace(load(home), connect=model.connect)
+        async with Server(ws) as server:
+&gt;           sid = await server.new_session(project)
+                        ^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Server' object has no attribute 'new_session'
+
+tests/test_delivered_failure.py:62: AttributeError</failure></testcase><testcase classname="tests.test_delivered_failure" name="test_local_inspection_and_download_do_not_call_models_or_change_failed_run[corrupt]" time="0.219"><failure message="AttributeError: 'Server' object has no attribute 'new_session'">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down2/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down2/project')
+state = 'corrupt'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b5a5730&gt;
+
+    @pytest.mark.parametrize("state", ["available", "missing", "corrupt", "unreadable"])
+    async def test_local_inspection_and_download_do_not_call_models_or_change_failed_run(home, project, state, monkeypatch):
+        model = failed_model()
+        ws = Workspace(load(home), connect=model.connect)
+        async with Server(ws) as server:
+&gt;           sid = await server.new_session(project)
+                        ^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Server' object has no attribute 'new_session'
+
+tests/test_delivered_failure.py:62: AttributeError</failure></testcase><testcase classname="tests.test_delivered_failure" name="test_local_inspection_and_download_do_not_call_models_or_change_failed_run[unreadable]" time="0.221"><failure message="AttributeError: 'Server' object has no attribute 'new_session'">home = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down3/home')
+project = PosixPath('/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-873/test_local_inspection_and_down3/project')
+state = 'unreadable'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b662990&gt;
+
+    @pytest.mark.parametrize("state", ["available", "missing", "corrupt", "unreadable"])
+    async def test_local_inspection_and_download_do_not_call_models_or_change_failed_run(home, project, state, monkeypatch):
+        model = failed_model()
+        ws = Workspace(load(home), connect=model.connect)
+        async with Server(ws) as server:
+&gt;           sid = await server.new_session(project)
+                        ^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Server' object has no attribute 'new_session'
+
+tests/test_delivered_failure.py:62: AttributeError</failure></testcase><testcase classname="tests.test_delivered_failure" name="test_only_current_run_files_are_reported_after_failure" time="0.026" /></testsuite></testsuites>

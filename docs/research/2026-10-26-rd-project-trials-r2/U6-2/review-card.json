@@ -1,0 +1,66 @@
+{
+  "type": "trial.finished",
+  "id": "U6-2",
+  "process_status": "finished",
+  "status": "error",
+  "phases": [
+    "ok",
+    "limit"
+  ],
+  "session_ids": [
+    "s_3a6f00395a20",
+    "s_b518d9048972"
+  ],
+  "workflow_checks": [
+    {
+      "check": "original_home_absent",
+      "ok": true
+    },
+    {
+      "check": "prior_blobs_accessible",
+      "ok": true
+    }
+  ],
+  "record_scopes": [
+    {
+      "session_ids": [
+        "s_3a6f00395a20"
+      ],
+      "project_id": "p_7ad1c74ecf53",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    },
+    {
+      "session_ids": [
+        "s_3a6f00395a20",
+        "s_b518d9048972"
+      ],
+      "project_id": "p_7ad1c74ecf53",
+      "session_id": null,
+      "access_scope": "local",
+      "label": "当前项目"
+    }
+  ],
+  "model_calls": 12,
+  "final_home": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26-r2/U6-2/restored-home",
+  "completion": null,
+  "factual_errors": null,
+  "human_review": "pending",
+  "artifact_checks": [],
+  "clarifications": 0,
+  "necessary_approvals": 0,
+  "denied_extra_approvals": 0,
+  "rescue_count": 0,
+  "elapsed_seconds": 74.960618250072,
+  "human_wait_seconds": 0,
+  "cost": null,
+  "cost_reason": "subscription billing unknown",
+  "material_mode": "repository_history_replay",
+  "usage": {
+    "input": 55780,
+    "output": 5018,
+    "cache_read": 44032,
+    "cache_write": 0
+  }
+}

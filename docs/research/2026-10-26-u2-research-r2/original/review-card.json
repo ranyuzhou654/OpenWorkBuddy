@@ -1,0 +1,67 @@
+{
+  "session_id": "s_dc77050d008b",
+  "status": "error",
+  "error_type": "APITimeoutError",
+  "model_calls": 9,
+  "search_requests": 3,
+  "id": "U2-2",
+  "process_status": "finished",
+  "model_responses": 8,
+  "observed_models": [
+    "deepseek-flash"
+  ],
+  "usage": {
+    "input": 201314,
+    "output": 8997,
+    "cache_read": 163456
+  },
+  "usage_complete": false,
+  "elapsed_seconds": 124.99287758255377,
+  "artifact_checks": [
+    {
+      "path": "research-brief.docx",
+      "sha256": "2e2b45481db8974d5b797f326e1bc80f6fb9a94e646a005fd14a7291e3f23c48",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "42101 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "opens as Word",
+          "ok": true,
+          "detail": "Word document",
+          "layer": "structure"
+        },
+        {
+          "name": "has readable text",
+          "ok": true,
+          "detail": "4492 characters",
+          "layer": "structure"
+        }
+      ]
+    },
+    {
+      "path": "research-brief.md",
+      "sha256": "caff604a4271a48ca36a4f140ff408b068c121dcf200ba40d1734040f09cf98a",
+      "checks": [
+        {
+          "name": "not empty",
+          "ok": true,
+          "detail": "8292 bytes",
+          "layer": "structure"
+        },
+        {
+          "name": "valid UTF-8 text",
+          "ok": true,
+          "detail": "4700 characters",
+          "layer": "structure"
+        }
+      ]
+    }
+  ],
+  "cost": null,
+  "human_acceptance": "pending",
+  "factual_acceptance": "pending"
+}

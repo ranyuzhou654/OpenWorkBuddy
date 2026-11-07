@@ -1,0 +1,11 @@
+{"probe": "request_claim_gap", "retry": "duplicate", "pending": 0, "live": 0}
+{"probe": "schedule_claim_gap", "outcome": "failed", "pending": 0, "runs": 0, "next_advanced": true}
+{"probe": "reported_outcome_masks_failure", "actual_run_status": "error", "reported": "unchanged"}
+{"probe": "restore_new_home", "old_path_retained": true, "session_open_error": "FileNotFoundError"}
+{"probe": "approval_file_not_frozen", "calls": [["preview", "APPROVED_CONTENT"], ["execute", "CHANGED_AFTER_PREVIEW"]]}
+{"probe": "hook_overrides_fixed_approval", "gate_allowed": true, "approval_calls": 0}
+{"probe": "conflicting_dry_run_flags", "classified_write": false, "action": "feishu", "permission": "allow"}
+{"probe": "browser_new_tab_bypasses_site_gate", "action": "mcp__browser__browser_tabs", "resource": "", "permission": "allow"}
+{"probe": "recursive_search_ignores_child_deny", "direct_permission": "deny", "found": true}
+{"probe": "downloaded_source_and_export", "checks": [{"name": "citations refer to recorded sources", "ok": true, "detail": "1 cited"}], "exported_source_url": false, "all_artifact_checks_pass": true}
+{"probe": "anthropic_missing_terminal", "stop": "end", "next_step": "RunTools"}

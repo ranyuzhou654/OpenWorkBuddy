@@ -1,0 +1,3 @@
+How OpenTelemetry Traces LLM Calls, Agent Reasoning, and MCP Tools | Greptime
+https://greptime.com/blogs/2026-05-09-opentelemetry-genai-semantic-conventions
+`opentelemetry-instrumentation-openai-v2` is the most mature GenAI instrumentation. Anthropic, AWS Bedrock, and others are covered by community libraries. ## Layer 2: Agent & Workflow Spans — Beyond Microservices ​ This is where GenAI semantic conventions diverge most from traditional OTel. Distributed tracing has HTTP spans, RPC spans, and DB spans, but nothing for "agent invocation." The GenAI spec introduces a new set of operation types(#fn12). ### create\_agent ​ [...] Attribute names and st

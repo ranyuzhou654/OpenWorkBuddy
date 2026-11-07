@@ -1,0 +1,79 @@
+{
+  "mode": "local deterministic model, real HTTP/SSE/Chromium",
+  "cases": [
+    {
+      "name": "optional plugins can be switched without clearing connection settings",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 1315
+    },
+    {
+      "name": "attachment reaches the model and remains previewable after reload",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 937
+    },
+    {
+      "name": "approval survives reload and executes only after the browser approves",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 803
+    },
+    {
+      "name": "closed SSE stream reconnects from a fresh snapshot without duplicate messages",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 2473
+    },
+    {
+      "name": "session dots appear only for working, unseen completion and failure",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 283
+    },
+    {
+      "name": "new chat options are labelled and easy to scan",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 202
+    },
+    {
+      "name": "markdown code copies and long tool output expands",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 947
+    },
+    {
+      "name": "session status summarises tokens, cache and working state",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 472
+    },
+    {
+      "name": "running status ticks and the trace shows a live step",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 788
+    },
+    {
+      "name": "trace shows model and tool timing, follows the run and jumps back to chat",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 908
+    },
+    {
+      "name": "long conversation mounts a window and reveals earlier turns",
+      "status": "expected",
+      "attempts": 1,
+      "duration_ms": 1532
+    }
+  ],
+  "stats": {
+    "startTime": "2026-10-28T04:52:12.623Z",
+    "duration": 12177.841999999999,
+    "expected": 11,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

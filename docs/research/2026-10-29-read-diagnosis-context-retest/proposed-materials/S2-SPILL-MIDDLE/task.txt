@@ -1,0 +1,3 @@
+读取 material.txt，将其中正式决定的 supplier、budget（整数）、deadline 写入 result.json。三个字段缺一不可。文件是合成试验材料，不需联网。
+
+输出格式约定：将一个合法 JSON 对象保存到 result.json，且只能包含以下字段：supplier=非空字符串；budget=非负整数（不写小数）；deadline=非空字符串。所有字段必填，禁止添加 project、note、说明或其它键；文件中不写 Markdown 代码围栏或 JSON 之外的文字。deadline 使用 YYYY-MM-DD。

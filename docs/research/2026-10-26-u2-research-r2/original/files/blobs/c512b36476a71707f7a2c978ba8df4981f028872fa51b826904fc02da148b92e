@@ -1,0 +1,3 @@
+Moved: Generative AI semantic conventions | OpenTelemetry
+https://opentelemetry.io/docs/specs/semconv/gen-ai
+For AI agents: the site's llms.txt is at /llms.txt. This page has a Markdown version at /docs/specs/semconv/gen-ai/index.md. # Moved: Generative AI semantic conventions Important GenAI semantic conventions have moved to the OpenTelemetry GenAI semantic conventions repository. This page has moved and is no longer maintained in this repository. ##### Moved: Generative AI semantic conventions ##### Moved: Generative AI semantic conventions ##### Moved: Generative AI semantic conventions [...] Pleas

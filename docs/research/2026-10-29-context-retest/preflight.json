@@ -1,0 +1,98 @@
+{
+  "remote_calls": 0,
+  "tests_passed": 39,
+  "deterministic_trials": 24,
+  "scripted_passes": 18,
+  "expected_local_context_controls": 6,
+  "source_archive_matches_current_files": true,
+  "original_launch_directory": "/private/var/folders/3x/864c69d110q_sy9nb1rvmksm0000gp/T/pytest-of-Zhuanz/pytest-916/test_twenty_four_trials_preser0/retest",
+  "persistent_copy": "eval-runs/context-retest-2026-10-29-deterministic",
+  "copy_note": "Byte-identical copy of the integrated test run; raw paths retain original temporary launch location",
+  "quality_scope": "Scripted structural checks, not model quality or observed provider usage",
+  "prechecks": [
+    {
+      "sequence": 1,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 4,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 5,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28152,
+      "input_budget": 16384,
+      "ok": true
+    },
+    {
+      "sequence": 8,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28223,
+      "input_budget": 16384,
+      "ok": true
+    },
+    {
+      "sequence": 10,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 11,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 14,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28152,
+      "input_budget": 16384,
+      "ok": true
+    },
+    {
+      "sequence": 15,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28223,
+      "input_budget": 16384,
+      "ok": true
+    },
+    {
+      "sequence": 17,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 20,
+      "type": "spill_full_read_fits",
+      "post_read_estimated_tokens": 70967,
+      "input_budget": 83616,
+      "ok": true
+    },
+    {
+      "sequence": 21,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28152,
+      "input_budget": 16384,
+      "ok": true
+    },
+    {
+      "sequence": 24,
+      "type": "compact_initial_over_budget",
+      "initial_estimated_tokens": 28223,
+      "input_budget": 16384,
+      "ok": true
+    }
+  ]
+}

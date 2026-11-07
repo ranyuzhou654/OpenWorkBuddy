@@ -1,0 +1,22 @@
+[
+  {
+    "path": "research-brief.docx",
+    "markdown_visible_text_equal": true,
+    "external_links": [
+      "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents",
+      "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "https://modelcontextprotocol.io/specification/2026-07-28",
+      "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md"
+    ]
+  },
+  {
+    "path": "assisted/research-brief.docx",
+    "markdown_visible_text_equal": true,
+    "external_links": [
+      "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents",
+      "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "https://modelcontextprotocol.io/specification/2026-07-28",
+      "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md"
+    ]
+  }
+]

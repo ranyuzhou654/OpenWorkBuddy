@@ -1,0 +1,26 @@
+[
+  {
+    "schedule_id": "sch_6e7885f57fa7",
+    "planned_at": 1793004317.987603,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_6e7885f57fa7:manual:request_a7552fd02d87",
+    "outcome": "changed",
+    "summary": "current.json 已从 R-B 推进到 R-C，progress.md 更新为 v2：pytest 340→372（0 失败/0 跳过），browser 层首次有数据（playwright 5 用例全通过，但模型是本地假实现）。\n\n验证边界未实质收窄：托管 CI 仍未验证、付费模型请求 0、用户试用 0/12、成本未对账，且断电测试字段消失、仍需确认 rc-tests-initial.xml 是否掩盖了初跑失败。",
+    "created_at": 1793004317.987699,
+    "done_at": 1793004359.821548,
+    "input_id": "in_c1a6720249d8"
+  },
+  {
+    "schedule_id": "sch_6e7885f57fa7",
+    "planned_at": 1793004276.0948591,
+    "missed": 1,
+    "status": "done",
+    "request_id": "sched:sch_6e7885f57fa7:manual:request_a8481a3508ec",
+    "outcome": "changed",
+    "summary": "首次创建 progress.md（基线版）：记录 current.json 的 R-B 快照（pytest 340 通过/0 失败/0 跳过，CLI 备份恢复 exit 0、integrity 已验证）。\n\nbrowser_e2e 字段在 current.json 中缺失，已明确标为\"未记录\"而非通过；验证边界为真实模型请求 0、真实外部写入 0、托管 CI 未验证、断电未测试。",
+    "created_at": 1793004276.095001,
+    "done_at": 1793004317.98166,
+    "input_id": "in_40b4fd53a71e"
+  }
+]

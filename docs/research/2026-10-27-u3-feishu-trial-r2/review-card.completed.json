@@ -1,0 +1,191 @@
+{
+  "case_id": "U3-2",
+  "date": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "arm": "B1",
+  "sample_count": 1,
+  "requested_provider": "opendesign",
+  "requested_model": "deepseek-v4.1-flash",
+  "original_run": {
+    "session_id": "s_dc5b1634e962",
+    "status": "ok",
+    "model_calls": 6,
+    "id": "U3-2",
+    "process_status": "finished",
+    "model_responses": 6,
+    "observed_models": [
+      "deepseek-flash"
+    ],
+    "usage": {
+      "input": 43842,
+      "output": 4785,
+      "cache_read": 35968
+    },
+    "usage_complete": true,
+    "elapsed_seconds": 49.00886891596019,
+    "artifact_checks": [
+      {
+        "path": "meeting-prep.docx",
+        "sha256": "86ae519834d13c3f0d142752df69aef8069f95f3442cd278fb1497ef4abe17b4",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "40692 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "opens as Word",
+            "ok": true,
+            "detail": "Word document",
+            "layer": "structure"
+          },
+          {
+            "name": "has readable text",
+            "ok": true,
+            "detail": "2843 characters",
+            "layer": "structure"
+          }
+        ]
+      },
+      {
+        "path": "meeting-prep.md",
+        "sha256": "8b2eb11b0900e1e636e506e013e6513d89b5846c05523771533d3dbd510389e6",
+        "checks": [
+          {
+            "name": "not empty",
+            "ok": true,
+            "detail": "5448 bytes",
+            "layer": "structure"
+          },
+          {
+            "name": "valid UTF-8 text",
+            "ok": true,
+            "detail": "2814 characters",
+            "layer": "structure"
+          }
+        ]
+      }
+    ],
+    "cost": null,
+    "factual_acceptance": "pending",
+    "human_acceptance": "pending"
+  },
+  "budget": {
+    "model_calls": 12,
+    "tool_calls": 20,
+    "wall_seconds": 180,
+    "sdk_retries": 0
+  },
+  "resources": {
+    "preparation_document_fetches": 0,
+    "sut_document_fetches": 2,
+    "calendar_reads": 0,
+    "tavily_calls": 0,
+    "remote_business_writes": 0
+  },
+  "freeze": {
+    "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+    "code_sha256": "990d39c6a8dd78185c53738dcde9fa028624386da7b950894921543e3e0a41b7",
+    "scope_sha256": "692d4eaa754d976c301efc0064ba843a87611d86d8afd1ee8dbc30ab53b72dff",
+    "public_sha256": "30b4c3a7552aacdd026d118d4605ef7e7a77e59aa22532df0dcb929f2f057388",
+    "runner_sha256": "4a9f82b703aa30a4d2e4ed24d5996f90b848e1fadcef91c5ebb0d4c904429874"
+  },
+  "evidence_root": "../../../eval-runs/rd-feishu-2026-10-27-r2/",
+  "implementation_review": {
+    "independent": false,
+    "status": "native_content_needs_correction",
+    "confirmed_technical_error_count": 1,
+    "ambiguous_project_gap_statement_count": 1,
+    "native_body_cjk": 1128,
+    "assisted_body_cjk": 1174,
+    "native_and_assisted_pages": 3,
+    "final_word_pages_visually_inspected": true,
+    "word_text_equal_corresponding_markdown": true,
+    "clickable_source_links_each": 2,
+    "issue": "Native parameter-error claim contradicts lambda **kw example: missing key raises KeyError, extra key may be ignored."
+  },
+  "assistance": {
+    "content_edited": true,
+    "paragraphs_edited": 2,
+    "changes": [
+      "parameter validation paragraph corrected",
+      "note omission distinguished from project gap",
+      "action table column widths adjusted"
+    ],
+    "extra_model_calls": 0,
+    "parameter_example": {
+      "safe_reproduction": "lambda **kw: kw[\"command\"]",
+      "missing_key": {
+        "exception": "KeyError",
+        "key": "command"
+      },
+      "extra_key_accepted": true,
+      "shell_executed": false
+    },
+    "local_assistance_initial_attempt": "assertion on space vs tab in numbered paragraph; no native trial files changed",
+    "original_and_assisted_separate": true,
+    "final_action_column_fractions": [
+      0.32,
+      0.2,
+      0.2,
+      0.28
+    ],
+    "layout_iterations": 2
+  },
+  "human_rework_minutes": null,
+  "delivery": [
+    {
+      "path": "meeting-prep.assisted.docx",
+      "sha256": "0caa3b019160df6897994121947b5400d55215a43cb56e12bd25eb6dc891683a",
+      "assisted": true
+    },
+    {
+      "path": "meeting-prep.assisted.md",
+      "sha256": "d757d395fe1064cefb1103838febf85bf30ce631c6bc0e7e754f4b7457b95c62",
+      "assisted": true
+    },
+    {
+      "path": "meeting-prep.docx",
+      "sha256": "86ae519834d13c3f0d142752df69aef8069f95f3442cd278fb1497ef4abe17b4",
+      "assisted": false
+    },
+    {
+      "path": "meeting-prep.md",
+      "sha256": "8b2eb11b0900e1e636e506e013e6513d89b5846c05523771533d3dbd510389e6",
+      "assisted": false
+    }
+  ],
+  "human_review": {
+    "status": "passed",
+    "reviewer": "user",
+    "reviewed_at": null,
+    "usable": true,
+    "critical_fact_errors": null,
+    "word_layout_accepted": null,
+    "suggestions_fit_current_project": null,
+    "rework_minutes": null,
+    "notes": "用户明确确认通过。验收对象为已交付的校订 Markdown 与 Word；原稿技术错误与辅助修改记录保留。未提供逐项评分、错误数或返工分钟，维持 null。",
+    "reviewer_role": "requesting_user",
+    "recorded_at": "2026-10-28T12:50:12.096596+08:00",
+    "confirmation": "U3-2 本次人工验收结论：通过",
+    "confirmation_source": "current conversation explicit user reply",
+    "accepted_deliverables": [
+      {
+        "path": "meeting-prep.assisted.docx",
+        "sha256": "0caa3b019160df6897994121947b5400d55215a43cb56e12bd25eb6dc891683a",
+        "assisted": true
+      },
+      {
+        "path": "meeting-prep.assisted.md",
+        "sha256": "d757d395fe1064cefb1103838febf85bf30ce631c6bc0e7e754f4b7457b95c62",
+        "assisted": true
+      }
+    ]
+  },
+  "review_instructions": "Review assisted Markdown and Word; preserve native content error and assistance. U3-1 acceptance does not apply to U3-2.",
+  "original_review_card_sha256": "5fd9ea9f4f0b4f329f38311b1e872a97c5882c2194994f613b592ff0941e9c9e",
+  "acceptance_status": "passed",
+  "acceptance_scope": "U3-2 assisted Markdown and Word only",
+  "next_scope": "personal assistant core: session, conversation, context, memory, tools, MCP, Skill"
+}

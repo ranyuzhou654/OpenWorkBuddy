@@ -1,0 +1,22 @@
+{
+  "reviewer": "Codex preliminary review; not independent human acceptance",
+  "U1-1": {
+    "docx_render_pages": 3,
+    "pdf_pages": 2,
+    "all_pages_viewed": true,
+    "notes": [
+      "正文可读、表格可见；PDF第5节标题在第1页末而正文在第2页",
+      "本地文献链接呈字面Markdown且过长"
+    ]
+  },
+  "U1-2": {
+    "docx_render_pages": 3,
+    "pdf_pages": 2,
+    "all_pages_viewed": true,
+    "notes": [
+      "正文与表格可读；本地文献链接呈字面Markdown且过长"
+    ]
+  },
+  "input_qa": "See evals/project-trial-v1/manifest.json; preparation rescues are distinct from user-trial rescue counts",
+  "acceptance": null
+}

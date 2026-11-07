@@ -1,5 +1,7 @@
 # 教程 06：Skill 与记忆 —— 按需加载的说明书，和跨会话的笔记
 
+> 2026-10-27 更新：以下正文保留初版设计过程。当前实现已将长期记忆改为每次模型请求前刷新，已有会话也会看到修改；已加载 Skill 的更新、停用和删除同样生效，原始日志不改写。当前设计见 [个人助手内核与扩展边界](../design/2026-10-27-harness-core.md)。
+
 > 新增 `skills.py`（发现、解析、`skill` 工具）、`memory.py`（`memory` 工具）、`web/src/Skills.tsx`（设置页的技能区和记忆区）、`tests/test_skills_memory.py`。
 > 改动 `context.py` / `loop.py`（钉住的内容在压缩后自动放回）、`runtime.py`（技能进入每次运行的工具集；`/技能名`）、`policy.py`（技能可读、记忆的审批规则）、`config.py` / `settings.py` / `api.py`、`prompts/system.md`、`web/src/Composer.tsx`（`/` 补全）。
 > 后端核心 4,368 行，测试 113 个。

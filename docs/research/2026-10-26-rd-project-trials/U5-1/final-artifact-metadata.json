@@ -1,0 +1,124 @@
+[
+  {
+    "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/workspace/progress.md",
+    "name": "progress.md",
+    "mime": "text/markdown",
+    "size": 10184,
+    "sha256": "5a2388db76712cb65daa86a96dc91d3da63689c96440277efe86cc673936b9ea",
+    "version": 2,
+    "title": "OpenWorkBuddy 实施验证进度",
+    "checks": [
+      {
+        "name": "not empty",
+        "ok": true,
+        "detail": "10184 bytes",
+        "layer": "structure"
+      },
+      {
+        "name": "valid UTF-8 text",
+        "ok": true,
+        "detail": "6754 characters",
+        "layer": "structure"
+      },
+      {
+        "name": "citations refer to recorded sources",
+        "ok": true,
+        "layer": "citations",
+        "detail": "2 cited"
+      },
+      {
+        "name": "cited source excerpts entered model context",
+        "ok": true,
+        "layer": "citations",
+        "detail": "inspected excerpts only; claim support and factual correctness are not assessed"
+      },
+      {
+        "name": "cited versions have retained snapshots",
+        "ok": true,
+        "layer": "citations",
+        "detail": "content-addressed snapshots retained; no factual verification implied"
+      },
+      {
+        "name": "key numbers and calculations",
+        "ok": null,
+        "layer": "numbers",
+        "detail": "not assessed; opening a file does not verify its calculations"
+      },
+      {
+        "name": "human layout and factual review",
+        "ok": null,
+        "layer": "human",
+        "detail": "not assessed"
+      }
+    ],
+    "info": {
+      "headings": 11
+    },
+    "kept": true,
+    "created_at": 1792989766.12297,
+    "sources": [
+      {
+        "sha256": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "snapshot": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "text_ref": "6b53253fd476b10b8b06c911001966a920abcc6745b0aa16dcb62ef52bbff1cc",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/workspace/current.json",
+        "retrieved_at": "2026-10-26T04:42:11Z",
+        "locator": "lines 1-56 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_2dd5c3b68cef",
+        "n": 2,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/workspace/current.json",
+        "kind": "file",
+        "title": "current.json",
+        "inspections": [
+          {
+            "entry_id": "e_2645c40026f9",
+            "locator": "lines 1-56 (line caps 2000)",
+            "excerpt_ref": "2a1d712f5603535b893b3f4271ff68fcd8f42cd034e2acfa485a25322290854f",
+            "excerpt_sha256": "2a1d712f5603535b893b3f4271ff68fcd8f42cd034e2acfa485a25322290854f",
+            "output_ranges": [
+              [
+                0,
+                2547
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      },
+      {
+        "sha256": "005c5dafc1e760f582aa69c2a1592b258a512ab6efd9ddf65ec378c070110e25",
+        "snapshot": "005c5dafc1e760f582aa69c2a1592b258a512ab6efd9ddf65ec378c070110e25",
+        "text_ref": "005c5dafc1e760f582aa69c2a1592b258a512ab6efd9ddf65ec378c070110e25",
+        "state": "inspected",
+        "path": "/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/workspace/progress.md",
+        "retrieved_at": "2026-10-26T04:42:11Z",
+        "locator": "lines 1-65 (line caps 2000)",
+        "access_scope": "session",
+        "session_id": "s_2dd5c3b68cef",
+        "n": 3,
+        "url": "file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-project-2026-10-26/U5-1/workspace/progress.md",
+        "kind": "file",
+        "title": "progress.md",
+        "inspections": [
+          {
+            "entry_id": "e_64d1780c9332",
+            "locator": "lines 1-65 (line caps 2000)",
+            "excerpt_ref": "b886e97d4a3a2b4ea2efa16ee6c4351e28b4d7babc4b75619e1620910ae0dac1",
+            "excerpt_sha256": "b886e97d4a3a2b4ea2efa16ee6c4351e28b4d7babc4b75619e1620910ae0dac1",
+            "output_ranges": [
+              [
+                0,
+                3045
+              ]
+            ],
+            "source_ranges": [],
+            "partial_output": false
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "backend_junit": {
+    "tests": 437,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "raw_trial_files_unchanged": 22,
+  "source_snapshot_validation_passed": true,
+  "native_and_assisted_word_text_equal": true,
+  "word_pages_viewed": 6,
+  "runtime_model_calls": 3,
+  "full_tests_rerun_after_docs_only_changes": false,
+  "runtime_secret_scan_passed": true,
+  "local_service_reloaded": true,
+  "local_service_health_http": 200,
+  "private_evidence": {
+    "freeze.json": "131273233ac354c0dbaa4d6eac36fa80257d27da575ef6dfc4b82866fa5c148b",
+    "source.zip": "3d369075cb116bcbbeabcec173a11b12092ff1d968bbc4afbe9a0bb01cfbbd4b",
+    "runner.py": "9a48d6a3ff9f167f94f093b508f8d2c5dd88b6de1e68c1998ba88c0c249c40d2",
+    "scope.json": "fad609d434a47d27a41bd7462700b996ff65c69f70fa906931aad2ca167329d0",
+    "original-trial-sha256.json": "b55be4ce04b9f06d8dc3ee92a46cbd97dd2db469782d1cbcef0336e9be42c1a2",
+    "source-validation.json": "e696315509fc23f3e665eba2efec2b2ae72e65f4febdbfa29408e97005a9ee8c",
+    "word-validation.json": "286cdaf60a92f007e4d81fe17877157e29ef4f65544fc682258ba7ec856628ed",
+    "secret-validation.json": "49ba3455b30664241e7ef9abc682f5912803ed89f00cccca2005589093e654fa"
+  }
+}

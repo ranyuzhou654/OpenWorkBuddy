@@ -1,0 +1,152 @@
+[S7] /Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26-r2/U2-2/home/spill/s_dc77050d008b/call_01_JRZ8LmYPIhxdAB2kx7av1941-8b99ebd4d43f.txt
+   240	
+   241	- Get state
+   242	- StateSnapshot fields
+   243	- Get state history
+   244	- Find a specific checkpoint
+   245	- Replay
+   246	- Update state
+   247	
+   248	- Durability modes
+   249	- Optimize checkpoint storage
+   250	- Checkpointer libraries
+   251	
+   252	- Checkpointer interface
+   253	- Serializer
+   254	- Serialization with pickle
+   255	- Encryption
+   256	
+   257	- Build a custom checkpointer
+   258	
+   259	- Overview
+   260	- Base contract
+   261	- put / aput
+   262	- put_writes / aput_writes
+   263	- get_tuple / aget_tuple
+   264	- list / alist
+   265	- delete_thread / adelete_thread
+   266	- Row key / index design
+   267	- Serialization
+   268	- Extended capabilities
+   269	- Delta channel support
+   270	- What the runtime needs
+   271	- Default implementation
+   272	- Performance override
+   273	- Pruning with delta channels
+   274	- Copy thread with delta channels
+   275	- Testing with the conformance suite
+   276	
+   277	- Capabilities
+   278	
+   279	# Checkpointers
+   280	
+   281	Copy pageCopy page
+   282	
+   283	LangGraph checkpointers save graph state as checkpoints at each step, enabling persistence, human-in-the-loop, and fault-tolerant execution.
+   284	
+   285	Copy pageCopy page
+   286	
+   287	A checkpointer saves a snapshot of graph state at each super-step, organized into threads. Compile a graph with a checkpointer to enable human-in-the-loop workflows, time travel debugging, fault-tolerant execution, and conversational memory. [image: Checkpoints]
+   288	
+   289	Agent Server handles checkpointing automaticallyWhen using the [Agent Server](https://docs.langchain.com/langsmith/agent-server), you do not need to implement or configure checkpointers manually. The server handles all persistence infrastructure for you behind the scenes.
+   290	
+   291	Trace checkpointed state and debug how your agent resumes across sessions with [LangSmith](https://smith.langchain.com?utm_source=docs&utm_medium=cta&utm_campaign=langsmith-signup&utm_content=oss-langgraph-checkpointers). Follow the [tracing quickstart](https://docs.langchain.com/langsmith/trace-with-langgraph)to get set up.
+   292	
+   293	##
+   294	​
+   295	
+   296	Why use checkpointers
+   297	Checkpointers are required for the following features:
+   298	
+   299	- Human-in-the-loop: Checkpointers facilitate [human-in-the-loop workflows](https://docs.langchain.com/oss/python/langgraph/interrupts)by allowing humans to inspect, interrupt, and approve graph steps. Checkpointers are needed for these workflows as the person has to be able to view the state of a graph at any point in time, and the graph has to be able to resume execution after the person has made any updates to the state. See [Interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts)for examples.
+   300	- Memory: Checkpointers allow for [“memory”](https://docs.langchain.com/oss/python/concepts/memory)between interactions. In the case of repeated human interactions (like conversations) any follow up messages can be sent to that thread, which will retain its memory of previous ones. See [Add memory](https://docs.langchain.com/oss/python/langgraph/add-memory)for information on how to add and manage conversation memory using checkpointers.
+   301	- Time travel: Checkpointers allow for [“time travel”](https://docs.langchain.com/oss/python/langgraph/use-time-travel), allowing users to replay prior graph executions to review and / or debug specific graph steps. In addition, checkpointers make it possible to fork the graph state at arbitrary checkpoints to explore alternative trajectories.
+   302	- Fault-tolerance: Checkpointing provides fault-tolerance and error recovery: if one or more nodes fail at a given superstep, you can restart your graph from the last successful step.
+   303	
+   304	- Pending writes: When a graph node fails mid-execution at a given super-step, LangGraph stores pending checkpoint writes from any other nodes that completed successfully at that super-step. When you resume graph execution from that super-step you don’t re-run the successful nodes.
+   305	
+   306	##
+   307	​
+   308	
+   309	Core concepts
+   310	
+   311	###
+   312	​
+   313	
+   314	Threads
+   315	A thread is a unique ID or thread identifier assigned to each checkpoint saved by a checkpointer. It contains the accumulated state of a sequence of [runs](https://docs.langchain.com/langsmith/runs). When a run is executed, the [state](https://docs.langchain.com/oss/python/langgraph/graph-api#state)of the underlying graph of the assistant will be persisted to the thread. When invoking a graph with a checkpointer, you mustspecify a thread_idas part of the configurableportion of the config:
+   316	
+   317	```
+   318	{"configurable": {"thread_id": "1"}}
+   319	
+   320	```
+   321	
+   322	A thread’s current and historical state can be retrieved. To persist state, a thread must be created prior to executing a run. The LangSmith API provides several endpoints for creating and managing threads and thread state. See the [API reference](https://reference.langchain.com/python/langsmith/)for more details. The checkpointer uses thread_idas the primary key for storing and retrieving checkpoints. Without it, the checkpointer cannot save state or resume execution after an [interrupt](https://docs.langchain.com/oss/python/langgraph/interrupts), since the checkpointer uses thread_idto load the saved state.
+   323	
+   324	###
+   325	​
+   326	
+   327	Checkpoints
+   328	The state of a thread at a particular point in time is called a checkpoint. A checkpoint is a snapshot of the graph state saved at each super-stepand is represented by a StateSnapshotobject (see StateSnapshot fieldsfor the full field reference).
+   329	
+   330	####
+   331	​
+   332	
+   333	Super-steps
+   334	LangGraph creates a checkpoint at each super-stepboundary. A super-step is a single “tick” of the graph where all nodes scheduled for that step execute (potentially in parallel). For a sequential graph like START -> A -> B -> END, there are separate super-steps for the input, node A, and node B — producing a checkpoint after each one. Understanding super-step boundaries is important for [time travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel), because you can only resume execution from a checkpoint (i.e., a super-step boundary). In addition to super-step checkpoints, LangGraph also persists writes at the node (task) level. As each node within a super-step finishes, its outputs are written to the checkpointer’s checkpoint_writestable as task entries linked to the in-progress checkpoint. These per-task writes are what enable pending writesrecovery: if another node in the same super-step fails, the successful nodes’ writes are already durable and don’t need to be re-run on resume. The full state snapshot is then committed once the super-step completes. LangGraph also persists writes from individual node executions within a super-step. These writes are stored as tasks and used for fault tolerance: if another node in the same super-step fails, successful node writes do not need to be recomputed when you resume. These task writes are not full StateSnapshotcheckpoints, so time travel resumes from full checkpoints at super-step boundaries. Checkpoints are persisted and can be used to restore the state of a thread at a later time. Let’s see what checkpoints are saved when a simple graph is invoked as follows:
+   335	
+   336	```
+   337	from langgraph.graph import StateGraph, START, END
+   338	from langgraph.checkpoint.memory import InMemorySaver
+   339	from langchain_core.runnables import RunnableConfig
+   340	from typing import Annotated
+   341	from typing_extensions import TypedDict
+   342	from operator import add
+   343	
+   344	class State(TypedDict):
+   345	    foo: str
+   346	    bar: Annotated[list[str], add]
+   347	
+   348	def node_a(state: State):
+   349	    return {"foo": "a", "bar": ["a"]}
+   350	
+   351	def node_b(state: State):
+   352	    return {"foo": "b", "bar": ["b"]}
+   353	
+   354	
+   355	workflow = StateGraph(State)
+   356	workflow.add_node(node_a)
+   357	workflow.add_node(node_b)
+   358	workflow.add_edge(START, "node_a")
+   359	workflow.add_edge("node_a", "node_b")
+   360	workflow.add_edge("node_b", END)
+   361	
+   362	checkpointer = InMemorySaver()
+   363	graph = workflow.compile(checkpointer=checkpointer)
+   364	
+   365	config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+   366	graph.invoke({"foo": "", "bar":[]}, config)
+   367	
+   368	```
+   369	
+   370	After you run the graph, there will be exactly 4 checkpoints:
+   371	
+   372	- Empty checkpoint with [START](https://reference.langchain.com/python/langgraph/constants/START)as the next node to be executed
+   373	- Checkpoint with the user input {'foo': '', 'bar': []}and node_aas the next node to be executed
+   374	- Checkpoint with the outputs of node_a {'foo': 'a', 'bar': ['a']}and node_bas the next node to be executed
+   375	- Checkpoint with the outputs of node_b {'foo': 'b', 'bar': ['a', 'b']}and no next nodes to be executed
+   376	Note that the barchannel values contain outputs from both nodes because this example has a reducer for the barchannel.
+   377	
+   378	####
+   379	​
+   380	
+   381	Checkpoint namespace
+   382	Each checkpoint has a checkpoint_ns(checkpoint namespace) field that identifies which graph or subgraph it belongs to:
+   383	
+   384	- ""(empty string): The checkpoint belongs to the parent (root) graph.
+   385	- "node_name:uuid": The checkpoint belongs to a subgraph invoked as the given node. For nested subgraphs, namespaces are joined with |separators (e.g., "outer_node:uuid|inner_node:uuid").
+   386	You can access the checkpoint namespace from within a node via the config:
+   387	
+   388	```
+   389	from langchain_core.runnables import RunnableConfig
+[lines 240-389 of 1162; use offset to read more]

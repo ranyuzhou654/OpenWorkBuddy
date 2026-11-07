@@ -1,0 +1,27 @@
+
+==================================== ERRORS ====================================
+________________ ERROR collecting tests/test_context_retest.py _________________
+ImportError while importing test module '/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/tests/test_context_retest.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_context_retest.py:10: in <module>
+    from evals import run_context_retest as retest
+E   ModuleNotFoundError: No module named 'evals'
+________________ ERROR collecting tests/test_quantification.py _________________
+ImportError while importing test module '/Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/tests/test_quantification.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_quantification.py:8: in <module>
+    from evals.run_quantification import (
+E   ModuleNotFoundError: No module named 'evals'
+=========================== short test summary info ============================
+ERROR tests/test_context_retest.py
+ERROR tests/test_quantification.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+2 errors in 0.83s

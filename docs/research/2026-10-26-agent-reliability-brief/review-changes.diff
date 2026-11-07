@@ -1,0 +1,100 @@
+--- original Agent Markdown
++++ Codex reviewed Markdown
+@@ -1,61 +1,66 @@
+-# OpenWorkBuddy 第一期 AI 技术研究简报：Agent 可靠性与上下文治理
++# Agent 可靠性与上下文治理简报
+ 
+-资料截止日 2026-10-26；访问日期 2026-10-26。本期首次建立来源与决策基线，尚无跨期变化结论。
++OpenWorkBuddy 第一期　资料截止日 2026年10月26日　面向项目开发者
+ 
+-## 结论
++## 本期结论
+ 
+-上下文治理不必从零建设。官方资料一致把上下文视为有限资源：token 越多，模型准确召回其中信息的能力越差，应对手段是压缩、结构化笔记与子代理隔离 [S3]。本项目 R-C 已实现来源状态、内容版本与快照、实际上下文片段记录、导出文献表和四层校验；本期只需把这些记录接到“是否变化”的判定上。
++建议沿用现有小内核，优先补齐来源变化判定、单次生成多格式交付和失败定位。项目已有来源快照、上下文片段记录、文献表、预算及恢复机制；下一周的工作应补任务交付中的缺口。[S1]
+ 
+-变化判定应默认走确定性路径，模型只做候选发现与成文。项目记录显示，R-D 第二轮 U5 出现应判 changed 或 unchanged 却落成 unknown、规范路径与相对路径核验不一致的情况，说明宽松比较会污染周报结论。
+-
+-一周内可落地三项小改动：来源基线表、笔记式上下文回读、失败可归因。验收看可复现、可回溯、失败不冒充成功，不看测试通过数。当前全量 402 项测试与 6 项浏览器 E2E 通过属工程回归证据，不代表业务成功率，也不能替代仍待完成的人工评阅。
++本期建立资料和决策基线。选用的五份官方资料包括两篇2025年文章和三份未标页面发布日期的文档，访问日期均为2026年10月26日；跨期变化留待下一期对照。
+ 
+ ## 来源与日期
+ 
+-本期从 Anthropic、LangChain、OpenTelemetry、MCP 选出 5 个官方来源，均读取正文后引用：
++Anthropic 上下文工程文章发布于2025年9月29日 [S3]，研究系统文章发布于2025年6月13日 [S17]。LangGraph 检查点文档 [S9]、OTel Agent 追踪文档 [S12] 的页面发布日期为 unknown；MCP 工具页 [S18] 的协议版本为2025-06-18，页面发布日期为 unknown。完整链接和快照哈希列于文末。
+ 
+-- Anthropic《Effective context engineering for AI agents》，发布 2025-09-29 [S3]。
+-- Anthropic《How we built our multi-agent research system》，发布 2025-06-13 [S17]。
+-- LangChain《Checkpointers》，发布日期 unknown [S9]。
+-- OpenTelemetry GenAI 语义约定的 agent span 文档，发布日期 unknown，属性标注为 Development [S12]。
+-- MCP 规范 Tools 页，协议版本 2025-06-18，发布日期 unknown [S18]。
++## 官方资料提供的依据
+ 
+-访问日期均为 2026-10-26。这些多为 2025 年材料，引用因为其是被广泛参照的官方做法，不表示它们属于最近一周的新闻。
++Anthropic 将压缩、窗口外笔记和独立上下文列为长任务的处理方式，同时提醒压缩可能丢失关键细节。[S3] 其研究系统经验还强调追踪执行过程、在失败后保留进度。[S17] 这支持优先复用本项目现有机制，不能据此推断本项目任务成功率提高。
+ 
+-## 原文事实
++LangGraph 的 checkpointer 按 super-step 保存状态，并将检查点组织在线程中；它还保留同一步已成功节点的写入，供失败恢复使用。[S9] 这是持久化设计的参考，采用这一思路不要求本项目迁移整个框架。
+ 
+-- 上下文变长会降低召回准确度；压缩是把接近上限的对话摘要后重开窗口，结构化笔记把要点落到窗口外再回读，子代理各用独立窗口、只回传约 1,000–2,000 token 的浓缩结果 [S3]。
+-- Anthropic 报告多代理系统比聊天多耗约 15 倍 token、单代理约 4 倍，并在其内部评测中领先单代理 90.2%。这是其内部结果，不是本项目成绩 [S17]。
+-- Agent 有状态且错误会累积，失败应从断点恢复而非重跑；回答“为什么没找到信息”需要完整生产追踪 [S17]。
+-- LangGraph checkpointer 在每个 super-step 保存快照并按 thread_id 组织，支撑人工介入、回溯与容错；节点失败时保留同一步已成功节点的 writes，恢复时不重跑 [S9]。其 async 模式在进程崩溃时可能丢 checkpoint，sync 则有性能开销 [S9]。
+-- OTel 约定 agent span 名为 invoke_agent 加 agent 名，error.type 出错时条件必需且须为低基数类别，相关约定仍为 Development [S12]。MCP 区分协议错误与工具执行错误，给出 outputSchema 时服务端必须返回符合 schema 的结果，客户端应校验结果并设超时 [S18]。
++OpenTelemetry 的 Agent 追踪约定仍标为 Development，包含操作、Agent 名称及错误类型等字段。[S12] MCP 工具规范则区分协议错误与工具执行错误，并讨论结果结构和调用超时。[S18] 两者可作为已有事件字段的对照，规范状态和版本需要随来源一起保留。
+ 
+-## 两种处理方式的比较
++## 两种处理方式及其取舍
+ 
+-方式 A 为快照门禁：每期固定采集同一组来源，保存正文快照与哈希，仅哈希变化或权威来源增删才触发改写，模型只负责成文。它确定、可复现、成本低，与 R-C 的内容版本和四层校验直接衔接 [S3][S9]；缺点是语义等价的重写、页面改版、锚点迁移会误报变化，需显式豁免。
++方式 A 是固定来源基线。每期读取同一组官方页面，保存正文快照，先比较哈希，再检查内容差异。优点是容易复核，能复用已有来源版本；局限是导航和页面改版也会改变哈希。哈希变化只能产生候选，是否影响 API、行为或限制仍需判断。
+ 
+-方式 B 为代理式重检索：每期由 agent 自主搜索、抓取并判断是否构成实质进展。它能发现基线外来源与语义级变化，接近 Anthropic 描述的动态检索 [S3]；缺点是成本与不确定性高，易把旧材料当作本周进展，须强制回读正文并保留引用。
++方式 B 是每期重新搜索。它可以发现基线外的新资料，但结果集合和排序会变化，也可能再次找到旧文章。必须读取正文并标清日期，才能判断发现的是新证据还是旧资料。
+ 
+-建议混合而门禁归 A：B 只产生候选，任何 changed 必须附新来源或新快照证据，无证据一律 unknown。这与 MCP 区分协议错误与工具执行错误同理——工具失败只能得 unknown，不能得 unchanged [S18]。
++建议以 A 承担变化判定，以 B 补充候选。确认有实质变化时更新报告；无变化需要成功读取和比较的证据；读取失败、证据不足或结果不确定时保留 unknown。以上为本项目的设计建议，本期尚未验证跨期效果。
+ 
+-## 一周内三项改进与验收条件
++## 下一周三项改进
+ 
+-1. 来源基线表。在导出文献表之上加固定字段：来源 ID、发布日期或 unknown、访问日期、正文快照哈希、上期判定。验收：同周输入重跑两次，除时间戳外判定表一致；每个 unknown 有原因字段；未成功读取的来源不得记为 unchanged，也不出现未实际读到的来源。
++### 复用来源记录建立变化判定表
+ 
+-2. 笔记式上下文回读。沿用已有 B0/B1 的 spill/prune/compact 开关，新增本期笔记（已读要点、待核事实、判定表指针），续跑与重跑先回读笔记而非重复抓取。验收：同期重跑抓取次数下降而引用集合与结论不变；写入上下文的片段都能对应来源 ID；不修改日常产品默认值。
++在已有来源编号、快照、哈希和日期字段上补充比较对象、差异摘要、判定及原因。统一规范路径和 URL 的比较口径；已有路径核验修复也纳入真实任务复测。[S1]
+ 
+-3. 失败可归因。按 OTel 对齐 gen_ai.operation.name、gen_ai.agent.name、error.type 等字段，使每一步可还原归属与错误类别 [S12]，沿用已有 usage 与事件追加机制。验收：失败运行能定位到具体步骤与错误类别，而非只报整体 error；失败与超预算运行单列，不并入成功；统计只计已完成人工评阅的任务，测试数、请求数、任务数分列。
++验收条件：相同输入重复判定一致；只改导航不更新结论；实质差异有前后快照；未读到的页面不能判为无变化。来源发布日期 unknown 与访问日期分开保留。
++
++### 单次成文后导出多种格式
++
++为检索、阅读和交付分配阶段预算，尽早保存正文。增加从同一份已保存正文导出 Markdown 和 Word 的路径，避免模型重复发送整篇内容。本项目已有导出与校验机制，可在其上补充这个入口。[S1]
++
++验收条件：两种格式的正文和引用一致；转换本身不新增模型请求；达到预算时保留已生成文件并明确未完成项；总预算不因进入收尾阶段而重置。
++
++### 将工具错误接入失败定位
++
++在已有 run、tool 和 usage 账本上整理错误类别及所处步骤，参考 OTel 字段命名，同时保留原事件和约定版本。[S12] 未知工具应返回可用工具提示；重复失败时优先保存进度，避免继续消耗交付预算。
++
++验收条件：能从结果卡定位错误调用和缺失产物；缺少响应的用量保持未知；失败、超时和辅助整理分别记录。测试数、模型请求数与已验收任务数独立统计。
+ 
+ ## 下期更新规则
+ 
+-满足任一条件才更新正文，否则只追加“本期无实质变化”：已基线来源的正文哈希变化且涉及 API、默认行为、限制或推荐做法；出现提出不同做法的新官方来源；上期为 unknown 的项被正文核实。判定顺序为哈希、逐条比对、人工确认，前两步由脚本完成，人工只判语义是否实质；仅改版、迁移、导航变化计入豁免清单。每期保留判定表快照与豁免清单，便于回看结论为何改变。该规则为设计，尚未运行验证。
++对照本期来源基线，检查已读正文的实质差异、新增官方来源，以及上期 unknown 是否得到核实。纯格式、导航或 URL 迁移记录为豁免；结论变化保留差异依据。开始下一期前冻结本期判定表，再安排语义复核，之后才决定是否更新或发布。本期尚未执行第二期，也未进行飞书发布。
+ 
+-## 局限
++## 本次交付说明
+ 
+-本期未执行第二期，跨期判定与豁免规则只有设计；R-D 尚未通过验收，U2 是首个研究题，真实来源与发布位置仍待确定。检索仅 3 次，未覆盖其他规范版本；OpenTelemetry 与 MCP 两页无页面级发布日期，只能记 unknown。未调用飞书，未做外部写入，也未新增收费模型调用。
++OpenWorkBuddy 使用既定模型执行了3次 Tavily 搜索并读取五个官方来源，发起12次模型请求、收到11次响应，在180秒处超时，留下 Markdown 草稿但未生成 Word。已记录用量不完整，模型套餐及搜索费用均待核账。
++
++本版本由 Codex 对照来源校订并离线导出 Word：补充了项目事实的引用，纠正草稿中的过时状态和“未新增模型调用”表述，并将建议与已实现能力分开。原试用仍记为超时，独立人工验收待完成。
+ 
+ ## 参考文献
+ 
++- [S1] project-context.md · file:///Users/Zhuanz/Documents/GitHub/OpenWorkBuddy/eval-runs/rd-research-2026-10-26/U2-1/workspace/project-context.md · 访问 2026-10-26T13:31:23Z · inspected · lines 1-199 (line caps 2000) · SHA256 5f1ea5a32cced554bcdb431b9d2cfa7d36cf39ad2d423f35f540430403e823d1
+ - [S3] [Effective context engineering for AI agents \\ Anthropic](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents) · https://www.anthropic.com/research/effective-context-engineering-for-ai-agents · 访问 2026-10-26T13:31:57Z · inspected · source text characters 0-24171 · SHA256 66044d08063071ab6078ae58f392bc85117f59e0cebdd750f79ff92bcfe26cbc
+ - [S9] [Checkpointers - Docs by LangChain](https://docs.langchain.com/oss/python/langgraph/checkpointers) · https://docs.langchain.com/oss/python/langgraph/checkpointers · 访问 2026-10-26T13:31:58Z · inspected · source text characters 0-48572; lines 1-150 (line caps 2000); lines 190-309 (line caps 2000); lines 430-549 (line caps 2000) · SHA256 1a93bdc1742b25648b1cb419ddc87ef718887dc199e5a9a3d9c7b4215bb40413
+ - [S12] [semantic-conventions-genai/docs/gen-ai/gen-ai-agent-spans.md at main · open-telemetry/semantic-conventions-genai · GitHub](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md) · https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md · 访问 2026-10-26T13:31:57Z · inspected · source text characters 0-200362; lines 1-60 (line caps 2000); lines 290-399 (line caps 2000) · SHA256 0aff37de7ae9071d4bc30329d2887c957abde9a346d87f1dbea5027397012fb2
