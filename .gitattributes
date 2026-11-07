@@ -1,2 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve binary documents and frozen evaluation fixtures.
+*.pdf binary
+*.png binary
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.zip binary
+
+# Markdown uses trailing spaces for hard line breaks.
+*.md whitespace=-blank-at-eol

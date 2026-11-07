@@ -1,6 +1,7 @@
 """The Anthropic adapter against a local server that speaks the Messages streaming protocol,
 so the real SDK parses real SSE events."""
 
+import copy
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -88,6 +89,30 @@ async def test_stream_is_translated_to_neutral_blocks(model, server):
     assert hello == {"type": "text", "text": "Hello"}
     assert (tool["id"], tool["name"], tool["args"]) == ("toolu_1", "read", {"path": "a.txt"})
     assert resp.usage == {"input": 105, "output": 42, "cache_read": 90, "cache_write": 5}
+
+
+@pytest.mark.parametrize("tail", [1, 2])
+async def test_missing_terminal_event_never_authorizes_tools(model, monkeypatch, tail):
+    monkeypatch.setattr(__import__(__name__), "EVENTS", EVENTS[:-tail])
+    response = [x async for x in model.stream("SYS", [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
+                                               TOOLS)][-1]
+    assert response.stop == "error"
+    assert response.meta["usage_complete"] is False
+    from nano_workbuddy.loop import FailCalls, next_step
+    from nano_workbuddy.types import Entry
+
+    step = next_step([Entry("a", None, "assistant", {"content": response.content, "stop": response.stop})])
+    assert isinstance(step, FailCalls)
+
+
+@pytest.mark.parametrize("reason", [None, "future_reason", "pause_turn", "refusal"])
+async def test_nonfinal_or_unknown_stop_reason_is_blocked(model, monkeypatch, reason):
+    events = copy.deepcopy(EVENTS)
+    events[-2]["delta"]["stop_reason"] = reason
+    monkeypatch.setattr(__import__(__name__), "EVENTS", events)
+    response = [x async for x in model.stream("SYS", [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
+                                               TOOLS)][-1]
+    assert response.stop == "error"
 
 
 async def test_request_shape_caching_and_replay(model, server):

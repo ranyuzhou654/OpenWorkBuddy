@@ -50,11 +50,13 @@ class Message(TypedDict):
 
 # Log entry types. Only these form the conversation tree.
 SYSTEM_PROMPT = "system_prompt"
+CONTEXT_STATE = "context_state"  # host snapshot of current instructions, memory and loaded skill versions
 USER = "user"
 ASSISTANT = "assistant"
 TOOL_STARTED = "tool_started"
 TOOL_RESULT = "tool_result"
 STATE = "state"
+EVIDENCE = "evidence"  # host-recorded source excerpts exposed in a model request; never a factual verdict
 NOTICE = "notice"  # context the harness gives the model mid-session (permissions...), sent as user-role text
 PRUNE = "prune"  # old tool results up to a seq are shown as pointers to saved copies
 COMPACTION = "compaction"  # a summary that stands in for everything before first_kept_id

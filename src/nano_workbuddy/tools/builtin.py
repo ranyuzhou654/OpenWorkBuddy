@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import hashlib
 import os
 import re
 import signal
@@ -13,7 +14,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .. import documents
+from .. import artifacts, documents
 from ..sandbox import SandboxUnavailable, wrap
 from ..types import text
 from .registry import Result, ToolCtx, ToolError, Verdict, tool
@@ -101,15 +102,38 @@ async def read(args: ReadArgs, ctx: ToolCtx) -> Result:
             raise ToolError(f"image larger than {MAX_IMAGE_BYTES} bytes")
         if not ctx.vision:
             return Result.ok(f"Image {p} ({p.stat().st_size} bytes). The current model cannot view images.")
-        data = base64.b64encode(p.read_bytes()).decode()
-        return Result([{"type": "text", "text": f"Image {p}"}, {"type": "image", "mime": mime, "data": data}])
+        raw = p.read_bytes()
+        data = base64.b64encode(raw).decode()
+        rec = _file_source(p, ctx, raw, None, "image (visual)")
+        return Result([{"type": "text", "text": f"[S{rec['n']}] Image {p}"},
+                       {"type": "image", "mime": mime, "data": data}],
+                      meta=artifacts.reading(rec, "image (visual)"))
     if documents.is_document(p):
         return await asyncio.to_thread(_read_document, p, args, ctx)
+    before = stamp(p)
     raw = p.read_bytes()
+    if stamp(p) != before:
+        raise ToolError(f"{p} changed during the read; read it again")
     if b"\0" in raw[:8192]:
         raise ToolError(f"{p} looks binary; inspect it with bash")
-    ctx.read_stamps[str(p)] = stamp(p)
-    return Result.ok(_numbered(raw.decode("utf-8", errors="replace").splitlines(), args, f"{p} is empty"))
+    ctx.read_stamps[str(p)] = before
+    body = raw.decode("utf-8", errors="replace")
+    locator = f"lines {args.offset}-{min(len(body.splitlines()), args.offset - 1 + args.limit)} (line caps {MAX_LINE})"
+    rec = _file_source(p, ctx, raw, body, locator)
+    meta = artifacts.reading(rec, locator) if args.offset <= len(body.splitlines()) else {"sources": [rec]}
+    return Result(
+        [text(f"[S{rec['n']}] {p}\n" + _numbered(body.splitlines(), args, f"{p} is empty"))],
+        meta=meta)
+
+
+def _file_source(p: Path, ctx: ToolCtx, raw: bytes, extracted: str | None, locator: str) -> dict:
+    for source in ctx.sources.values():
+        if any(o["path"] == str(p) and o["sha256"] == hashlib.sha256(raw).hexdigest()
+               for o in source.get("outputs", [])):
+            return source  # an immutable spilled excerpt still belongs to its original source version
+    known = next((s for s in ctx.sources.values() if s.get("path") == str(p)), None)
+    return artifacts.source_read(ctx, known["url"] if known else p.as_uri(), raw, p.name,
+                                 extracted=extracted, locator=locator, path=str(p))
 
 
 def _numbered(lines: list[str], args: ReadArgs, empty: str) -> str:
@@ -124,7 +148,9 @@ def _numbered(lines: list[str], args: ReadArgs, empty: str) -> str:
 
 def _read_document(p: Path, args: ReadArgs, ctx: ToolCtx) -> Result:
     try:
-        doc = documents.load(p, ctx.store / "cache" / "docs" if ctx.store else None)
+        raw = p.read_bytes()
+        doc = documents.load_bytes(raw, p.suffix.lower(), ctx.store / "cache" / "docs" if ctx.store else None,
+                                   name=p.name)
     except documents.DocumentError as e:
         raise ToolError(str(e)) from e
     first, last = 1, len(doc.units)
@@ -135,10 +161,17 @@ def _read_document(p: Path, args: ReadArgs, ctx: ToolCtx) -> Result:
         if not m or not 1 <= int(m.group(1)) <= len(doc.units):
             raise ToolError(f"pages must look like 3 or 2-5, within 1-{len(doc.units)}")
         first, last = int(m.group(1)), min(int(m.group(2) or m.group(1)), len(doc.units))
+        if last < first:
+            raise ToolError("page range end must not be before its start")
     head = [f"{p}: {doc.describe()}" + (f", showing {doc.unit}s {first}-{last}" if args.pages else "")]
     head += [f"Note: {n}" for n in doc.notes]
-    body = _numbered(doc.text(first, last).splitlines(), args, "(no text)")
-    return Result.ok("\n".join(head) + "\n\n" + body)
+    selected = doc.text(first, last).splitlines()
+    body = _numbered(selected, args, "(no text)")
+    locator = f"{doc.unit or 'document'} {first}-{last}; output lines {args.offset}-{args.offset + args.limit - 1}"
+    rec = _file_source(p, ctx, raw, doc.text(), locator)
+    readable = any(unit.strip() for unit in doc.units[first - 1:last]) and args.offset <= len(selected)
+    return Result([text(f"[S{rec['n']}] " + "\n".join(head) + "\n\n" + body)],
+                  meta=artifacts.reading(rec, locator) if readable else {"sources": [rec]})
 
 
 class WriteArgs(Args):

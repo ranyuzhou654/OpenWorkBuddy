@@ -1,8 +1,8 @@
 """web_fetch (D11) and web_search (M1).
 
-web_search asks the configured search backend and records each hit as a numbered source ([S#], kind
-"search": a snippet only). web_fetch reads a page and records it as a source read in full (kind "page"),
-which upgrades a search hit for the same URL. The records travel in the results' meta.
+web_search records numbered discoveries ([S#]); web_fetch records fetched/extracted content versions.
+Inspection is recorded later, from the actual model request projection. Downloading or extracting a
+page does not prove that the model saw its whole text, or that its claims are correct.
 
 web_fetch: fetch a URL and return its readable text.
 
@@ -154,28 +154,39 @@ def _result(r: httpx.Response, body: bytes, url: str, ctx: ToolCtx) -> Result:
     if r.status_code >= 400:
         return Result.error(f"HTTP {r.status_code} for {url}\n" + body[:2000].decode("utf-8", "replace"))
 
-    def cited(title: str, source_kind: str = "page") -> tuple[str, dict]:
-        rec = artifacts.cite(ctx.sources, url, source_kind, title, retrieved_at=_now(),
-                             sha256=hashlib.sha256(body).hexdigest())
-        return f"[S{rec['n']}] {url} ({r.status_code}, {kind or 'unknown type'})\n\n", {"sources": [rec]}
+    def cited(title: str, extracted: str | None = None, path: str = "") -> tuple[str, dict]:
+        locator = f"source text characters 0-{len(extracted)}" if extracted is not None else "download"
+        rec = artifacts.source_read(ctx, url, body, title, extracted=extracted, path=path,
+                                    locator=locator)
+        head = f"[S{rec['n']}] {url} ({r.status_code}, {kind or 'unknown type'})\n\n"
+        meta = artifacts.reading(rec, locator, output_start=len(head), source_length=len(extracted)) \
+            if extracted and extracted.strip() else {"sources": [rec]}
+        return head, meta
 
     if kind.startswith("image/") and len(body) <= MAX_IMAGE_BYTES:
-        head, meta = cited("", "file")
+        head, meta = cited("")
+        meta["sources"][0]["kind"] = "file"
+        artifacts.merge_source(ctx.sources, meta["sources"][0])
+        if ctx.vision:
+            meta["source_reads"] = [{"n": meta["sources"][0]["n"], "locator": "image (visual)"}]
         return Result([text(head.strip()), {"type": "image", "mime": kind, "data": base64.b64encode(body).decode()}],
                       meta=meta)
     if kind == "text/html" or kind == "application/xhtml+xml":
         page = html_to_text(body.decode(r.encoding or "utf-8", "replace"), url)
-        head, meta = cited(page[2:page.index("\n")] if page.startswith("# ") and "\n" in page else "")
+        head, meta = cited(page[2:page.index("\n")] if page.startswith("# ") and "\n" in page else "", page)
         return Result([text(head + page)], meta=meta)
     if any(t in kind for t in TEXT_TYPES) or not kind and b"\0" not in body[:8192]:
-        head, meta = cited("")
-        return Result([text(head + body.decode(r.encoding or "utf-8", "replace"))], meta=meta)
+        page = body.decode(r.encoding or "utf-8", "replace")
+        head, meta = cited("", page)
+        return Result([text(head + page)], meta=meta)
     name = (urlsplit(url).path.rsplit("/", 1)[-1] or "download").replace("..", "_")
     ctx.spill_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     f = ctx.spill_dir / f"{ctx.call_id or 'web'}-{name}"
     with os.fdopen(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "wb") as out:
         out.write(body)
-    head, meta = cited(name, "file")
+    head, meta = cited(name, path=str(f))
+    meta["sources"][0]["kind"] = "file"
+    artifacts.merge_source(ctx.sources, meta["sources"][0])
     how = ("Read it with the read tool (pages=... for long documents)." if documents.is_document(f)
            else "Inspect it with bash, e.g. `file` or a converter for its format.")
     return Result([text(f"{head}Binary content ({len(body)} bytes) saved to {f}. {how}")], meta=meta)
@@ -197,22 +208,25 @@ class SearchArgs(Args):
 async def web_search(args: SearchArgs, ctx: ToolCtx) -> Result:
     """Search the web. Returns numbered sources [S#] with snippets; snippets are not the page: fetch a page
     with web_fetch before relying on its details. Cite the numbers in answers and documents."""
-    if ctx.search is None:
+    if ctx.service("search") is None:
         raise ToolError("web search is not configured; the user can add a key in Settings → 联网搜索")
     try:
-        hits = await ctx.search.search(args.query, args.max_results, None if args.recency == "any" else args.recency,
-                                       args.topic)
+        hits = await ctx.service("search").search(
+            args.query, args.max_results, None if args.recency == "any" else args.recency, args.topic)
     except SearchError as e:
         raise ToolError(str(e)) from e
     if not hits:
         return Result.ok(f"No results for {args.query!r}.")
     when, recs, lines = _now(), [], []
     for h in hits:
+        discovery = f"{h.title}\n{h.url}\n{h.snippet[:500]}".encode()
         rec = artifacts.cite(ctx.sources, h.url, "search", h.title, snippet=h.snippet[:500], published=h.published,
-                             retrieved_at=when, provider=ctx.search.name)
+                             retrieved_at=when, provider=ctx.service("search").name, session_id=ctx.session_id,
+                             discovery_sha256=hashlib.sha256(discovery).hexdigest(),
+                             snapshot=artifacts.keep_bytes(ctx.store, discovery))
         recs.append(rec)
         date = f"published {h.published}" if h.published else "publication date unknown"
         lines.append(f"[S{rec['n']}] {h.title}\n{h.url}\n{date}\n{h.snippet[:800]}")
-    head = (f"Results for {args.query!r} ({ctx.search.name}, retrieved {when}). These are search snippets; "
+    head = (f"Results for {args.query!r} ({ctx.service("search").name}, retrieved {when}). These are search snippets; "
             "fetch a page before relying on details.\n\n")
     return Result([text(head + "\n\n".join(lines))], meta={"sources": recs})

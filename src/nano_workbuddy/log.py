@@ -2,7 +2,7 @@
 
 Line 0 is the session header. Lines with an "id" are tree entries. Lines of type "checkout"
 move the current leaf and are not part of the tree. A crash can leave a partial last line;
-opening the file truncates it. Anything else that fails to parse is corruption and raises.
+readers ignore it and the next locked writer repairs it. Other parse errors are corruption and raise.
 
 One writer at a time: every write happens under an exclusive flock on the file, and a run holds it from
 start to end (writing()). A second process (the CLI next to the web server) that wants to write the same
@@ -62,11 +62,10 @@ class SessionLog:
     def open(cls, path: Path) -> SessionLog:
         raw = path.read_bytes()
         end = raw.rfind(b"\n") + 1
-        if end < len(raw):  # partial line from a crash mid-write
-            with open(path, "r+b") as f:
-                f.truncate(end)
-            raw = raw[:end]
+        raw = raw[:end]  # readers ignore partial tails; only a writer holding the lock may repair them
         lines = raw.decode("utf-8").splitlines()
+        if not lines:
+            raise ValueError(f"{path} has no complete session header")
         log = cls(path, json.loads(lines[0]))
         for seq, line in enumerate(lines[1:], start=1):
             log._apply(json.loads(line), seq)
@@ -108,7 +107,11 @@ class SessionLog:
             raise SessionBusy(f"session {self.id} is being written by another process (the CLI or another "
                               "server); try again when it has finished") from None
         self._fd = fd
-        self._catch_up()
+        try:
+            self._catch_up()
+        except BaseException:
+            self.close()
+            raise
 
     def _catch_up(self) -> None:
         """Apply lines another process appended since this object last wrote or read the file."""
@@ -120,8 +123,24 @@ class SessionLog:
             raw = f.read(size - self._size)
         end = raw.rfind(b"\n") + 1
         if end < len(raw):  # that process died mid-line: the same repair as open()
-            os.truncate(self.file, self._size + end)
-        for line in raw[:end].decode("utf-8").splitlines():
+            os.ftruncate(self._fd, self._size + end)
+            os.fsync(self._fd)
+        self._apply_tail(raw[:end])
+
+    def refresh(self) -> bool:
+        """Read complete appended lines without taking a writer lock or repairing a partial tail."""
+        if self._fd is not None:
+            return False
+        with open(self.file, "rb") as f:
+            f.seek(self._size)
+            raw = f.read()
+        end = raw.rfind(b"\n") + 1
+        if end:
+            self._apply_tail(raw[:end])
+        return bool(end)
+
+    def _apply_tail(self, raw: bytes) -> None:
+        for line in raw.decode("utf-8").splitlines():
             d, seq = json.loads(line), self.lines
             self._apply(d, seq)
             self.lines += 1
@@ -129,7 +148,7 @@ class SessionLog:
                 self._notify({"type": "entry", "seq": seq, "entry": entry_json(self.entries[d["id"]])})
             elif d["type"] == "checkout":
                 self._notify({"type": "checkout", "seq": seq, "leaf_id": d["leaf_id"]})
-        self._size += end
+        self._size += len(raw)
 
     def _write(self, d: dict[str, Any], durable: bool) -> int:
         line = (json.dumps(d, ensure_ascii=False) + "\n").encode("utf-8")

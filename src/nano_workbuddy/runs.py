@@ -90,6 +90,8 @@ class Live:
     outputs: dict[str, str] = field(default_factory=dict)  # call_id -> streamed tool output so far
     approvals: dict[str, tuple[dict[str, Any], asyncio.Future[tuple[str, str | None]]]] = field(default_factory=dict)
     questions: dict[str, tuple[dict[str, Any], asyncio.Future[str]]] = field(default_factory=dict)
+    primary_id: str | None = None
+    background: bool = False
 
     def view(self) -> dict[str, Any]:
         return {"run_id": self.run_id, "text": self.text, "thinking": self.thinking, "outputs": self.outputs,
@@ -117,7 +119,7 @@ class RunManager:
     def _on_log(self, sid: str, event: dict[str, Any]) -> None:
         if event["type"] == "entry" and event["entry"]["type"] == "user" and (iid := event["entry"]["data"].get(
                 "input_id")):
-            self.ws.index.finish_input(iid, "consumed")  # the message is in the log now: it can no longer be lost
+            self.ws.index.finish_input(iid, "consumed", event["entry"].get("run_id"))
         if (live := self.live.get(sid)) and event["type"] == "entry":
             entry = event["entry"]
             if entry["type"] == "assistant":  # the streamed text is now durable
@@ -156,31 +158,37 @@ class RunManager:
     # runs
 
     def send(self, log: SessionLog, content: str, *, request_id: str | None = None,
-             parent_id: str | None = None, delivery: str = "auto", attachments: list[str] = ()) -> str:
-        """Start a run, or hand the message to the active one. Returns how it was delivered: "run", "steer",
-        "queue", or "duplicate" for a retried request_id. Raises Busy for a request_id reused with another
-        message, or a branch edit while a run is active."""
-        live = self.live.get(log.id)
-        if live and parent_id is not None:
-            raise Busy("cannot branch from an earlier message while a run is active")
-        files, blocks = self.ws.attachments(log, attachments)  # KeyError for an unknown attachment
-        if request_id:
-            claim = self.ws.index.claim_request(request_id, log.id, f"{parent_id}\0{content}\0{','.join(attachments)}")
-            if claim == "duplicate":
-                return "duplicate"
-            if claim == "conflict":
-                raise Busy(f"request_id {request_id} was already used for a different message")
-        kind = ("queue" if delivery == "queue" else "steer") if live else "run"
-        extra = {**({"attachments": files, "blocks": blocks} if files else {}),
-                 **({"request_id": request_id} if request_id else {})} or None
-        msg = Input(content, self.ws.index.add_input(log.id, kind, content, parent_id, extra),  # durable before the ack
-                    tuple(files), tuple(blocks))
-        if live:
-            getattr(live.inbox, kind).append(msg)
-            self._publish_inbox(log.id, live.inbox)
-        else:
-            self._submit(log, msg, request_id=request_id, parent_id=parent_id)
-        return kind
+             parent_id: str | None = None, delivery: str = "auto", attachments: list[str] = ()) -> dict[str, Any]:
+        """Accept once and return input_id, status, run association and delivery (run/steer/queue/duplicate).
+        Request IDs are home-wide and include requested delivery in their payload identity.
+        Raises Busy for conflicting retries or branch edits during an active run."""
+        payload = json.dumps({"text": content, "parent": parent_id, "attachments": list(attachments),
+                              "delivery": delivery}, ensure_ascii=False, sort_keys=True)
+        legacy = f"{parent_id}\0{content}\0{','.join(attachments)}"
+        try:
+            existing = self.ws.index.request_input(request_id, log.id, payload, legacy)
+            if existing:
+                self.deliver_pending(log.id)
+                return self._ack(existing, "duplicate")
+            live = self.live.get(log.id)
+            if live and parent_id is not None:
+                raise Busy("cannot branch from an earlier message while a run is active")
+            files, blocks = self.ws.attachments(log, attachments)
+            kind = ("queue" if delivery == "queue" else "steer") if live else "run"
+            extra = {**({"attachments": files, "blocks": blocks} if files else {}),
+                     **({"request_id": request_id} if request_id else {})} or None
+            row, created = self.ws.index.accept_input(log.id, kind, content, parent_id, extra,
+                                                       request_id=request_id, payload=payload, legacy_payload=legacy)
+        except ValueError as e:
+            raise Busy(str(e)) from e
+        self.deliver_pending(log.id)
+        return self._ack(row, kind if created else "duplicate")
+
+    def _ack(self, row: dict, delivery: str) -> dict:
+        row = self.ws.index.input(row["id"])
+        run = self.ws.index._one("select * from runs where id=?", row["run_id"]) if row["run_id"] else None
+        return {"delivery": delivery, "input_id": row["id"], "status": row["status"],
+                "run_id": row["run_id"], "run_status": run["status"] if run else None}
 
     def _submit(self, log: SessionLog, msg: Input, *, request_id: str | None = None,
                 parent_id: str | None = None, inbox: Inbox | None = None) -> None:
@@ -188,7 +196,7 @@ class RunManager:
             return self.ws.submit(log, msg, request_id=request_id, parent_id=parent_id, emit=emit,
                                   inbox=inbox, ask=ask, question=question)
 
-        self._start(log, factory, inbox)
+        self._start(log, factory, inbox, primary_id=msg.id, background=(request_id or "").startswith("sched:"))
 
     def compact(self, log: SessionLog, instructions: str | None = None) -> None:
         if log.id in self.live:
@@ -211,9 +219,15 @@ class RunManager:
         session that has nothing to resume."""
         index = self.ws.index
         index.expire_pending_approvals()
-        unfinished = [r["session_id"] for r in index.unfinished_runs()]
+        self.deliver_pending()
+
+    def deliver_pending(self, session_id: str | None = None) -> None:
+        """Idempotent startup/tick delivery. Busy writers leave inputs pending for the next tick."""
+        index = self.ws.index
+        unfinished_rows = index.unfinished_runs(session_id)
+        unfinished = [r["session_id"] for r in unfinished_rows]
         pending: dict[str, list[dict[str, Any]]] = {}
-        for row in index.pending_inputs():
+        for row in index.pending_inputs(session_id):
             pending.setdefault(row["session_id"], []).append(row)
         for sid in dict.fromkeys([*unfinished, *pending]):
             try:
@@ -221,22 +235,48 @@ class RunManager:
             except KeyError:
                 continue
             rows = self._not_in_log(log, pending.get(sid, []))
+            if live := self.live.get(sid):
+                held = {live.primary_id, *(m.id for m in live.inbox.steer + live.inbox.queue)}
+                for row in rows:
+                    if row["id"] not in held:
+                        kind = "queue" if row["delivery"] in ("queue", "run") else "steer"
+                        getattr(live.inbox, kind).append(_input(row))
+                self._publish_inbox(sid, live.inbox)
+                continue
+            ready = []
+            for row in rows:
+                rid = _extra(row).get("request_id")
+                prior = index.run_for_request(rid) if rid else None
+                if prior and prior["status"] not in ("running", "interrupted"):
+                    index.finish_input(row["id"], "blocked" if prior["status"] == "blocked" else "failed")
+                else:
+                    ready.append(row)
+            rows = ready
             msgs = [_input(r) for r in rows]
+            background = any((r.get("request_id") or "").startswith("sched:") for r in unfinished_rows
+                             if r["session_id"] == sid) if sid in unfinished else bool(
+                                 rows and _extra(rows[0]).get("request_id", "").startswith("sched:"))
+            background_count = sum(live.background for live in self.live.values())
+            if background and background_count >= self.ws.cfg.budget.background_concurrency:
+                continue  # durable input/occurrence remains pending; a later tick or completion retries it
             if sid in unfinished:
-                inbox = Inbox(steer=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] != "queue"],
-                              queue=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "queue"])
+                active = {r["id"] for r in unfinished_rows if r["session_id"] == sid}
+                inbox = Inbox(steer=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "steer"],
+                              queue=[m for m, r in zip(msgs, rows, strict=True) if r["delivery"] == "queue"
+                                     or r["delivery"] == "run" and r["run_id"] not in active])
                 self._start(log, lambda emit, inbox, ask, question, log=log: self.ws.resume(log, emit, inbox, ask,
-                                                                                            question), inbox)
+                                                                                            question), inbox,
+                            background=background)
             elif msgs:  # its request_id travels along: a scheduled task finds its run by it
                 self._submit(log, msgs[0], parent_id=rows[0]["parent_id"], inbox=Inbox(queue=msgs[1:]),
                              request_id=_extra(rows[0]).get("request_id"))
 
     def _not_in_log(self, log: SessionLog, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pending inputs minus those whose user entry was written just before a crash (marked consumed now)."""
-        logged = {e.data.get("input_id") for e in log.entries.values() if e.type == "user"}
+        logged = {e.data.get("input_id"): e.run_id for e in log.entries.values() if e.type == "user"}
         for r in rows:
             if r["id"] in logged:
-                self.ws.index.finish_input(r["id"], "consumed")
+                self.ws.index.finish_input(r["id"], "consumed", logged[r["id"]])
         return [r for r in rows if r["id"] not in logged]
 
     async def shutdown(self) -> None:
@@ -246,8 +286,9 @@ class RunManager:
             t.cancel(SHUTDOWN)
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    def _start(self, log: SessionLog, factory: Factory, inbox: Inbox | None = None) -> None:
-        live = self.live[log.id] = Live(inbox=inbox or Inbox())
+    def _start(self, log: SessionLog, factory: Factory, inbox: Inbox | None = None,
+               primary_id: str | None = None, background: bool = False) -> None:
+        live = self.live[log.id] = Live(inbox=inbox or Inbox(), primary_id=primary_id, background=background)
         self.hub(log)
         live.task = asyncio.create_task(self._run(log, live, factory))
 
@@ -272,14 +313,15 @@ class RunManager:
         if status == "busy":  # another process holds the session: inputs stay pending for the next start
             pass
         elif leftovers and status in ("ok", "limit"):  # messages that arrived as the run was ending
-            self._submit(log, leftovers[0], inbox=Inbox(queue=leftovers[1:]))
-            self._publish_inbox(log.id, self.live[log.id].inbox)
+            self.deliver_pending(log.id)
         elif leftovers:  # cancelled or failed: give the text back to the composer
             for m in leftovers:
                 if m.id:
                     self.ws.index.finish_input(m.id, "dropped")
             self.hubs[log.id].publish({"type": "inbox", "steer": [], "queue": [],
                                        "dropped": [m.text for m in leftovers]})
+        if status != "busy":
+            self.deliver_pending()  # release a background slot without waiting for a scheduler tick
 
     def _publish_inbox(self, sid: str, inbox: Inbox) -> None:
         self.hubs[sid].publish({"type": "inbox", **inbox.view()})
@@ -290,14 +332,14 @@ class RunManager:
         hub = self.hubs[log.id]
 
         async def ask(check: policy.Check, tool: Tool, call: ToolCall) -> Result | None:
-            aid = new_id("a")
+            aid = check.approval_id or new_id("a")
             always = check.suggestion()
             view = {"id": aid, "call_id": call["id"], "tool": tool.name, "args": call["args"], "action": check.action,
                     "resource": check.resource, "preview": check.preview,
                     "always": None if check.once_only else {"action": always.action, "resource": always.resource}}
             fut: asyncio.Future[tuple[str, str | None]] = asyncio.get_running_loop().create_future()
             live.approvals[aid] = (view, fut)
-            self.ws.index.add_approval(aid, log.id, live.run_id, call)
+            self.ws.index.add_approval(aid, log.id, live.run_id, call, check.preview)
             hub.publish({"type": "approval.requested", "approval": view})
             if self.attention:
                 self.attention(log, "approval", f"{tool.name} {check.resource}"[:120])

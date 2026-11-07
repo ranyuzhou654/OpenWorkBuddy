@@ -1,18 +1,16 @@
-import { CircleAlert, CircleCheck, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Paperclip, X } from "lucide-react";
+import { CircleAlert, CircleCheck, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Paperclip } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, type Artifact, type Attachment, type Source } from "./api";
+import { api, type Artifact, type Attachment } from "./api";
+import { size } from "./format";
 import { artifactsOf, pathTo, sourcesOf, type State, uploadsOf } from "./session";
+import { Dialog, Skeleton, useToast } from "./ui";
 
 // Files and evidence in a session: attachment chips on user messages, a card for each delivered file,
 // a preview window, and the 资料 panel (sources, delivered files, attachments).
 
 type Viewable = { sha256: string; name: string; mime: string; kept?: boolean };
-
-export function size(n: number): string {
-  return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 const DOC = /\.(docx|pptx|xlsx|xlsm)$/i;
 const canPreview = (f: Viewable) => f.mime === "application/pdf" || f.mime.startsWith("image/") ||
@@ -37,7 +35,8 @@ export function AttachmentChips({ sid, files }: { sid: string; files: Attachment
 export function ArtifactCard({ sid, a }: { sid: string; a: Artifact }) {
   const [open, setOpen] = useState(false);
   const [checks, setChecks] = useState(false);
-  const failed = a.checks.filter((c) => !c.ok);
+  const toast = useToast();
+  const failed = a.checks.filter((c) => c.ok === false);
   const desc = (a.info.description as string | undefined) ?? a.mime;
   return (
     <div className={`artifact${failed.length ? " warn" : ""}`}>
@@ -48,19 +47,26 @@ export function ArtifactCard({ sid, a }: { sid: string; a: Artifact }) {
           <span>{a.title ? `${a.name} · ` : ""}{desc} · {size(a.size)}{a.version > 1 ? ` · 第 ${a.version} 版` : ""}</span>
         </div>
         <button className={`checks ${failed.length ? "bad" : "good"}`} onClick={() => setChecks(!checks)}
-          title="交付前重新打开文件做的检查">
-          {failed.length ? <><CircleAlert size={13} />{failed.length} 个问题</> : <><CircleCheck size={13} />已检查</>}
+          title="分别查看结构、引用、数字和人工验收状态">
+          {failed.length ? <><CircleAlert size={13} />{failed.length} 个问题</> : <><CircleCheck size={13} />查看校验层次</>}
         </button>
       </div>
       {checks && (
-        <ul className="check-list">
-          {a.checks.map((c, i) => <li key={i} className={c.ok ? "ok" : "bad"}>{c.ok ? "✓" : "✗"} {c.name}{c.detail ? `：${c.detail}` : ""}</li>)}
-        </ul>
+        <div className="check-list">
+          {Object.entries({ structure: "文件与结构", citations: "引用与来源", numbers: "数字与计算", human: "人工版式与事实验收" }).map(([layer, label]) => (
+            <section key={layer}><b>{label}</b><ul>
+              {a.checks.filter((c) => (c.layer ?? "structure") === layer).map((c, i) => (
+                <li key={i} className={c.ok === null ? "note" : c.ok ? "ok" : "bad"}>
+                  {c.ok === null ? "待核验" : c.ok ? "✓" : "✗"} {c.name}{c.detail ? `：${c.detail}` : ""}
+                </li>))}
+              {!a.checks.some((c) => (c.layer ?? "structure") === layer) && <li className="note">尚未评估</li>}
+            </ul></section>))}
+        </div>
       )}
       <div className="row">
         {a.kept && canPreview(a) && <button onClick={() => setOpen(true)}>预览</button>}
         {a.kept && <a className="button" href={api.fileUrl(sid, a.sha256, a.name, true)}><Download size={13} />下载这一版</a>}
-        <button onClick={() => api.reveal(sid, a.path).catch((e) => alert(String(e)))} title={a.path}>
+        <button onClick={() => api.reveal(sid, a.path).catch((e) => toast.error(String(e)))} title={a.path}>
           <FolderOpen size={13} />在访达中显示
         </button>
       </div>
@@ -77,11 +83,8 @@ export function Preview({ sid, file, onClose }: { sid: string; file: Viewable; o
   const kind = file.mime === "application/pdf" ? "pdf" : file.mime.startsWith("image/") ? "image"
     : DOC.test(file.name) ? "doc" : "text";
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  useEffect(() => {
+    setText(null);
+    setError(null);
     if (kind === "doc")
       api.fileText(sid, file.sha256, file.name).then((r) => setText([...r.notes.map((n) => `> ${n}`), r.text].join("\n\n")))
         .catch((e) => setError(String(e)));
@@ -89,29 +92,22 @@ export function Preview({ sid, file, onClose }: { sid: string; file: Viewable; o
       fetch(url).then((r) => r.text()).then(setText).catch((e) => setError(String(e)));
   }, [kind, sid, file.sha256, file.name, url]);
   return (
-    <div className="preview-backdrop" onClick={onClose}>
-      <div className="preview" onClick={(e) => e.stopPropagation()}>
-        <div className="preview-head">
-          <b>{file.name}</b>
-          <span className="grow" />
-          <a className="button" href={api.fileUrl(sid, file.sha256, file.name, true)}><Download size={13} />下载</a>
-          <button className="ghost icon" onClick={onClose} aria-label="关闭"><X size={16} /></button>
-        </div>
-        <div className="preview-body">
-          {error ? <div className="note">{error}</div>
-            : kind === "pdf" ? <iframe src={url} title={file.name} />
-            : kind === "image" ? <img src={url} alt={file.name} />
-            : text === null ? <div className="note">加载中…</div>
-            : /\.(md|markdown|docx|pptx|xlsx|xlsm)$/i.test(file.name)
-              ? <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
-              : <pre>{text}</pre>}
-        </div>
+    <Dialog open onClose={onClose} title={file.name} size="xl" className="preview-dialog"
+      footer={<a className="button" href={api.fileUrl(sid, file.sha256, file.name, true)}><Download size={13} />下载</a>}>
+      <div className="preview-body">
+        {error ? <div className="note">{error}</div>
+          : kind === "pdf" ? <iframe src={url} title={file.name} />
+          : kind === "image" ? <img src={url} alt={file.name} />
+          : text === null ? <div className="preview-loading"><Skeleton lines={5} /></div>
+          : /\.(md|markdown|docx|pptx|xlsx|xlsm)$/i.test(file.name)
+            ? <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
+            : <pre>{text}</pre>}
       </div>
-    </div>
+    </Dialog>
   );
 }
 
-const KIND_LABEL: Record<Source["kind"], string> = { search: "摘要", page: "已读全文", file: "文件" };
+const STATE_LABEL = { discovered: "已发现（摘要）", fetched: "已获取", extracted: "已提取", inspected: "片段已进入上下文" };
 
 // The 资料 panel: what the answers rest on and what was delivered, for the whole session.
 export function Library({ sid, state }: { sid: string; state: State }) {
@@ -134,13 +130,17 @@ export function Library({ sid, state }: { sid: string; state: State }) {
               <a href={s.url} target="_blank" rel="noreferrer" title={s.url}>{s.title || s.url}</a>
             </div>
             <div className="source-meta">
-              <span className={`tag ${s.kind}`}>{KIND_LABEL[s.kind]}</span>
-              <Globe size={11} />{new URL(s.url).hostname}
+              <span className={`tag ${s.kind}`}>{s.state ? STATE_LABEL[s.state] : "历史状态未核验"}</span>
+              <Globe size={11} />{s.url.startsWith("http") ? new URL(s.url).hostname : "本地文件"}
               {s.published ? ` · 发布 ${s.published.slice(0, 10)}` : ""}
             </div>
             {s.snippet && <div className="source-snippet">{s.snippet}</div>}
+            <div className="note">访问 {s.retrieved_at || "未知"} · {s.access_scope || "session"}
+              {s.sha256 && <span title={s.sha256}> · SHA256 {s.sha256.slice(0, 12)}</span>}</div>
+            {s.inspections?.map((x, i) => <div key={i} className="note">{x.locator}{x.partial_output ? "（输出截断，仅首尾片段）" : ""}</div>)}
+            {s.snapshot && <a href={api.fileUrl(sid, s.snapshot, `source-${s.n}.bin`, true)}>下载来源快照</a>}
           </div>
-        )) : <div className="note pad">还没有来源。助手搜索或读取网页后，来源会编号列在这里，回答里的 [S1] 可以点开。</div>
+        )) : <div className="note pad">还没有来源。来源的读取状态不代表事实已经核验。</div>
       ) : (
         <>
           {delivered.length > 0 && <div className="library-label">交付的文件</div>}

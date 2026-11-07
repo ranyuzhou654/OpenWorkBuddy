@@ -28,6 +28,24 @@ class SettingsError(ValueError):
     """The requested change is invalid; nothing was written."""
 
 
+def set_plugin_enabled(home: Path, name: str, enabled: bool) -> Config:
+    from .config import load
+    from .plugins import catalog
+
+    if name not in catalog():
+        raise SettingsError(f"plugin {name!r} is not installed")
+    names = list(load(home).plugins_enabled)
+    if enabled and name not in names:
+        names.append(name)
+    if not enabled:
+        names = [n for n in names if n != name]
+
+    def change(doc):
+        _section(doc, "plugins")["enabled"] = names
+
+    return edit(home, change)
+
+
 def _check_name(kind: str, name: str) -> None:
     if not NAME.match(name):
         raise SettingsError(f"{kind} name may use letters, digits, '.', '_' and '-' (max 64): {name!r}")

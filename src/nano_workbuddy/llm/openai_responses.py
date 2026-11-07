@@ -50,8 +50,6 @@ class OpenAIResponses:
             raise
         if final is None:
             raise RuntimeError("the Responses stream ended without a final response")
-        if final.status == "failed":
-            raise RuntimeError(f"response failed: {final.error.message if final.error else 'unknown error'}")
         yield from_output(final, provider, self.spec.id)
 
 
@@ -118,8 +116,17 @@ def from_output(resp: Any, provider: str, model: str) -> Response:
             content.append(call)
     stop: Stop = "tool_use" if any(b["type"] == "tool_call" for b in content) else "end"
     if resp.status == "incomplete":
-        stop = STOPS.get(resp.incomplete_details.reason if resp.incomplete_details else "", "length")
+        stop = STOPS.get(resp.incomplete_details.reason if resp.incomplete_details else "", "error")
+    elif resp.status != "completed" or any(
+        c.type == "refusal" for item in resp.output if item.type == "message" for c in item.content
+    ):
+        stop = "error"
     u = resp.usage
     usage = {"input": u.input_tokens, "output": u.output_tokens,
              "cache_read": u.input_tokens_details.cached_tokens if u.input_tokens_details else 0} if u else {}
-    return Response(content, stop, usage, {"provider": provider, "model": model})
+    from ..usage import wire_usage
+
+    return Response(content, stop, usage, {"provider": provider, "model": getattr(resp, "model", None) or model,
+                                         "response_id": getattr(resp, "id", None),
+                                         "request_id": getattr(resp, "_request_id", None),
+                                         "raw_usage": wire_usage(u), "usage_complete": u is not None})

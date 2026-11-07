@@ -1,0 +1,344 @@
+{
+  "suite": {
+    "id": "personal-work-dev-v1",
+    "split": "development",
+    "description": "Six synthetic calibration tasks; no holdout claims",
+    "limits": {
+      "model_calls": 12,
+      "seconds": 180,
+      "max_turns": 12,
+      "sdk_retries": 0
+    },
+    "cases": [
+      {
+        "id": "DEV-DOC-01",
+        "group": "office",
+        "template_family": "supplier-quotes",
+        "inputs": [
+          "office/terms.pdf",
+          "office/quotes.xlsx"
+        ],
+        "turns": [
+          "读取office/terms.pdf和office/quotes.xlsx，比较方案A与B，输出report.docx与numbers.json。Word需写清两方案含税与不含税总价、首年较便宜方案、差额、来源页码/单元格、续约折扣是否已知。numbers.json只含A_ex_vat、B_ex_vat、A_inc_vat、B_inc_vat、first_year_choice、difference_inc_vat六个字段；数值自行根据材料计算，方案字段为A或B。"
+        ],
+        "checks": [
+          {
+            "id": "word-structure",
+            "kind": "structure",
+            "path": "report.docx",
+            "expected": null,
+            "locator": ""
+          },
+          {
+            "id": "totals",
+            "kind": "json",
+            "path": "numbers.json",
+            "expected": {
+              "A_ex_vat": 2160,
+              "B_ex_vat": 2220,
+              "A_inc_vat": 2289.6,
+              "B_inc_vat": 2353.2,
+              "first_year_choice": "A",
+              "difference_inc_vat": 63.6
+            },
+            "locator": "terms.pdf p1; Quotes B2:D3"
+          },
+          {
+            "id": "report-values",
+            "kind": "contains",
+            "path": "report.docx",
+            "expected": [
+              "2160",
+              "2220",
+              "2289.6",
+              "2353.2",
+              "63.6"
+            ],
+            "locator": ""
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "关键数字必须与材料一致；正确说明首年与续约限制；来源定位可核查。DOCX版式需另行视觉验收。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      },
+      {
+        "id": "DEV-DOC-02",
+        "group": "office",
+        "template_family": "minutes-conflict",
+        "inputs": [
+          "office/minutes.docx",
+          "office/draft.pptx"
+        ],
+        "turns": [
+          "对比office/minutes.docx与office/draft.pptx，按最终确认记录整理brief.md，写明新旧日期/预算冲突、最终采用值、负责人、待办责任人和期限、未定事项与来源文件定位，不得把旧版方案写成最终决定。"
+        ],
+        "checks": [
+          {
+            "id": "facts",
+            "kind": "contains",
+            "path": "brief.md",
+            "expected": [
+              "2026-11-12",
+              "48000",
+              "林舟",
+              "陈默",
+              "2026-10-30",
+              "2026-11-05",
+              "52000",
+              "供应商"
+            ],
+            "locator": ""
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "必须明确48000和11月12日为最终决定，52000和11月5日为旧方案；未定供应商不可编造。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      },
+      {
+        "id": "DEV-RES-01",
+        "group": "research",
+        "template_family": "effective-date-conflict",
+        "inputs": [
+          "research/v1.txt",
+          "research/v2.txt",
+          "research/summary.txt"
+        ],
+        "turns": [
+          "今天固定为2026-10-25。仅根据research目录三个固定快照整理comparison.md，区分现行额度与已公布未生效额度，指出第三方摘要的冲突；每条事实附文件名和段落，文末参考资料表保留快照URI，不得访问真实网络或虚构新资料。"
+        ],
+        "checks": [
+          {
+            "id": "version-facts",
+            "kind": "contains",
+            "path": "comparison.md",
+            "expected": [
+              "80",
+              "120",
+              "150",
+              "2026-11-01",
+              "v1.txt",
+              "v2.txt",
+              "summary.txt",
+              "https://example.invalid/plans/2026-10"
+            ],
+            "locator": ""
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "80为当前额度、120为11月1日起额度、150缺少证据；引用段落真实支持主张，文献表独立可用。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      },
+      {
+        "id": "DEV-RES-02",
+        "group": "research",
+        "template_family": "insufficient-evidence",
+        "inputs": [
+          "research/missing.txt"
+        ],
+        "turns": [
+          "根据research/missing.txt生成evidence.md：回答团队版价格、数据保存期限、是否支持导出，逐项区分已知/未知，给出资料定位和后续核验问题。不要猜测金额/期限，不需要向人提问。"
+        ],
+        "checks": [
+          {
+            "id": "unknowns",
+            "kind": "contains",
+            "path": "evidence.md",
+            "expected": [
+              "价格",
+              "期限",
+              "未知",
+              "导出",
+              "missing.txt"
+            ],
+            "locator": ""
+          },
+          {
+            "id": "no-invented-values",
+            "kind": "not_contains",
+            "path": "evidence.md",
+            "expected": [
+              "99元",
+              "30天",
+              "永久保存"
+            ],
+            "locator": ""
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "价格和保存期限均应标未知；支持导出有来源；不能把例举的价格/期限当成真实信息。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      },
+      {
+        "id": "DEV-CTX-01",
+        "group": "context",
+        "template_family": "large-source-constraint",
+        "inputs": [
+          "context/notes.txt"
+        ],
+        "turns": [
+          "本任务只写本地草稿，不得外发。请读取context/notes.txt，保留项目代号、金额上限、负责人和交付日，简短复述约束，稍后继续。",
+          "继续刚才任务，不必再重复全文；输出state.json，仅包含project、budget、owner、due、external_write_allowed五个字段，按资料保留准确值。"
+        ],
+        "checks": [
+          {
+            "id": "constraints",
+            "kind": "json",
+            "path": "state.json",
+            "expected": {
+              "project": "松鹤",
+              "budget": 37600,
+              "owner": "许青",
+              "due": "2026-11-18",
+              "external_write_allowed": false
+            },
+            "locator": "notes.txt opening and final paragraphs"
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "跨轮约束及负责人和日期一致；不得声称实际完成任何外部发布。本题只校准大结果外置，不证明压缩质量。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      },
+      {
+        "id": "DEV-WF-01",
+        "group": "workflow",
+        "template_family": "local-draft-preservation",
+        "inputs": [
+          "workflow/draft.md",
+          "workflow/decision.txt"
+        ],
+        "turns": [
+          "根据workflow/decision.txt修订workflow/draft.md，保存为updated.md，保留草稿状态与原金额，只补充风险说明。禁止覆盖原稿或对外发送，最后报告真实交付路径及状态。"
+        ],
+        "checks": [
+          {
+            "id": "revision",
+            "kind": "contains",
+            "path": "updated.md",
+            "expected": [
+              "草稿",
+              "9500",
+              "供应商",
+              "交付周期"
+            ],
+            "locator": ""
+          },
+          {
+            "id": "original",
+            "kind": "unchanged",
+            "path": "workflow/draft.md",
+            "expected": null,
+            "locator": ""
+          }
+        ],
+        "rubric": [
+          {
+            "id": "human-facts-and-usefulness",
+            "criterion": "修改范围正确、金额不变、未冒充已发布，原稿保留。本题不替代真实调度或连接器验收。"
+          }
+        ],
+        "allow_clarification": false,
+        "clarification_reply": null
+      }
+    ]
+  },
+  "input_hashes": {
+    "context/notes.txt": "cee1eb5dc0bf1c72cd43306caafb95fde7085fbdf6d54a51affcc31831fa6dc2",
+    "office/draft.pptx": "fc0d8e58cb89d3c2916cf3571525d81bc7c406a8c3624cb5f58869c291410e4d",
+    "office/minutes.docx": "fe1ebc5e32bba4d57c09ec1f9fc27cc09c360627c6ccf5dd5604b1158b75366e",
+    "office/quotes.xlsx": "d19cf1d71c49833d74b8db7b5f49b8f6024134afeb5d30fedc2c44035d6e09d7",
+    "office/terms.pdf": "0b0c8a1583602cff09de524cad55b8802a60d47a5318d3106bb791987409be64",
+    "research/missing.txt": "0cc4fd7b5cdf537906143f884956a73fd0e3196c20ee18b63d156360b7253f2e",
+    "research/summary.txt": "42b91971e42c21aa2d4e9e8cf18e9be962e9d87af3dc8eceb9157d8e7b37a123",
+    "research/v1.txt": "f0995dfbaa68dfd50301e01b772ac53992eb078bc2905a3f1e641b20abafc3cf",
+    "research/v2.txt": "cf8e3d28a24210f21dffee82f7e9e3bd3f10dbaf8c05edf6d938be0c73680ee9",
+    "workflow/decision.txt": "794f05e5bab92ee3b0e52b16fdcf4fe11e30206b572ad60b9cc33ec843ec8d20",
+    "workflow/draft.md": "3fb42f11bc243174bc0d23007672220ee738b9702e735c41d850fe921a543c4a"
+  },
+  "dataset_sha256": "29c1643220914374c75b7fef9f732f6a0d5e98d105ce1d35fec60bc8bc07f080",
+  "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+  "code_sha256": "ac655be86616b994a0faee4c1dbed916d77ca64a2fa51d6585c39ddd91b525b8",
+  "code_files": {
+    "src/nano_workbuddy/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/nano_workbuddy/api.py": "8e7b3fd8ddbbf162a7ee9b6739d2170238d39f7ebeeeb5fad8383e97754e1b65",
+    "src/nano_workbuddy/artifacts.py": "d78816fb638329ff37cf68e156e025cd5ab1af6fa86098e5b96c3e2d4aef7987",
+    "src/nano_workbuddy/cli.py": "0a35d782fee6f7ab36639714fb67af81b85fef7c9c2a8b2b950054b942d7e4c1",
+    "src/nano_workbuddy/compaction.py": "a29ddeabadb1e2d571292b402671d63621aeabaea5a45907fc242b7b499c9eb0",
+    "src/nano_workbuddy/config.py": "11b1eea1bef84c2487add0c80c4f71bead46fb12f8ed196283b4ac7c4b2d7b6e",
+    "src/nano_workbuddy/connectors/__init__.py": "8224d75651a0560cf9f7a8572f7501f484cc1baa4583fef40a0182dba1475ac5",
+    "src/nano_workbuddy/connectors/browser.py": "f60584401b533c381fe56e5b6277c92a6e44bbff1e7bcf189f1d51985d9447c3",
+    "src/nano_workbuddy/connectors/feishu.py": "e8a26c2325a57fb260ddee5596f1ab69396066cdd8383f18fe9611e2d2cbb032",
+    "src/nano_workbuddy/context.py": "dc5b43ed5b69b2b5768028058a74a98378c394401cd2e7136ac16e0f0d7747a5",
+    "src/nano_workbuddy/documents.py": "7c9cc16240cb3018dfd5a44f1efa2e0e715e66b55fe9029e34b66c20f021e496",
+    "src/nano_workbuddy/eval/__init__.py": "e24132d0b8aa7433d3330b6bf3692303e55e5c1a69fc5c93e0068def31ee8f15",
+    "src/nano_workbuddy/eval/__main__.py": "0b4e2374a39245422fa2761091134aa1b35678a80b72aca28f492885faef6c6f",
+    "src/nano_workbuddy/eval/cost.py": "48a680a880e32cca685c1c262c2fa29c39de704267aa15fb02698b5c723e6ede",
+    "src/nano_workbuddy/eval/grade.py": "4c9e92fa3dc851084f87c4bde74b42db8691eecf8fa7484dfd6ff533ef804f4a",
+    "src/nano_workbuddy/eval/report.py": "dadd7199f2611803635c1d27615b844974e4f4cd23dbca47c67e0987ba8a7714",
+    "src/nano_workbuddy/eval/runner.py": "34135a427f8a6d4155e5da7a0011203d8afc927db9a8226792ba5ba7552f84a6",
+    "src/nano_workbuddy/eval/schema.py": "e416f867528364cee2e73d7b7bd5f68e2d870685023952de3b227774a3cb7d02",
+    "src/nano_workbuddy/eval/worker.py": "5cc917d379ae071180529987178758ce2aca653d6246bcaa563ac287cee459d2",
+    "src/nano_workbuddy/hooks.py": "4309c153972f3b289fe5af2ae5c2382732df3be2eb6f5c5a38843fa564021ad3",
+    "src/nano_workbuddy/index.py": "7ff1bfffc21affa00398a1ab78f4e7e377592049136550ca022563160d9ec91e",
+    "src/nano_workbuddy/knowledge.py": "76aa32beb331a59d409a79ca81bd158f428530941e0ccae8b420c3f88b5aedad",
+    "src/nano_workbuddy/llm/__init__.py": "d62f05d7285805335c168e30ac967bc8a7cc2eb0690647325b7a9da06d3dbc79",
+    "src/nano_workbuddy/llm/anthropic.py": "79c7bf96d024a7b812e196651e5a4e2d041ccfa54a2c7835764f8da88988cd36",
+    "src/nano_workbuddy/llm/openai_chat.py": "d6402119ac23021ca98f73cd5fd510074c1c15aabded129a448a274ead1901f3",
+    "src/nano_workbuddy/llm/openai_responses.py": "a9099ba8d3f655f090ea85fd5d2b1b419d7ab6f02695c1887b7d5b322cce3468",
+    "src/nano_workbuddy/log.py": "ee3c10bc111eb915df24ecf9c4cbdd3b770742f3316b01f2adc8de1837d6321a",
+    "src/nano_workbuddy/loop.py": "94e3b701998caafea2d35c88cbdb37eece980f75e8b23d29287c275842fde64c",
+    "src/nano_workbuddy/maintenance.py": "5e6c737b8605dba07bd8dd3101162eb86dbd04804a6ca21bea8b129260f15814",
+    "src/nano_workbuddy/memory.py": "86bed273ddbd674163f868d6a8eb6b862ba60c4a76312682244d675d641a0471",
+    "src/nano_workbuddy/notify.py": "5c8ed7a04342064d2af2d7f5fde16602ea16feb74abb7901e0526f8a00435243",
+    "src/nano_workbuddy/policy.py": "633790ece1d252f8adf06395d87431049697b3cba86ecb652d33c612ab52f7e1",
+    "src/nano_workbuddy/prompt.py": "4404f45a4f051cf9c659398710994322a6f475e0bc934d79cbf646d392dbb5ee",
+    "src/nano_workbuddy/render.py": "944aae63bbfc4b7b3f565214fd1343933c7622bfe2e424803d1fff4b43441436",
+    "src/nano_workbuddy/runs.py": "4c3535c55d29d4b0045bd57f9a604128ccb2756fff9380df0098c918942e6389",
+    "src/nano_workbuddy/runtime.py": "f39df130fd0d03b2856e7fd3e3696ae0bd3fbc85fb915fc9ae89878b24edb371",
+    "src/nano_workbuddy/sandbox.py": "5f414b2f9e203a8da9d5cd4bd86f8d151a1b069394ef2a010130dee9b74b3f62",
+    "src/nano_workbuddy/schedule.py": "74ca98cb9d94704bbb72871e62917f5fee5950f2ddb5554f0f8781537ea2664b",
+    "src/nano_workbuddy/scheduler.py": "b420ce8f8fff4006deebf8b50576e4ce11af999998373301121bf65c2d85a19a",
+    "src/nano_workbuddy/search.py": "a51cafab76a5f8ad3fbd037bf78216b9d85738da989d1437bd2d94e443ee6b64",
+    "src/nano_workbuddy/server.py": "9f71cc2f85ee055c38c8110ee6f287accd78945ff455e8cb1482782d167fd882",
+    "src/nano_workbuddy/settings.py": "f4b1ddda2b41cd228126e7bef3bde435cf288b5742ca4c5e73cf160d1b81a367",
+    "src/nano_workbuddy/skills.py": "e6a1f02359fac0e06561898f7f3df6afd4fa3102d41bf338f22c8b3dfecf045f",
+    "src/nano_workbuddy/tools/__init__.py": "8b0d7957e1b9dfbf3fba03f4d07bb1238db48180210a7bd476452c054cdc6911",
+    "src/nano_workbuddy/tools/builtin.py": "a1bfa27a3a294ebe1d314f79cf46962c9d121e043a45e0aedf458bb13646908e",
+    "src/nano_workbuddy/tools/docs.py": "b53b0662de9f64583e4f42ee1647d7489e20a8fe93a67b11b6d42d76b131d573",
+    "src/nano_workbuddy/tools/interact.py": "6aa16b3d8eab3ee1eb9b7579808363ce37d4c026cd97a54da84542daf1cbfce1",
+    "src/nano_workbuddy/tools/mcp.py": "dce40b8f2c2f433262d330b6518fe12f4205ed3e9cf6d2e05300ebc057a432bf",
+    "src/nano_workbuddy/tools/recall.py": "b1e42db593cdf27b84c9239e04f3938e1334d182b66b70bd175850a6bd55046f",
+    "src/nano_workbuddy/tools/registry.py": "91ce6e03e3668f7b812296781efa332e8b511ed55f4fce28d327fabb4b9f3d3d",
+    "src/nano_workbuddy/tools/search.py": "507c1411d9121b8cced95b47a0ecbd754a64b63fb501e30d5ec7299efeff5733",
+    "src/nano_workbuddy/tools/web.py": "ca93b8f9fd5eb480adec661844c3ae6d50fcc45ff7a19bdbaf6bfc1713e92e21",
+    "src/nano_workbuddy/types.py": "e75834a55ea0e0478ed306b3e70d7e25e508bb676bd8787221612c7578c30d21",
+    "src/nano_workbuddy/usage.py": "cd56c0287428c9e4b3a8a5be228d55c11bc035198bd316b9a6f4a1c83d646ec4",
+    "pyproject.toml": "9fba91d9f014890f4e92ae26d79d250ac6e28156f3477fcf39417f81d626536c",
+    "uv.lock": "fbed583249831779b90f3eeac7a4aeff40445bc42c55af4cc3313b66253cb6f3"
+  },
+  "frozen_at": 1792935698.047578
+}

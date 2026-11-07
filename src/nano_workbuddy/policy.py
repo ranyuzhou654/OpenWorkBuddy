@@ -64,17 +64,17 @@ HARNESS = (Rule("tool_search", "*", "allow"), Rule("skill", "*", "allow"), Rule(
 
 # Reading through connectors (M2): Feishu read commands, and the browser tools that only look at the page.
 BROWSER_READ = ("snapshot", "find", "take_screenshot", "console_messages", "network_requests", "network_request",
-                "wait_for", "tabs", "navigate_back", "resize", "emulate_media", "close", "hover")
+                "wait_for", "tabs")
 CONNECTOR_READS = (Rule("feishu", "*", "allow"),
                    *(Rule(f"mcp__browser__browser_{t}", "*", "allow") for t in BROWSER_READ))
 
 # Approved per call and never "always": writes to the user's Feishu send or publish as the user.
-ONCE_ONLY = ("feishu.write",)
+ONCE_ONLY = ("feishu.write", "mcp__browser__interaction")
 
 # Appended after every other rule (last match wins), so no preset, config rule or session approval loosens
 # them: Feishu writes always ask, and lark-cli through bash (which would bypass the connector) asks too.
 FIXED = (Rule("feishu.write", "*", "ask"), Rule("bash", "*lark-cli*", "ask"),
-         Rule("bash.unsandboxed", "*lark-cli*", "ask"))
+         Rule("bash.unsandboxed", "*lark-cli*", "ask"), Rule("mcp__browser__interaction", "*", "ask"))
 
 
 def _ask_protected() -> tuple[Rule, ...]:
@@ -116,6 +116,7 @@ class Check:
     effect: Effect
     rule: Rule | None  # the rule that decided; None means the built-in default (ask)
     preview: Any = None  # what the approval card shows besides the call (a connector's dry run)
+    approval_id: str | None = None
 
     @property
     def once_only(self) -> bool:
@@ -136,6 +137,11 @@ def check(action: str, resource: str, rules: list[Rule], places: dict[str, str])
     """places: values for {root}, {home}, {spill} in rule resources."""
     for rule in reversed(rules):
         if rule.matches(action, resource, places):
+            if any(rule is fixed for fixed in FIXED) and rule.effect == "ask":
+                underlying = next((r for r in reversed(rules) if not any(r is f for f in FIXED)
+                                   and r.matches(action, resource, places)), None)
+                if underlying is not None and underlying.effect == "deny":
+                    return Check(action, resource, "deny", underlying)
             return Check(action, resource, rule.effect, rule)
     return Check(action, resource, "ask", None)
 

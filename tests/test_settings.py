@@ -31,6 +31,32 @@ def test_secret_store_is_private_and_atomic(home):
     assert not [p for p in home.iterdir() if p.name.startswith(".secrets-")]  # no temp files left behind
 
 
+async def test_tavily_key_uses_model_secret_store_without_echo_or_network(home, monkeypatch):
+    load(home)
+    settings.put_provider(home, "work", "openai-chat", "https://example.test/v1", api_key=KEY)
+    ws = Workspace(load(home))
+    monkeypatch.setattr(ws, "search_provider", lambda: pytest.fail("saving must not request Tavily"))
+    async with Server(ws) as server:
+        key = "tvly-test-private-9876543210"
+        response = await server.client.put("/api/settings/search", json={"api_key": key})
+        assert response.status_code == 200 and key not in response.text
+        assert response.json()["search"]["key"]["hint"] == "…3210"
+        cfg = load(home)
+        assert cfg.search.api_key == "secret:search" and key not in config_text(home)
+        assert secret(cfg.search.api_key, home) == key
+        assert secret(cfg.providers["work"].api_key, home) == KEY
+        assert stat.S_IMODE((home / "secrets.json").stat().st_mode) == 0o600
+        assert key not in (await server.client.get("/api/settings")).text
+        replacement = "tvly-replacement-abcdef"
+        response = await server.client.put("/api/settings/search", json={"api_key": replacement})
+        assert replacement not in response.text
+        assert secret(load(home).search.api_key, home) == replacement
+        await server.client.put("/api/settings/search", json={"clear": True})
+        assert not load(home).search.api_key
+        assert SecretStore(home).get("search") is None
+        assert secret(load(home).providers["work"].api_key, home) == KEY
+
+
 def test_put_provider_stores_key_outside_config_and_keeps_comments(home):
     load(home)  # writes the default config
     (home / "config.toml").write_text("# my notes\n" + config_text(home))

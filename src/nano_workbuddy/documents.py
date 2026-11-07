@@ -65,7 +65,11 @@ def is_document(p: Path) -> bool:
 
 def load(p: Path, cache: Path | None = None) -> Doc:
     """Read a document, from the cache when this exact content was read before."""
-    raw = p.read_bytes()
+    return load_bytes(p.read_bytes(), p.suffix.lower(), cache, name=p.name)
+
+
+def load_bytes(raw: bytes, suffix: str, cache: Path | None = None, *, name: str = "") -> Doc:
+    """Parse the exact bytes hashed for the cache/source, even if the original path changes meanwhile."""
     digest = hashlib.sha256(raw).hexdigest()
     f = cache / f"{digest}.json" if cache else None
     if f and f.is_file():
@@ -75,7 +79,16 @@ def load(p: Path, cache: Path | None = None) -> Doc:
                 return Doc(**data)
         except (ValueError, TypeError):
             pass  # unreadable cache entry: parse again
-    doc = parse(p, KINDS[p.suffix.lower()])
+    fd, tmp = tempfile.mkstemp(suffix=suffix)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(raw)
+        try:
+            doc = parse(Path(tmp), KINDS[suffix])
+        except DocumentError as exc:
+            raise DocumentError(str(exc).replace(Path(tmp).name, name or "snapshot")) from exc
+    finally:
+        os.unlink(tmp)
     if f:
         f.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=f.parent, suffix=".tmp")

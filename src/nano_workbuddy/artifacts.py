@@ -6,8 +6,8 @@ and the UI can rebuild everything from entries):
   artifact  a file handed to the user (create_document, present): path, version, hash, and the checks run on it
             after it was written. Every version's bytes are kept in a content-addressed store, so a
             delivered version can still be opened after the file was changed or deleted, or the server restarted.
-  source    a web page or search hit the answer may rest on, numbered [S1], [S2], ... in order of first
-            appearance in the session. A search hit is only a snippet; a page read in full upgrades it.
+  source    a versioned discovery or fetched file/page, numbered [S1], [S2], ... in the session. Source
+            inspection records actual projected excerpts and never implies factual verification.
   upload    a file the user attached to a message, kept under the session's private folder.
 
 Store layout under ~/.nwb/files: blobs/<sha256> (artifact versions and uploads), cache/docs/ (parsed documents).
@@ -15,6 +15,7 @@ Store layout under ~/.nwb/files: blobs/<sha256> (artifact versions and uploads),
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import mimetypes
 import os
@@ -70,9 +71,32 @@ def keep(store: Path, p: Path, digest: str) -> Path:
         fd, tmp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
         os.close(fd)
         shutil.copyfile(p, tmp)
+        if sha256_of(Path(tmp)) != digest:
+            os.unlink(tmp)
+            raise ValueError(f"{p} changed while its snapshot was being copied; read/deliver again")
         os.chmod(tmp, 0o600)
         os.replace(tmp, target)
     return target
+
+
+def keep_bytes(store: Path | None, data: bytes) -> str | None:
+    """A source snapshot uses the same immutable store as uploads and delivered files."""
+    if store is None or len(data) > MAX_SNAPSHOT_BYTES:
+        return None
+    digest = hashlib.sha256(data).hexdigest()
+    target = blob(store, digest)
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as out:
+                out.write(data)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, target)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+    return digest
 
 
 # --- checks after a file is written ---
@@ -85,7 +109,7 @@ def check(p: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     info: dict[str, Any] = {}
 
     def ok(name: str, passed: bool, detail: str = "") -> None:
-        checks.append({"name": name, "ok": passed, "detail": detail})
+        checks.append({"name": name, "ok": passed, "detail": detail, "layer": "structure"})
 
     size = p.stat().st_size
     ok("not empty", size > 0, f"{size} bytes")
@@ -134,6 +158,14 @@ def record(store: Path | None, p: Path, versions: dict[str, list[str]], title: s
     history = versions.setdefault(str(p), [])
     if not history or history[-1] != digest:
         history.append(digest)
+    if not any(c.get("layer") == "citations" for c in checks):
+        checks = [*checks, {"name": "citation evidence", "ok": None, "layer": "citations",
+                             "detail": "not assessed; no structured citation check for this file"}]
+    checks = [*checks,
+              {"name": "key numbers and calculations", "ok": None, "layer": "numbers",
+               "detail": "not assessed; opening a file does not verify its calculations"},
+              {"name": "human layout and factual review", "ok": None, "layer": "human",
+               "detail": "not assessed"}]
     return {"path": str(p), "name": p.name, "mime": mime_of(p), "size": size, "sha256": digest,
             "version": len(history), "title": title, "checks": checks, "info": info or {}, "kept": kept,
             "created_at": time.time()}
@@ -141,11 +173,12 @@ def record(store: Path | None, p: Path, versions: dict[str, list[str]], title: s
 
 def summary(a: dict[str, Any]) -> str:
     """What the model is told about a delivered file."""
-    failed = [c for c in a["checks"] if not c["ok"]]
+    failed = [c for c in a["checks"] if c["ok"] is False]
     lines = [f"Delivered {a['path']} (version {a['version']}, {a['size']} bytes, {a['mime']})."]
     for c in a["checks"]:
         detail = f" ({c['detail']})" if c["detail"] else ""
-        lines.append(f"- check passed: {c['name']}{detail}" if c["ok"] else f"- PROBLEM: {c['name']}: {c['detail']}")
+        label = "not assessed" if c["ok"] is None else "check passed" if c["ok"] else "PROBLEM"
+        lines.append(f"- {label}: {c['name']}{detail}")
     if failed:
         lines.append("Tell the user about the problems above, or fix them and deliver again.")
     return "\n".join(lines)
@@ -160,15 +193,44 @@ def session_records(log: SessionLog) -> tuple[dict[str, dict[str, Any]], dict[st
     sources: dict[str, dict[str, Any]] = {}
     versions: dict[str, list[str]] = {}
     for e in sorted(log.entries.values(), key=lambda e: e.seq):
-        if e.type != TOOL_RESULT or not (meta := e.data.get("meta")):
-            continue
+        meta = e.data.get("meta", {})
         for s in meta.get("sources", ()):
-            sources[s["url"]] = s
+            merge_source(sources, s)
+        for a in e.data.get("attachments", ()):
+            if s := a.get("source"):
+                merge_source(sources, s)
         if a := meta.get("artifact"):
             history = versions.setdefault(a["path"], [])
             if not history or history[-1] != a["sha256"]:
                 history.append(a["sha256"])
     return sources, versions
+
+
+def document_records(log: SessionLog) -> dict[str, dict[str, Any]]:
+    """Latest document evidence, including across restarts; present alone does not establish citations."""
+    return {a["path"]: a for e in sorted(log.entries.values(), key=lambda e: e.seq)
+            if (a := e.data.get("meta", {}).get("artifact")) and "sources" in a}
+
+
+def run_deliveries(log: SessionLog, run_id: str) -> list[dict[str, Any]]:
+    """Latest delivered version of each path in this run on the selected branch."""
+    latest = {}
+    for e in log.path():
+        if (e.run_id == run_id and e.type == TOOL_RESULT and not e.data.get("is_error")
+                and (a := e.data.get("meta", {}).get("artifact"))):
+            latest[a["path"]] = {"entry_id": e.id, "artifact": a}
+    return list(latest.values())
+
+
+def availability(store: Path, digest: str) -> str:
+    """Read-only verification of kept bytes; never trusts a historical `kept` flag alone."""
+    try:
+        p = blob(store, digest)
+        if not p.is_file():
+            return "missing"
+        return "available" if sha256_of(p) == digest else "corrupt"
+    except (OSError, ValueError):
+        return "unreadable"
 
 
 def files_of(log: SessionLog) -> set[str]:
@@ -179,21 +241,64 @@ def files_of(log: SessionLog) -> set[str]:
             out.add(a["sha256"])
         elif e.type == "user":
             out.update(u["sha256"] for u in e.data.get("attachments", ()))
+        for s in e.data.get("meta", {}).get("sources", ()):
+            out.update(s[k] for k in ("snapshot", "text_ref") if s.get(k))
+            out.update(x["excerpt_ref"] for x in s.get("inspections", ()) if x.get("excerpt_ref"))
     return out
 
 
 def cite(sources: dict[str, dict[str, Any]], url: str, kind: str, title: str = "", **extra: Any) -> dict[str, Any]:
-    """The numbered source record for url. kind: "search" (a snippet from a search engine), "page" (read in
-    full) or "file" (downloaded). A page read in full upgrades an earlier search hit and keeps its number."""
+    """One number per content version. Search discovery may upgrade to the first fetched version.
+    Already exported reports also keep their own frozen source records, including discovery state."""
     url = url.split("#", 1)[0]
     known = sources.get(url)
-    if known and known["kind"] == "page" and kind == "search":
-        kind = "page"  # already read in full: a later search hit does not downgrade it
+    if (known and kind == "search" and known.get("state") == "discovered" and known.get("discovery_sha256")
+            and extra.get("discovery_sha256") != known["discovery_sha256"]):
+        known = None
+    digest = extra.get("sha256")
+    if digest:
+        known = next((s for s in sources.values() if s["url"] == url and s.get("sha256") == digest),
+                     known if known and not known.get("sha256") else None)
+    if known and kind == "search" and known.get("state", "discovered") != "discovered":
+        return copy.deepcopy(known)  # a new snippet cannot rewrite a fetched snapshot
     rec = {**(known or {}), **{k: v for k, v in extra.items() if v not in (None, "")},
            "n": known["n"] if known else max((s["n"] for s in sources.values()), default=0) + 1,
-           "url": url, "kind": kind, "title": title or (known or {}).get("title", "")}
-    sources[url] = rec
+           "url": url, "kind": kind, "title": title or (known or {}).get("title", ""),
+           "state": extra.get("state", "discovered" if kind == "search" else "fetched"),
+           "access_scope": extra.get("access_scope", "session")}
+    if known and known.get("state") == "inspected":
+        rec["state"] = "inspected"
+    if known and known.get("sha256"):
+        rec["retrieved_at"] = known.get("retrieved_at", extra.get("retrieved_at"))
+    merge_source(sources, rec)
     return rec
+
+
+def merge_source(sources: dict[str, dict[str, Any]], rec: dict[str, Any]) -> None:
+    url = rec["url"]
+    old = sources.get(url)
+    if old and old["n"] != rec["n"]:
+        sources[f"{url}@S{old['n']}"] = old
+    # An inspection of an older version must not lose the current version.
+    key = f"{url}@S{rec['n']}" if old and old["n"] > rec["n"] else url
+    sources[key] = copy.deepcopy(rec)
+    if key == url:
+        sources.pop(f"{url}@S{rec['n']}", None)
+
+
+def source_read(ctx: Any, uri: str, raw: bytes, title: str, *, extracted: str | None = None,
+                locator: str = "", path: str = "") -> dict[str, Any]:
+    """Fetching/extracting is recorded here; inspection is recorded only at model request projection."""
+    return cite(ctx.sources, uri, "page" if uri.startswith(("http:", "https:")) else "file", title,
+                sha256=hashlib.sha256(raw).hexdigest(), snapshot=keep_bytes(ctx.store, raw),
+                text_ref=keep_bytes(ctx.store, extracted.encode()) if extracted is not None else None,
+                state="extracted" if extracted is not None else "fetched", path=path,
+                retrieved_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                locator=locator, access_scope="session", session_id=ctx.session_id)
+
+
+def reading(rec: dict[str, Any], locator: str, **positions: Any) -> dict[str, Any]:
+    return {"sources": [rec], "source_reads": [{"n": rec["n"], "locator": locator, **positions}]}
 
 
 # --- uploads ---
@@ -257,6 +362,16 @@ def upload_blocks(a: dict[str, Any], store: Path, vision: bool) -> list[dict[str
     p = Path(a["path"])
     head = f'<attachment name="{a["name"]}" path="{p}" type="{a["mime"]}" size="{a["size"]}"'
     mark = {"attachment": a["id"]}
+
+    def extracted(body: str) -> None:
+        if s := a.get("source"):
+            s.update(state="extracted", text_ref=keep_bytes(store, body.encode()), locator="attachment text")
+
+    def inline(locator: str) -> dict[str, Any]:
+        if s := a.get("source"):
+            return {**mark, "source_read": {"n": s["n"], "locator": locator}}
+        return mark
+
     if a["kind"] == "image":
         if not vision:
             return [{"type": "text", "text": f"{head}>\nAn image. The current model cannot view images; "
@@ -264,23 +379,27 @@ def upload_blocks(a: dict[str, Any], store: Path, vision: bool) -> list[dict[str
         import base64
 
         data = base64.b64encode(p.read_bytes()).decode()
-        return [{"type": "text", "text": f"{head} />", **mark}, {"type": "image", "mime": a["mime"], "data": data}]
+        return [{"type": "text", "text": f"{head} />", **inline("attachment image (visual)")},
+                {"type": "image", "mime": a["mime"], "data": data}]
     if a["kind"] == "text":
-        body = p.read_bytes().decode("utf-8", "replace")
+        body = blob(store, a["sha256"]).read_bytes().decode("utf-8", "replace")
+        extracted(body)
         if len(body) <= INLINE_CHARS:
-            return [{"type": "text", "text": f"{head}>\n{body}\n</attachment>", **mark}]
+            return [{"type": "text", "text": f"{head}>\n{body}\n</attachment>", **inline("attachment lines 1-end")}]
         return [{"type": "text", "text": f"{head}>\n{len(body)} characters: read it with the read tool "
                                          "(offset/limit).\n</attachment>", **mark}]
     if a["kind"] == "document":
         try:
-            doc = documents.load(p, store / "cache" / "docs")
+            doc = documents.load_bytes(blob(store, a["sha256"]).read_bytes(), p.suffix.lower(),
+                                       store / "cache" / "docs", name=p.name)
         except documents.DocumentError as e:
             return [{"type": "text", "text": f"{head}>\n{e}\n</attachment>", **mark}]
         notes = "".join(f"\nNote: {n}" for n in doc.notes)
         body = doc.text()
+        extracted(body)
         if len(body) <= INLINE_CHARS:
             return [{"type": "text", "text": f"{head} document=\"{doc.describe()}\">{notes}\n{body}\n</attachment>",
-                     **mark}]
+                     **inline(f"attachment {doc.unit or 'document'} 1-{len(doc.units)}")}]
         how = "read it with the read tool, e.g. pages=\"1-3\"" if doc.unit in ("page", "slide") else \
             "read it with the read tool (offset/limit)"
         return [{"type": "text", "text": f"{head} document=\"{doc.describe()}\">{notes}\n{len(body)} characters "

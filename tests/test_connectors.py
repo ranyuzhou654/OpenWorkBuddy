@@ -12,7 +12,7 @@ from test_api import Server, Stream, finished
 from nano_workbuddy import policy
 from nano_workbuddy.config import load
 from nano_workbuddy.connectors import browser
-from nano_workbuddy.connectors.feishu import Feishu, _confine, _key, _recover, classify, feishu
+from nano_workbuddy.connectors.feishu import Feishu, _confine, _recover, classify, feishu
 from nano_workbuddy.runtime import Workspace
 from nano_workbuddy.tools.registry import AnyArgs, Result, Tool, ToolCtx, ToolError
 from nano_workbuddy.types import TOOL_RESULT
@@ -50,7 +50,8 @@ def ran(project):
 def test_classify_refuses_what_is_never_allowed():
     assert classify(["docs", "+fetch", "--doc", "x"]) == ("docs", "+fetch", False)
     assert classify(["im", "+messages-send", "--chat-id", "oc_1", "--text", "hi"])[2] is True
-    assert classify(["im", "+messages-send", "--chat-id", "oc_1", "--dry-run"])[2] is False  # a preview reads
+    with pytest.raises(ToolError, match="host-controlled"):
+        classify(["im", "+messages-send", "--chat-id", "oc_1", "--dry-run"])
     for argv, why in ((["mail", "+send"], "not enabled"), (["api", "GET", "/x"], "not enabled"),
                       (["im", "messages", "create"], "shortcuts"), (["docs", "+fetch", "--as", "bot"], "--as"),
                       (["docs", "+fetch", "--profile=other"], "--profile"), (["docs"], "at least")):
@@ -74,12 +75,7 @@ def test_replay_and_idempotency_keys():
     create = feishu.args(command=["docs", "+create", "--title", "T"])
     read = feishu.args(command=["docs", "+fetch", "--doc", "d"])
     ctx = ToolCtx(root=Path("/"), session_id="s", spill_dir=Path("/tmp"))
-    assert (_recover(send, ctx), _recover(create, ctx), _recover(read, ctx)) == ("not_done", "unknown", "not_done")
-    one = ToolCtx(root=Path("/"), session_id="s", spill_dir=Path("/tmp"), call_key="e_1:call_0")
-    again = ToolCtx(root=Path("/"), session_id="s", spill_dir=Path("/tmp"), call_key="e_1:call_0")
-    later = ToolCtx(root=Path("/"), session_id="s", spill_dir=Path("/tmp"), call_key="e_9:call_0")  # call_0 reused
-    argv = send.command
-    assert _key(one, argv) == _key(again, argv) != _key(later, argv) and len(_key(one, argv)) == 40
+    assert (_recover(send, ctx), _recover(create, ctx), _recover(read, ctx)) == ("unknown", "unknown", "not_done")
 
 
 async def test_reads_run_as_the_user_and_cite_sources(home, project, lark):
@@ -90,11 +86,11 @@ async def test_reads_run_as_the_user_and_cite_sources(home, project, lark):
     assert await ws.submit(log, "read it") == "ok"  # no approval needed (no ask callback given)
     assert "feishu" in [t["name"] for t in model.requests[0]["tools"]]
     notice = next(e.data["text"] for e in log.path() if e.type == "notice" and e.data["kind"] == "feishu")
-    assert "as Tester" in notice and "Never run lark-cli through bash" in notice
+    assert "Check identity and scope" in notice and "Never run lark-cli through bash" in notice
     result = next(e.data for e in log.path() if e.type == TOOL_RESULT)
     assert not result["is_error"] and result["content"][0]["text"].startswith("[S1] Feishu document")
     assert result["meta"]["sources"][0]["title"] == "季度计划"
-    assert ran(project) == [["docs", "+fetch", "--doc", "https://x.feishu.cn/docx/d1", "--as", "user"]]
+    assert ran(project) == [["docs", "+fetch", "--doc=https://x.feishu.cn/docx/d1", "--as=user"]]
 
 
 @pytest.mark.parametrize("preset", ["workspace", "trust"])
@@ -115,7 +111,9 @@ async def test_writes_are_approved_per_call_with_a_dry_run(home, project, lark, 
     assert check.action == "feishu.write" and check.once_only and "chat-id=oc_team" in check.resource
     assert check.preview["account"] == "Tester" and check.preview["dry_run"]["dry_run"] is True
     executed = ran(project)[-1]
-    assert executed[:6] == send and executed[-2:] == ["--as", "user"] and "--idempotency-key" in executed
+    assert "--chat-id=oc_team" in executed and "--markdown=-" in executed and "--as=user" in executed
+    assert len([a for a in executed if a.startswith("--idempotency-key=")]) == 1
+    assert json.loads((project / ".lark-effects.jsonl").read_text())["content"] == "周报已发布"
     receipt = next(e.data["meta"]["receipt"] for e in log.path() if e.type == TOOL_RESULT)
     assert receipt["target"] == "chat-id=oc_team" and receipt["links"] == ["https://x.feishu.cn/docx/abc"]
 
@@ -193,6 +191,9 @@ async def test_api_approval_has_no_always_and_status_endpoint(home, project, lar
         await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "reply"})
         req = (await stream.until(lambda e: e["type"] == "approval.requested"))["approval"]
         assert req["always"] is None and req["preview"]["target"] == "message-id=om_1"
+        audit = s.ws.index.db.execute("select preview_json from approvals where id=?", (req["id"],)).fetchone()
+        assert json.loads(audit[0]) == req["preview"]
+        assert req["preview"]["payload"]["content"] == "收到"
         await s.client.post(f"/api/approvals/{req['id']}", json={"decision": "always"})  # counts as once
         await stream.until(finished)
         stream.close()

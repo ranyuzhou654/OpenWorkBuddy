@@ -32,6 +32,8 @@ async def test_rename_archive_and_delete_a_session(home, project):
         assert (await s.client.patch(f"/api/sessions/{sid}", json={"title": ""})).json()["title"] == "first message"
         assert (await s.client.patch(f"/api/sessions/{sid}", json={"archived": True})).json()["archived_at"]
         assert (await s.client.patch(f"/api/sessions/{sid}", json={"archived": False})).json()["archived_at"] is None
+        projects = (await s.client.get("/api/projects")).json()
+        assert projects[0]["sessions"][0]["last_run"]["status"] == "ok"
 
         f = ws.open_session(sid).file
         (home / "spill" / sid).mkdir(parents=True)

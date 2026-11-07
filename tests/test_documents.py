@@ -59,7 +59,7 @@ async def test_rendered_documents_read_back(project, tmp_path, fmt):
     body = doc.text()
     assert "调研简报" in body and "TypeScript" in body and "第二" in body and "code()" in body
     if fmt == "docx":
-        assert "| pi | TypeScript |" in body and "## 调研简报" in body  # structure kept as Markdown
+        assert "| pi | TypeScript |" in body and "# 调研简报" in body.splitlines()  # title preserved
         assert "\n  - 子项" in body  # nested list level kept
     else:
         assert doc.describe() == "PDF, 1 page" and body.startswith("--- page 1 ---")

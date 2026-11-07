@@ -23,6 +23,7 @@ from .types import (
     ASSISTANT,
     BRANCH_SUMMARY,
     COMPACTION,
+    CONTEXT_STATE,
     NOTICE,
     PRUNE,
     SYSTEM_PROMPT,
@@ -118,11 +119,12 @@ def is_prunable(e: Entry) -> bool:
 def in_view(path: list[Entry]) -> dict[str, str]:
     """Notices and pinned results the model can currently see: kind or pin key -> text."""
     seen: dict[str, str] = {}
+    versions = next((e.data.get("skills", {}) for e in reversed(path) if e.type == CONTEXT_STATE), {})
     for e in visible(path):
         if e.type == NOTICE:
-            seen[e.data["kind"]] = e.data["text"]
+            seen[e.data["kind"]] = versions.get(e.data["kind"], e.data["text"])
         elif e.type == TOOL_RESULT and (key := e.data.get("meta", {}).get("pin")):
-            seen[key] = result_text(e)
+            seen[key] = versions.get(key, result_text(e))
     return seen
 
 
@@ -135,16 +137,42 @@ def pinned(path: list[Entry]) -> dict[str, str]:
             out[key] = result_text(e)
         elif e.type == NOTICE and e.data.get("pin"):
             out[e.data["kind"]] = e.data["text"]
+        elif e.type == CONTEXT_STATE:
+            out.update(e.data.get("skills", {}))
     return out
 
 
-def to_messages(path: list[Entry]) -> tuple[str, list[Message]]:
-    system = path[0].data["text"] if path and path[0].type == SYSTEM_PROMPT else ""
+def to_messages(path: list[Entry], current_context: str | None = None) -> tuple[str, list[Message]]:
+    head = path[0].data if path and path[0].type == SYSTEM_PROMPT else {}
+    snapshot = next((e.data for e in reversed(path) if e.type == CONTEXT_STATE), None)
+    snapshot_id = next((e.id for e in reversed(path) if e.type == CONTEXT_STATE), None)
+    system = head.get("base_text", head.get("text", ""))
+    if snapshot is not None or current_context is not None:
+        # Older sessions predate base_text; remove only host-owned mutable sections from their snapshot.
+        if "base_text" not in head:
+            system = re.sub(r"<(project_instructions|user_memory)\b[^>]*>.*?</\1>", "", system, flags=re.S).strip()
+        current = current_context if current_context is not None else snapshot["text"]
+    else:
+        current = head.get("context", "")
+    if current:
+        system += "\n\n" + current
+    skill_versions = snapshot.get("skills", {}) if snapshot else {}
     shown = visible(path)
+    snapshot_visible = any(e.id == snapshot_id for e in shown)
+
+    def context_notice() -> Message:
+        current = current_context if current_context is not None else snapshot["text"]
+        notice = ("<system-notice>\nSaved context was refreshed at this point. Earlier preference-setting "
+                  "requests and memory-tool receipts describe historical values. For the current task "
+                  "use the current saved values below, unless the current user request overrides them:\n\n"
+                  + (current or "No saved user memory or project rules are currently present.") +
+                  "\n</system-notice>")
+        return Message(role="user", content=[text(notice)])
     prune = next((e.data for e in reversed(shown) if e.type == PRUNE), None)
     # Thinking produced before the latest history edit was made against a history that no longer exists.
     # Providers that verify thinking against its context (Anthropic) must not receive it.
-    edited = max((e.seq for e in shown if e.type in (PRUNE, COMPACTION)), default=-1)
+    edited = max((e.seq for e in path if e.type in (PRUNE, COMPACTION, CONTEXT_STATE)), default=-1)
+    replacements = {e.data["kind"]: e.id for e in shown if e.type == NOTICE and e.data.get("replace")}
     messages: list[Message] = []
     for e in shown:
         if e.type == USER:
@@ -156,16 +184,28 @@ def to_messages(path: list[Entry]) -> tuple[str, list[Message]]:
             messages.append(Message(role="assistant", content=content))
         elif e.type == TOOL_RESULT:
             content = e.data["content"]
-            if prune and e.seq <= prune["upto_seq"] and is_prunable(e):
+            pin = e.data.get("meta", {}).get("pin")
+            if pin in skill_versions:
+                content = [text(skill_versions[pin])]
+            elif prune and e.seq <= prune["upto_seq"] and is_prunable(e):
                 content = [text(f"[Old tool output removed to save context ({len(result_text(e))} characters). "
                                 f"The full text is saved at {elided_file(prune['dir'], e.id)}.]")]
             messages.append(Message(role="tool", content=content, call_id=e.data["call_id"],
                                     is_error=e.data["is_error"]))
         elif e.type == NOTICE:
-            notice = f"<system-notice>\n{e.data['text']}\n</system-notice>"
+            kind = e.data["kind"]
+            if kind in replacements and replacements[kind] != e.id:
+                continue
+            notice = f"<system-notice>\n{skill_versions.get(kind, e.data['text'])}\n</system-notice>"
             messages.append(Message(role="user", content=[text(notice)]))
+        elif e.type == CONTEXT_STATE and e.id == snapshot_id:
+            # A refreshed system prefix alone can be overshadowed by recent memory-tool
+            # receipts. Mark the change at its actual position without editing old messages.
+            messages.append(context_notice())
         elif e.type == COMPACTION:
             messages.append(Message(role="user", content=[text(summary_message(e.data))]))
+            if snapshot is not None and not snapshot_visible:
+                messages.append(context_notice())
         elif e.type == BRANCH_SUMMARY:
             messages.append(Message(role="user", content=[text(branch_message(e.data))]))
     return system, messages
@@ -203,7 +243,11 @@ def spill(r: Result, spill_dir: Path, call_id: str) -> Result:
     note = (f"\n\n[... {omitted} characters omitted. Full output saved to {f} — "
             f"inspect it with read (offset/limit) or bash grep ...]\n\n")
     images = [b for b in r.content if b["type"] == "image"]
-    return Result([text(full[:KEEP_CHARS] + note + full[-KEEP_CHARS:]), *images], r.is_error, r.meta)
+    meta = {**r.meta, "exposure": {"output_chars": len(full),
+                                  "ranges": [[0, KEEP_CHARS], [len(full) - KEEP_CHARS, len(full)]],
+                                  "full_sha256": hashlib.sha256(full.encode()).hexdigest(),
+                                  "full_output": str(f)}}
+    return Result([text(full[:KEEP_CHARS] + note + full[-KEEP_CHARS:]), *images], r.is_error, meta)
 
 
 def write_private(directory: Path, name: str, content: str) -> Path:

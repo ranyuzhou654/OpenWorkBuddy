@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import getpass
+import json
 import platform
 import secrets
 import shutil
@@ -27,6 +28,7 @@ from . import scheduler as sched_mod
 from .config import McpServer, key_status, secret
 from .connectors.feishu import Feishu
 from .log import SessionBusy, entry_json
+from .maintenance import home_guard
 from .memory import project_file
 from .policy import PRESETS
 from .runs import Busy, RunManager
@@ -45,6 +47,7 @@ class NewProject(BaseModel):
 class ProjectPatch(BaseModel):
     name: str | None = None
     trusted: bool | None = None
+    no_index: bool | None = None
 
 
 class NewSession(BaseModel):
@@ -57,6 +60,9 @@ class SessionPatch(BaseModel):
     preset: Literal["readonly", "workspace", "trust"] | None = None
     title: str | None = None  # "" goes back to the title taken from the first message
     archived: bool | None = None
+    recall_scope: Literal["project", "session", "selected", "all"] | None = None
+    recall_sessions: list[str] | None = None
+    budget: dict[Literal["model_calls", "tool_calls", "wall_seconds"], int] | None = None
 
 
 class Compact(BaseModel):
@@ -194,13 +200,19 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        runs.resume_all()
-        if scheduler_enabled:
-            scheduler.start()
-        yield
-        await scheduler.stop()
-        await runs.shutdown()
-        await ws.mcp.close()
+        with home_guard(ws.cfg.home):
+            indexing = asyncio.create_task(ws.index_loop(), name="record-index")
+            runs.resume_all()
+            if scheduler_enabled:
+                scheduler.start()
+            try:
+                yield
+            finally:
+                await scheduler.stop()
+                await runs.shutdown()
+                indexing.cancel()
+                await asyncio.gather(indexing, return_exceptions=True)
+                await ws.mcp.close()
 
     app = FastAPI(title="nano-workbuddy", lifespan=lifespan)
     app.state.runs = runs
@@ -273,8 +285,11 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
                 "rules": [{"action": r.action, "resource": r.resource, "effect": r.effect} for r in cfg.rules]}
 
     def project_view(p: dict[str, Any]) -> dict[str, Any]:
+        last = ws.index.last_runs(p["id"])
+        sessions = [{**s, "last_run": last.get(s["id"])} for s in ws.index.sessions(p["id"])]
         return {**p, "trusted": bool(p["trusted"]), "scratch": ws.is_scratch(p),
-                "sessions": ws.index.sessions(p["id"])}
+                "no_index": json.loads(p["settings_json"]).get("no_index", False),
+                "sessions": sessions}
 
     def project_row(pid: str) -> dict[str, Any]:
         if (project := ws.index.project(pid)) is None:
@@ -300,7 +315,9 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
     @app.patch("/api/projects/{pid}")
     async def update_project(pid: str, body: ProjectPatch) -> dict[str, Any]:
         project_row(pid)
-        ws.index.update_project(pid, (body.name or "").strip() or None, body.trusted)
+        ws.index.update_project(pid, (body.name or "").strip() or None, body.trusted, body.no_index)
+        if body.no_index is not None:
+            await ws.sync_records([r["id"] for r in ws.index.sessions(pid)])
         return project_view(ws.index.project(pid))
 
     @app.delete("/api/projects/{pid}")
@@ -352,6 +369,15 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
             ws.index.rename_session(sid, body.title.strip() or None)
         if body.archived is not None:
             ws.index.archive_session(sid, body.archived)
+        recall_patch = body.model_dump(include={"recall_scope", "recall_sessions"}, exclude_none=True)
+        if recall_patch:
+            if any(ws.index.session(s) is None for s in body.recall_sessions or []):
+                raise HTTPException(400, "selected recall session does not exist")
+            ws.index.update_settings(sid, recall_patch)
+        if body.budget is not None:
+            if any(type(v) is not int or not 1 <= v <= 100_000 for v in body.budget.values()):
+                raise HTTPException(400, "budget values must be positive integers <= 100000")
+            ws.index.update_settings(sid, {"budget": body.budget})
         session = ws.index.session(sid)
         runs.hub(log).publish({"type": "session", "session": session, "context": ws.context_usage(log)})
         return session
@@ -386,15 +412,15 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
             runs.hub(log).unsubscribe(q)
 
     @app.post("/api/sessions/{sid}/messages")
-    async def send(sid: str, body: SendMessage) -> dict[str, str]:
+    async def send(sid: str, body: SendMessage) -> dict[str, Any]:
         log = session_log(sid)
         if body.parent_id is not None and body.parent_id not in log.entries:
             raise HTTPException(400, "unknown parent_id")
         if not body.text.strip() and not body.attachments:
             raise HTTPException(400, "empty message")
         try:
-            return {"delivery": runs.send(log, body.text, request_id=body.request_id, parent_id=body.parent_id,
-                                          delivery=body.delivery, attachments=body.attachments)}
+            return runs.send(log, body.text, request_id=body.request_id, parent_id=body.parent_id,
+                             delivery=body.delivery, attachments=body.attachments)
         except Busy as e:
             raise HTTPException(409, str(e)) from e
         except KeyError as e:
@@ -412,12 +438,25 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
         except ValueError as e:
             raise HTTPException(413, str(e)) from e
 
+    @app.get("/api/sessions/{sid}/deliveries/{run_id}")
+    async def deliveries(sid: str, run_id: str) -> dict[str, Any]:
+        """Inspect already delivered bytes locally; no model call, replay, or status mutation."""
+        log = session_log(sid)
+        row = ws.index._one("select * from runs where id=? and session_id=?", run_id, sid)
+        if not row or not any(e.run_id == run_id for e in log.path()):
+            raise HTTPException(404, "no such run on this session branch")
+        files = [{**f, "availability": artifacts.availability(ws.store, f["artifact"]["sha256"])}
+                 for f in artifacts.run_deliveries(log, run_id)]
+        return {"run_id": run_id, "status": row["status"], "files": files}
+
     @app.get("/api/sessions/{sid}/files/{digest}")
     async def file(sid: str, digest: str, name: str = "file", download: bool = False) -> FileResponse:
         """A kept version of a delivered file, or an attachment: only those this session's log refers to."""
         log = session_log(sid)
         if digest not in artifacts.files_of(log):
             raise HTTPException(404, "no such file in this session")
+        if artifacts.availability(ws.store, digest) != "available":
+            raise HTTPException(410, "the kept version is missing or damaged; no file was regenerated")
         name = artifacts.safe_name(name)
         return FileResponse(artifacts.blob(ws.store, digest), media_type=artifacts.mime_of(Path(name)),
                             filename=name, content_disposition_type="attachment" if download else "inline")
@@ -463,7 +502,7 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
         if body.summarize:  # needs a model call: runs in the background, the new leaf arrives as events
             runs.switch_branch(log, target)
             return {"leaf_id": None}
-        log.checkout(target)
+        ws.checkout(log, target)
         ws.index.sync_session(log)
         return {"leaf_id": log.leaf_id}
 
@@ -518,7 +557,10 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
         return settings_payload()
 
     def settings_payload() -> dict[str, Any]:
+        from .plugins import catalog
+
         cfg = ws.cfg
+        specs = ws.mcp_specs()
         return {"default_model": cfg.default_model,
                 "providers": [{"name": p.name, "protocol": p.protocol, "base_url": p.base_url,
                                "key": key_status(p.api_key, cfg.home)} for p in cfg.providers.values()],
@@ -528,15 +570,21 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
                 "feishu": {"enabled": cfg.feishu.enabled, "cli": cfg.feishu.cli},
                 "browser": {"enabled": cfg.browser.enabled, "headless": cfg.browser.headless,
                             "profile": str(cfg.home / "browser" / "profile"),
-                            **(ws.mcp.status({"browser": ws.mcp_specs()["browser"]})["browser"]
-                               if cfg.browser.enabled else {"status": "disabled", "error": "", "tools": []})},
+                            **(ws.mcp.status({"browser": specs["browser"]})["browser"]
+                               if "browser" in specs else {"status": "disabled", "error": "", "tools": []})},
                 "search": {"provider": cfg.search.provider,
                            "key": key_status(cfg.search.api_key, cfg.home) if cfg.search.api_key else None},
                 "mcp": [{**dataclasses.asdict(m), **status, "keys": {k: key_status(v, cfg.home)
                                                                      for k, v in (*m.env.items(), *m.headers.items())
                                                                      if v.startswith(("env:", "keyring:", "secret:"))}}
                         for m, status in ((m, ws.mcp.status(cfg.mcp)[m.name]) for m in cfg.mcp.values())],
-                "skills": skill_views(), "skill_dirs": list(cfg.skill_dirs)}
+                "skills": skill_views(), "skill_dirs": list(cfg.skill_dirs),
+                "plugins": [{"name": name, "description": desc, "enabled": name in cfg.plugins_enabled}
+                            for name, desc in catalog().items()]}
+
+    @app.patch("/api/settings/plugins/{name}")
+    async def enable_plugin(name: str, body: Enabled) -> dict[str, Any]:
+        return apply(lambda: settings.set_plugin_enabled(ws.cfg.home, name, body.enabled))
 
     def skill_views() -> list[dict[str, Any]]:
         """User skills once, then each project's own; on/off is by name, like the model sees them."""
@@ -574,7 +622,7 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
 
     @app.get("/api/schedules")
     async def schedules_list() -> list[dict[str, Any]]:
-        return [sched_mod.view(ws, row) for row in ws.index.schedules()]
+        return [sched_mod.view(ws, row, runs.live.get(row["session_id"])) for row in ws.index.schedules()]
 
     @app.post("/api/schedules")
     async def schedules_create(body: ScheduleBody) -> dict[str, Any]:
@@ -624,9 +672,60 @@ def create_app(ws: Workspace, token: str, static_dir: Path | None = None, *, sch
 
     @app.get("/api/search")
     async def search_records(q: str, kind: Literal["all", "messages", "sources", "files"] = "all",
-                             limit: int = 30) -> list[dict[str, Any]]:
+                             limit: int = Query(30, ge=1, le=100),
+                             project_id: str | None = None) -> list[dict[str, Any]]:
         """Full-text search over the assistant's own records, for the search page."""
-        return ws.recall(q, kind, min(limit, 100))  # on the loop thread: SQLite and the logs live there
+        if project_id:
+            project_row(project_id)
+        return ws.recall(q, kind, limit, scope=ws.record_scope(project_id=project_id))
+
+    @app.get("/api/records/{ref}")
+    async def read_record(ref: str, start: int = Query(0, ge=0), end: int = Query(6000, ge=1),
+                          session_id: str | None = None) -> dict[str, Any]:
+        if session_id:
+            session_log(session_id)
+        try:
+            record = ws.read_record(ref, start, end, scope=ws.record_scope(session_id))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if record is None:
+            raise HTTPException(404, "no record in the selected scope")
+        return record
+
+    @app.get("/api/sessions/{sid}/diagnostics")
+    async def diagnostics(sid: str) -> dict[str, Any]:
+        from .usage import events
+
+        log = session_log(sid)
+        ledger = events(ws.usage_path(log))
+        out = []
+        for row in ws.index._all("select * from runs where session_id=? order by started_at desc limit 20", sid):
+            records = [e for e in ledger if e.get("run_id") == row["id"]]
+            started = [e for e in records if e["type"] == "model.started"]
+            terminal = {e["call_id"] for e in records if e["type"] == "model.response"}
+            freeze = next((e for e in records if e["type"] == "budget.frozen"), {})
+            frozen = freeze.get("limits")
+            out.append({"run_id": row["id"], "status": row["status"], "model": row["model_ref"],
+                        "started_at": row["started_at"], "ended_at": row["ended_at"],
+                        "usage": json.loads(row["usage_json"] or "{}"), "limits": frozen,
+                        "model_calls": len(started),
+                        "tool_calls": sum(e["type"] == "budget.tool" for e in records)
+                                      + freeze.get("legacy_tool_calls", 0) if frozen else None,
+                        "unknown_calls": sum(e["call_id"] not in terminal for e in started),
+                        "sdk_max_retries": list({e.get("sdk_max_retries") for e in started}),
+                        "failures": [{k: e[k] for k in ("type", "dimension", "error_type", "request_id") if k in e}
+                                     for e in records if e["type"] in ("budget.exhausted", "model.error", "run.error")],
+                        "tool_errors": sum(e.type == "tool_result" and e.data.get("is_error", False)
+                                           for e in log.entries.values() if e.run_id == row["id"]),
+                        "tools": [{"entry_id": e.id, "call_id": e.data["call_id"], "name": e.data["name"],
+                                   "is_error": e.data.get("is_error", False),
+                                   "exit_code": e.data.get("meta", {}).get("exit_code")}
+                                  for e in log.entries.values()
+                                  if e.run_id == row["id"] and e.type == "tool_result"][-50:],
+                        "cost": None, "cost_status": "unknown: no verified package billing/price table"})
+        return {"runs": out, "recall_scope": ws.record_scope(sid)["label"],
+                "index": {"pending": len(ws._index_pending), "recent_errors": ws._index_errors},
+                "budget_defaults": dataclasses.asdict(ws.cfg.budget)}
 
     @app.put("/api/settings/feishu")
     async def put_feishu(body: FeishuBody) -> dict[str, Any]:

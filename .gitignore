@@ -7,3 +7,9 @@ dist/
 node_modules/
 src/nano_workbuddy/static/
 .DS_Store
+eval-runs/
+web/test-results/
+web/playwright-report/
+
+# Advisory locks from archived local evaluation workspaces
+.home.maintenance.lock

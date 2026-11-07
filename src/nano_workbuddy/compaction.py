@@ -14,7 +14,9 @@ from .context import (
     budget,
     elided_file,
     entry_tokens,
+    estimate_tokens,
     is_prunable,
+    pinned,
     request_tokens,
     result_text,
     to_messages,
@@ -34,6 +36,7 @@ from .types import (
     text,
     text_of,
 )
+from .usage import purpose
 
 if TYPE_CHECKING:
     from .loop import Run
@@ -74,8 +77,17 @@ async def fit(run: Run, overflow: bool = False) -> tuple[str, list[Message]]:
         return system, messages, request_tokens(system, messages, tools)
 
     system, messages, used = project()
+    if not run.context_governance:
+        if used > limit or overflow:
+            raise ContextTooLarge(f"B0 governance disabled: request needs about {used} tokens; budget is {limit}")
+        run.emit({"type": "context", "tokens": used, "budget": limit})
+        return system, messages
     if used > limit or overflow:
-        keep = min(KEEP_RECENT, limit // 4)
+        # Loaded skills/notices may be folded into the summary, then restored verbatim by prepare().
+        # Reserve their space before choosing recent history so a seemingly fitting compacted request
+        # does not overflow again as soon as these mandatory blocks are restored.
+        reserve = sum(estimate_tokens(body) + 32 for body in (run.notices | pinned(run.log.path())).values())
+        keep = min(KEEP_RECENT, max(1, limit // 4 - reserve))
         if prune(run, keep):
             system, messages, used = project()
         if (used > limit or overflow) and await compact(run, keep=keep):
@@ -174,7 +186,8 @@ async def summarize_branch(run: Run, target_id: str) -> Entry | None:
     if not any(e.type in (USER, ASSISTANT) for e in left):
         log.checkout(target_id)
         return None
-    resp = await complete(run.model, SUMMARIZER, f"{BRANCH}\n\n<branch>\n{serialize(left)}\n</branch>")
+    resp = await complete(run.model, SUMMARIZER, f"{BRANCH}\n\n<branch>\n{serialize(left)}\n</branch>",
+                          kind="branch_summary")
     if not (summary := text_of(resp.content).strip()):
         raise RuntimeError("the model returned an empty summary; the branch was not switched")
     for k, v in resp.usage.items():
@@ -219,11 +232,14 @@ def file_ops(entries: list[Entry], previous: dict[str, list[str]]) -> dict[str, 
     return {"read": sorted(read - modified), "modified": sorted(modified)}
 
 
-async def complete(model: Model, system: str, prompt: str) -> Response:
+async def complete(model: Model, system: str, prompt: str, kind: str = "compaction") -> Response:
     resp = None
-    async for item in model.stream(system, [Message(role="user", content=[text(prompt)])], []):
-        if isinstance(item, Response):
-            resp = item
+    with purpose(kind):
+        async for item in model.stream(system, [Message(role="user", content=[text(prompt)])], []):
+            if isinstance(item, Response):
+                resp = item
     assert resp is not None
+    if resp.stop != "end":
+        raise RuntimeError(f"summary did not finish normally: {resp.stop}")
     return resp
 

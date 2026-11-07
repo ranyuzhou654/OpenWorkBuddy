@@ -16,7 +16,7 @@ from ..types import Block, Message, Stop, Thinking, ToolCall, text
 from . import ContextOverflow, Delta, Response
 
 STOPS: dict[str, Stop] = {"end_turn": "end", "tool_use": "tool_use", "max_tokens": "length",
-                          "model_context_window_exceeded": "length", "stop_sequence": "end", "pause_turn": "end",
+                          "model_context_window_exceeded": "length", "stop_sequence": "end", "pause_turn": "error",
                           "refusal": "error"}
 CACHE = {"type": "ephemeral"}
 
@@ -44,8 +44,11 @@ class AnthropicMessages:
         if self.spec.params:  # e.g. {"thinking": {"type": "adaptive", "display": "summarized"}}
             req["extra_body"] = self.spec.params
         try:
+            ended = False
             async with self.client.messages.stream(**req) as stream:
                 async for event in stream:
+                    if event.type == "message_stop":
+                        ended = True
                     if event.type == "content_block_delta":
                         if event.delta.type == "text_delta":
                             yield Delta("text", event.delta.text)
@@ -57,7 +60,11 @@ class AnthropicMessages:
             if "prompt is too long" in msg or "context window" in msg or "context length" in msg:
                 raise ContextOverflow(str(e)) from e
             raise
-        yield from_anthropic(final, provider, self.spec.id)
+        response = from_anthropic(final, provider, self.spec.id)
+        if not ended:
+            response.stop = "error"
+            response.meta["usage_complete"] = False
+        yield response
 
 
 def to_anthropic(messages: list[Message], provider: str) -> list[dict[str, Any]]:
@@ -124,5 +131,9 @@ def from_anthropic(msg: Any, provider: str, model: str) -> Response:
     cache_read, cache_write = u.cache_read_input_tokens or 0, u.cache_creation_input_tokens or 0
     usage = {"input": u.input_tokens + cache_read + cache_write, "output": u.output_tokens,
              "cache_read": cache_read, "cache_write": cache_write}
-    return Response(content, STOPS.get(msg.stop_reason or "end_turn", "end"), usage,
-                    {"provider": provider, "model": model})
+    from ..usage import wire_usage
+
+    return Response(content, STOPS.get(msg.stop_reason, "error"), usage,
+                    {"provider": provider, "model": getattr(msg, "model", None) or model,
+                     "response_id": getattr(msg, "id", None), "request_id": getattr(msg, "_request_id", None),
+                     "raw_usage": wire_usage(u), "usage_complete": bool(msg.stop_reason)})

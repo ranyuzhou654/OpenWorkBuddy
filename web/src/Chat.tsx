@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { motion } from "motion/react";
+import {
+  type ComponentProps, isValidElement, memo, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  api, type Approval, type Artifact, type Attachment, type Block, type Entry, type FeishuPreview, type Question, type Receipt,
+  api, type Approval, type Artifact, type Attachment, type Block, type DeliveryRecovery, type Entry, type FeishuPreview,
+  type Question, type Receipt,
   type Source, type Todo,
 } from "./api";
 import { ArtifactCard, AttachmentChips } from "./Files";
 import { childrenOf, pathTo, sourcesOf, textOf, type State } from "./session";
+import { useToast } from "./ui";
 
 type ToolCall = Extract<Block, { type: "tool_call" }>;
 
@@ -20,6 +26,7 @@ type Item =
   | { kind: "receipt"; key: string; r: Receipt };
 
 type Thought = Extract<Block, { type: "thinking" }>;
+const itemKey = (it: Item) => (it.kind === "entry" ? it.e.id : it.key);
 type Step = ToolCall | Thought; // thinking that only leads into tool calls stays inside the group
 
 function toItems(path: Entry[]): Item[] {
@@ -68,90 +75,235 @@ function toItems(path: Entry[]): Item[] {
 
 const VISIBLE = new Set(["user", "compaction", "branch_summary", "prune", "notice"]);
 
-export function Chat({ sid, state, onFork }: { sid: string; state: State; onFork: (entryId: string) => void }) {
+const WINDOW = 40;
+
+export function Chat({ sid, state, onFork, reveal }: {
+  sid: string;
+  state: State;
+  onFork: (entryId: string) => void;
+  reveal: { id: string; nonce: number } | null;
+}) {
   const { entries, leaf, live } = state;
-  const path = pathTo(entries, leaf);
-  const kids = childrenOf(entries);
-  const runs: Runs = { results: {}, started: {}, outputs: live?.outputs ?? {}, live: live !== null,
-    waiting: new Set([...(live?.approvals ?? []), ...(live?.questions ?? [])].map((a) => a.call_id)) };
-  for (const e of path) {
-    if (e.type === "tool_result") runs.results[e.data.call_id] = e;
-    if (e.type === "tool_started") runs.started[e.data.call_id] = e.ts;
-  }
-  const todos = latestTodos(path);
+  const path = useMemo(() => pathTo(entries, leaf), [entries, leaf]);
+  const kids = useMemo(() => childrenOf(entries), [entries]);
+  const runs = useMemo(() => {
+    const next: Runs = { results: {}, started: {}, outputs: live?.outputs ?? {}, live: live !== null,
+      waiting: new Set([...(live?.approvals ?? []), ...(live?.questions ?? [])].map((a) => a.call_id)) };
+    for (const e of path) {
+      if (e.type === "tool_result") next.results[e.data.call_id] = e;
+      if (e.type === "tool_started") next.started[e.data.call_id] = e.ts;
+    }
+    return next;
+  }, [path, live?.outputs, live?.approvals, live?.questions, live !== null]);
+  const todos = useMemo(() => latestTodos(path), [path]);
   const busy = live !== null;
-  const items = toItems(path);
-  const cites = Object.fromEntries(sourcesOf(entries).map((x) => [x.n, x]));
+  const items = useMemo(() => toItems(path), [path]);
+  const cites = useMemo(() => Object.fromEntries(sourcesOf(entries).map((x) => [x.n, x])), [entries]);
+  const userSiblings = useMemo(() => {
+    const map = new Map<string, Entry[]>();
+    for (const e of path) if (e.type === "user")
+      map.set(e.id, (kids[e.parent_id ?? "root"] ?? []).filter((x) => x.type === "user"));
+    return map;
+  }, [path, kids]);
+
+  // Only the newest window is mounted; older turns load on demand, keeping long sessions cheap to render.
+  const maxStart = Math.max(0, items.length - WINDOW);
+  const [start, setStart] = useState(maxStart);
+  const windowStart = Math.min(start, maxStart);
+  const visible = items.slice(windowStart);
+  const anchor = useRef<number | null>(null);
+
+  // Animate only items that arrive after the first paint (and only the newest few), never a whole reload.
+  const seen = useRef<Set<string> | null>(null);
+  const firstPaint = seen.current === null;
+  if (seen.current === null) seen.current = new Set(items.map(itemKey));
+  useEffect(() => {
+    for (const item of items) seen.current?.add(itemKey(item));
+  }, [items]);
+  const fresh = (key: string, index: number) => !firstPaint && !seen.current?.has(key) && index >= items.length - 6;
 
   // Follow the bottom while streaming, unless the user scrolled up to read.
-  const end = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+  const previousCount = useRef(items.length);
+  const pinnedHistory = useRef(false);
+  useEffect(() => {
+    const grew = items.length > previousCount.current;
+    previousCount.current = items.length;
+    if (grew && stick.current && !pinnedHistory.current) setStart(Math.max(0, items.length - WINDOW));
+  }, [items.length]);
+  useLayoutEffect(() => {
+    if (anchor.current === null) return;
+    const el = box.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight - anchor.current;
+    anchor.current = null;
+  }, [windowStart]);
   useEffect(() => {
     const el = box.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) end.current?.scrollIntoView();
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
+  const onScroll = () => {
+    const el = box.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    stick.current = near;
+    setShowJump(!near);
+  };
+  const earlier = () => {
+    const el = box.current;
+    if (!el) return;
+    stick.current = false;
+    pinnedHistory.current = true;
+    anchor.current = el.scrollHeight - el.scrollTop;
+    setStart(Math.max(0, windowStart - WINDOW));
+  };
+  const jump = () => {
+    const el = box.current;
+    if (!el) return;
+    stick.current = true;
+    setShowJump(false);
+    el.scrollTo({ top: el.scrollHeight,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+
+  // A trace "定位" request may point at a turn outside the mounted window. Expand first, then
+  // scroll once that node exists; the flash makes the destination obvious without moving the page.
+  const located = useRef(0);
+  const flash = useRef<number | null>(null);
+  useEffect(() => {
+    if (!reveal || located.current === reveal.nonce) return;
+    const index = items.findIndex((it) => it.kind === "entry" && it.e.id === reveal.id);
+    if (index < 0) return;
+    if (index < windowStart) {
+      setStart(Math.max(0, index - 2));
+      return;
+    }
+    const el = box.current;
+    if (!el) return;
+    const node = [...el.querySelectorAll<HTMLElement>("[data-chat-key]")].find((n) => n.dataset.chatKey === reveal.id);
+    if (!node) return;
+    located.current = reveal.nonce;
+    stick.current = false;
+    setShowJump(true);
+    const top = el.scrollTop + node.getBoundingClientRect().top - el.getBoundingClientRect().top - Math.min(100, el.clientHeight * 0.2);
+    el.scrollTo({ top, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    node.classList.remove("jump-hit");
+    void node.offsetWidth;
+    node.classList.add("jump-hit");
+    if (flash.current) window.clearTimeout(flash.current);
+    flash.current = window.setTimeout(() => node.classList.remove("jump-hit"), 1600);
+  }, [reveal, items, windowStart]);
+  useEffect(() => () => { if (flash.current) window.clearTimeout(flash.current); }, []);
 
   return (
-    <div className="chat" ref={box}>
+    <div className="chat" ref={box} onScroll={onScroll} role="log" aria-label="对话记录"
+      aria-live="polite" aria-relevant="additions">
       {path.length <= 1 && <div className="empty">发一条消息开始。助手可以读写这个项目里的文件、运行命令。</div>}
-      {items.map((it, n) => {
-        if (it.kind === "steps")
-          return <StepGroup key={it.key} calls={it.calls} runs={runs} last={n === items.length - 1} />;
-        if (it.kind === "artifact") return <ArtifactCard key={it.key} sid={sid} a={it.a} />;
-        if (it.kind === "receipt") return <ReceiptCard key={it.key} r={it.r} />;
-        if (it.kind === "say")
-          return (
-            <div key={it.key} className="msg assistant">
+      {windowStart > 0 && (
+        <button className="load-earlier" onClick={earlier}>
+          显示更早的 {Math.min(windowStart, WINDOW)} 条
+        </button>
+      )}
+      {visible.map((it, n) => {
+        const index = windowStart + n;
+        let content;
+        if (it.kind === "steps") content = <MemoStepGroup calls={it.calls} runs={runs} last={index === items.length - 1} />;
+        else if (it.kind === "artifact") content = <ArtifactCard sid={sid} a={it.a} />;
+        else if (it.kind === "receipt") content = <ReceiptCard r={it.r} />;
+        else if (it.kind === "say") {
+          content = (
+            <div className="msg assistant">
               {it.blocks.map((b, i) => b.type === "thinking" ? <Thinking key={i} text={b.text} />
-                : b.type === "text" ? <Markdown key={i} text={b.text} cites={cites} /> : null)}
+                : b.type === "text" ? <MemoMarkdown key={i} text={b.text} cites={cites} /> : null)}
               {it.stop === "aborted" && <div className="note">（已中止）</div>}
               {it.stop === "length" && <div className="note">（输出达到长度上限）</div>}
             </div>
           );
-        const e = it.e;
-        if (e.type === "user") {
-          const siblings = (kids[e.parent_id ?? "root"] ?? []).filter((x) => x.type === "user");
-          return <UserMessage key={e.id} sid={sid} entry={e} siblings={siblings} busy={busy} onFork={onFork} />;
+        } else {
+          const e = it.e;
+          if (e.type === "user") {
+            content = <MemoUserMessage sid={sid} entry={e} siblings={userSiblings.get(e.id) ?? []}
+              busy={busy} onFork={onFork} />;
+          } else if (e.type === "compaction") {
+            content = (
+              <details className="divider">
+                <summary>上下文已压缩：约 {e.data.tokens_before} tokens 的较早对话被摘要替代（原文仍保存在会话里）</summary>
+                <MemoMarkdown text={e.data.summary} />
+              </details>
+            );
+          } else if (e.type === "branch_summary") {
+            content = (
+              <details className="divider">
+                <summary>已总结离开的分支，助手会参考这段摘要</summary>
+                <MemoMarkdown text={e.data.summary} />
+              </details>
+            );
+          } else if (e.type === "prune") {
+            content = <div className="divider">已从上下文中清理 {e.data.count} 条旧工具输出（全文已另存）</div>;
+          } else if (e.data.kind === "delivery_recovery") {
+            content = <DeliveryRecoveryCard sid={sid} entry={e} />;
+          } else {
+            content = (
+              <details className="divider">
+                <summary>{NOTICES[e.data.kind] ?? (e.data.kind.startsWith("skill:") ? `已加载技能 ${e.data.kind.slice(6)}` : "系统通知")}</summary>
+                <div className="note">{e.data.text}</div>
+              </details>
+            );
+          }
         }
-        if (e.type === "compaction")
-          return (
-            <details key={e.id} className="divider">
-              <summary>上下文已压缩：约 {e.data.tokens_before} tokens 的较早对话被摘要替代（原文仍保存在会话里）</summary>
-              <Markdown text={e.data.summary} />
-            </details>
-          );
-        if (e.type === "branch_summary")
-          return (
-            <details key={e.id} className="divider">
-              <summary>已总结离开的分支，助手会参考这段摘要</summary>
-              <Markdown text={e.data.summary} />
-            </details>
-          );
-        if (e.type === "prune")
-          return <div key={e.id} className="divider">已从上下文中清理 {e.data.count} 条旧工具输出（全文已另存）</div>;
         return (
-          <details key={e.id} className="divider">
-            <summary>{NOTICES[e.data.kind] ?? (e.data.kind.startsWith("skill:") ? `已加载技能 ${e.data.kind.slice(6)}` : "系统通知")}</summary>
-            <div className="note">{e.data.text}</div>
-          </details>
+          <motion.div key={itemKey(it)} className="chat-item" data-chat-key={it.kind === "entry" ? it.e.id : undefined}
+            initial={fresh(itemKey(it), index) ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}>
+            {content}
+          </motion.div>
         );
       })}
       {live && (live.thinking || live.text) && (
-        <div className="msg assistant streaming">
+        <div className="msg assistant streaming" aria-live="off">
           {live.thinking && <Thinking text={live.thinking} open />}
-          {live.text && <Markdown text={live.text} cites={cites} />}
+          {live.text && <MemoMarkdown text={live.text} cites={cites} />}
+          {live.text && <span className="stream-caret" aria-hidden />}
         </div>
       )}
-      {live && !live.thinking && !live.text && runs.waiting.size === 0 && <div className="working">工作中…</div>}
+      {live && !live.thinking && !live.text && runs.waiting.size === 0 && <div className="working" role="status">工作中…</div>}
       {live?.approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)}
       {live?.questions.map((q) => <QuestionCard key={q.id} question={q} />)}
       {live && [...live.steer.map((t) => ["插话", t]), ...live.queue.map((t) => ["排队", t])].map(([kind, t], i) => (
         <div key={i} className="msg user pending"><span className="tag">{kind}</span>{t}</div>
       ))}
-      <div ref={end} />
+      {showJump && <button className="jump-latest" onClick={jump}>回到最新 <span aria-hidden>↓</span></button>}
       {todos && (busy || todos.some((t) => t.status !== "completed")) && <TodoPanel todos={todos} />}
     </div>
   );
+}
+
+function DeliveryRecoveryCard({ sid, entry }: { sid: string; entry: Entry }) {
+  const [result, setResult] = useState<DeliveryRecovery | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inspect = async () => {
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try { setResult(await api.deliveries(sid, entry.run_id!)); }
+    catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
+  };
+  return <div className="note" role="region" aria-label="已交付版本恢复">
+    <p><strong>运行未完成，已有交付版本保留</strong></p>
+    <p>原运行状态：{entry.data.status}{entry.data.error_type ? ` · ${entry.data.error_type}` : ""}。
+      本地检查不调用模型，不重新生成文件。事实与版式仍需验收。</p>
+    <button onClick={inspect} disabled={busy}>{busy ? "正在检查…" : "检查已交付版本"}</button>
+    {error && <p role="alert">{error}</p>}
+    {result && <ul>{result.files.map(({ entry_id, artifact: a, availability }) => <li key={entry_id}>
+      {a.name} · 第 {a.version} 版 · {availability === "available" ? <a
+        href={api.fileUrl(sid, a.sha256, a.name, true)}>下载已交付版本</a> :
+        <span role="alert">副本{availability === "corrupt" ? "损坏" : availability === "missing" ? "缺失" : "不可读"}，未重新生成</span>}
+    </li>)}</ul>}
+  </div>;
 }
 
 function UserMessage({ sid, entry, siblings, busy, onFork }: {
@@ -200,6 +352,66 @@ function UserMessage({ sid, entry, siblings, busy, onFork }: {
   );
 }
 
+const MemoUserMessage = memo(UserMessage);
+
+function nodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (isValidElement(node)) return nodeText((node.props as { children?: ReactNode }).children);
+  return "";
+}
+
+function legacyCopy(text: string) {
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.appendChild(field);
+  field.select();
+  const ok = document.execCommand("copy");
+  field.remove();
+  if (!ok) throw new Error("copy failed");
+}
+
+function CodeBlock(props: ComponentProps<"pre"> & { node?: unknown }) {
+  const { children, node, ...rest } = props;
+  void node;
+  const toast = useToast();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number | null>(null);
+  const child = Array.isArray(children) ? children[0] : children;
+  const code = isValidElement(child) ? (child.props as { children?: ReactNode; className?: string }) : null;
+  const text = (code ? nodeText(code.children) : nodeText(children)).replace(/\n$/, "");
+  const language = /language-([\w-]+)/.exec(code?.className ?? "")?.[1];
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      else legacyCopy(text);
+    } catch {
+      try { legacyCopy(text); } catch {
+        toast.error("复制失败，请手动选择代码");
+        return;
+      }
+    }
+    setCopied(true);
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 1600);
+  };
+  return (
+    <div className="code-wrap">
+      <div className="code-bar">
+        <span>{language ?? "代码"}</span>
+        <button type="button" className={copied ? "code-copy done" : "code-copy"} onClick={copy}
+          aria-label={copied ? "已复制代码" : "复制代码"} title={copied ? "已复制" : "复制代码"}>
+          {copied ? <Check size={12} /> : <Copy size={12} />}{copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      <pre {...rest}>{children}</pre>
+    </div>
+  );
+}
+
 function Thinking({ text, open = false }: { text: string; open?: boolean }) {
   return (
     <details className="thinking" open={open}>
@@ -221,12 +433,15 @@ function Markdown({ text, cites = {} }: { text: string; cites?: Record<number, S
         a: ({ children, ...p }) => (
           <a {...p} target="_blank" rel="noreferrer" className={/^S\d+$/.test(String(children)) ? "cite" : undefined}>{children}</a>
         ),
+        pre: (props) => <CodeBlock {...props} />,
       }}>
         {linked}
       </ReactMarkdown>
     </div>
   );
 }
+
+const MemoMarkdown = memo(Markdown);
 
 const NOTICES: Record<string, string> = {
   permissions: "已告知模型当前的权限设置",
@@ -329,23 +544,30 @@ function StepGroup({ calls: steps, runs, last }: { calls: Step[]; runs: Runs; la
     return k > 1 ? `${n} ×${k}` : n;
   });
   return (
-    <div className="steps">
+    <div className="steps" aria-live="off">
       {calls.length > 1 && (
-        <div className="steps-head" onClick={() => setChoice(!open)}>
+        <button type="button" className="steps-head" aria-expanded={open} onClick={() => setChoice(!open)}>
           <span className={`caret${open ? " open" : ""}`} />
           <span className="count">{calls.length} 个步骤</span>
           {!open && <span className="names">{counted.join(" · ")}</span>}
           <span className="right">
             {errors > 0 && <span className="danger-text">{errors} 个出错</span>}
-            {active ? <span style={{ color: "var(--clay-text)" }}>进行中</span> : total > 0 && <span>{duration(total)}</span>}
+            {active ? <span className="working-label">进行中</span> : total > 0 && <span>{duration(total)}</span>}
           </span>
-        </div>
+        </button>
       )}
-      {open && steps.map((x, i) => x.type === "thinking" ? <ThoughtRow key={`t${i}`} text={x.text} />
-        : <StepRow key={x.id} call={x} status={statuses[calls.indexOf(x)]} runs={runs} />)}
+      <div className={`steps-body${open ? " open" : ""}`} aria-hidden={!open}>
+        <div className="steps-body-inner">
+          {steps.map((x, i) => x.type === "thinking"
+            ? <ThoughtRow key={`t${i}`} text={x.text} index={i} />
+            : <StepRow key={x.id} call={x} status={statuses[calls.indexOf(x)]} runs={runs} index={i} />)}
+        </div>
+      </div>
     </div>
   );
 }
+
+const MemoStepGroup = memo(StepGroup);
 
 const ICONS: Record<string, string> = {
   read: "R", write: "W", edit: "E", bash: "$", grep: "G", glob: "*", web_fetch: "↗", web_search: "⌕", todo: "✓", ask_user: "?",
@@ -353,7 +575,7 @@ const ICONS: Record<string, string> = {
   skill: "S", memory: "M", tool_search: "⌕",
 };
 
-function StepRow({ call, status, runs }: { call: ToolCall; status: Status; runs: Runs }) {
+function StepRow({ call, status, runs, index }: { call: ToolCall; status: Status; runs: Runs; index: number }) {
   const [open, setOpen] = useState(false);
   const result = runs.results[call.id];
   const content: Block[] = result?.data.content ?? [];
@@ -362,8 +584,9 @@ function StepRow({ call, status, runs }: { call: ToolCall; status: Status; runs:
     waiting: call.name === "ask_user" ? "等你回答" : "等你确认" }[status];
   const live = status === "running" ? runs.outputs[call.id] : undefined;
   return (
-    <div className={`step ${status}`}>
-      <div className="step-row" onClick={() => setOpen(!open)} title={open ? "收起" : "展开参数和输出"}>
+    <div className={`step ${status}`} style={{ animationDelay: `${Math.min(index, 6) * 24}ms` }}>
+      <div className="step-row" role="button" tabIndex={0} aria-expanded={open} title={open ? "收起" : "展开参数和输出"}
+        onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(!open); } }}>
         <span className="ic">{call.name.startsWith("mcp__") ? "◆" : ICONS[call.name] ?? "·"}</span>
         <span className="name">{toolLabel(call.name)}</span>
         <code>{summary(call.name, call.args)}</code>
@@ -375,20 +598,41 @@ function StepRow({ call, status, runs }: { call: ToolCall; status: Status; runs:
           {open && <ToolArgs name={call.name} args={call.args} />}
           {result
             ? content.map((b, i) =>
-                b.type === "image" ? <img key={i} src={`data:${b.mime};base64,${b.data}`} />
-                  : b.type === "text" ? <pre key={i} className="out">{b.text}</pre> : null)
-            : live && <pre className="out">{live}</pre>}
+                b.type === "image" ? <img key={i} src={`data:${b.mime};base64,${b.data}`} alt={`${toolLabel(call.name)} 的输出图片`} />
+                  : b.type === "text" ? <ToolOutput key={i} text={b.text} /> : null)
+            : live && <ToolOutput text={live} live />}
         </div>
       )}
     </div>
   );
 }
 
-function ThoughtRow({ text }: { text: string }) {
+function ToolOutput({ text, live = false }: { text: string; live?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const lines = text.split("\n");
+  const long = text.length > 1800 || lines.length > 18;
+  const preview = text.length > 1800 ? `${text.slice(0, 1800)}\n…`
+    : lines.slice(0, 18).join("\n") + (lines.length > 18 ? "\n…" : "");
+  const detail = lines.length > 1 ? `${lines.length} 行` : `${text.length} 字符`;
+  return (
+    <div className={`tool-output${open ? " open" : ""}${long ? " long" : ""}`}>
+      <pre className="out">{long && !open ? preview : text}</pre>
+      {long && !live && (
+        <button type="button" className="out-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? "收起输出" : `展开全部 · ${detail}`}
+        </button>
+      )}
+      {live && long && <div className="out-live">输出仍在继续…</div>}
+    </div>
+  );
+}
+
+function ThoughtRow({ text, index }: { text: string; index: number }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="step thought">
-      <div className="step-row" onClick={() => setOpen(!open)}>
+    <div className="step thought" style={{ animationDelay: `${Math.min(index, 6) * 24}ms` }}>
+      <div className="step-row" role="button" tabIndex={0} aria-expanded={open}
+        onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(!open); } }}>
         <span className="ic">…</span>
         <span className="name">思考</span>
         <code>{text.trim().split("\n")[0]}</code>
@@ -411,7 +655,7 @@ function ApprovalCard({ approval }: { approval: Approval }) {
   const [feedback, setFeedback] = useState("");
   const decide = (d: "once" | "always" | "reject") => api.approve(approval.id, d, d === "reject" ? feedback || undefined : undefined);
   return (
-    <div className="approval">
+    <div className="approval" role="group" aria-label="需要确认的工具调用">
       <div className="approval-title">需要你确认：<b>{toolLabel(approval.tool)}</b></div>
       {approval.action === "bash.unsandboxed" && (
         <div className="warn-line">这条命令要求在沙箱外运行：可以联网，也可以写项目目录以外的文件。</div>
@@ -433,8 +677,7 @@ function ApprovalCard({ approval }: { approval: Approval }) {
           <button className="primary" onClick={() => decide("once")}>允许</button>
           {approval.always ? (
             <button onClick={() => decide("always")} title={`添加规则：${approval.always.action} ${approval.always.resource}`}>
-              本会话总是允许{approval.always.resource.endsWith("/*") ? ` ${approval.always.resource}`
-                : approval.always.resource ? "这条命令" : "此工具"}
+              本会话总是允许
             </button>
           ) : <span className="note">这类操作每次单独确认</span>}
           <button className="danger" onClick={() => setRejecting(true)}>拒绝…</button>
@@ -457,16 +700,26 @@ function FeishuApproval({ args, preview }: { args: Record<string, any>; preview:
   return (
     <div className="feishu-approval">
       <div className="kv"><span>账户</span><b>{preview?.account ?? "（未知）"}</b></div>
+      {preview?.account_id && <div className="kv"><span>账户 ID</span><code>{preview.account_id}</code></div>}
       <div className="kv"><span>操作</span><b>{FEISHU_ACTIONS[preview?.action ?? ""] ?? argv.slice(0, 2).join(" ")}</b></div>
       <div className="kv"><span>对象</span><code>{preview?.target ?? "—"}</code></div>
-      {CONTENT_FLAGS.filter((f) => flag(f) !== undefined).map((f) => (
+      {preview?.payload && (
+        <div className="kv"><span>已冻结内容</span><pre>{String(preview.payload.content ?? preview.payload.name ?? "")}</pre></div>
+      )}
+      {preview?.files?.map((file) => (
+        <div key={file.sha256} className="kv"><span>已冻结附件</span><pre>{file.name} · {file.bytes} 字节</pre></div>
+      ))}
+      {!preview?.payload && CONTENT_FLAGS.filter((f) => flag(f) !== undefined).map((f) => (
         <div key={f} className="kv"><span>{f.slice(2)}</span><pre>{flag(f)}</pre></div>
       ))}
       {preview?.error && <div className="note warn-line">预览失败：{preview.error}</div>}
       {preview?.dry_run !== undefined && (
         <details><summary>dry-run 预览（将发出的请求）</summary><pre>{JSON.stringify(preview.dry_run, null, 2)}</pre></details>
       )}
-      <details><summary>完整命令</summary><pre>lark-cli {argv.join(" ")} --as user</pre></details>
+      {preview?.payload ? (
+        <details><summary>完整审批载荷</summary><pre>{JSON.stringify({ payload: preview.payload,
+          payload_hash: preview.payload_hash, operation_id: preview.operation_id, files: preview.files }, null, 2)}</pre></details>
+      ) : <details><summary>原始请求</summary><pre>{JSON.stringify(args, null, 2)}</pre></details>}
     </div>
   );
 }
@@ -504,8 +757,10 @@ function TodoList({ todos }: { todos: Todo[] }) {
 function TodoPanel({ todos }: { todos: Todo[] }) {
   const done = todos.filter((t) => t.status === "completed").length;
   return (
-    <div className="todo-panel">
-      <div className="todo-title">计划 {done}/{todos.length}</div>
+    <div className="todo-panel" role="region" aria-label="当前计划">
+      <div className="todo-title">计划 {done}/{todos.length}
+        <span className="todo-progress" aria-hidden><i style={{ width: `${todos.length ? (done / todos.length) * 100 : 0}%` }} /></span>
+      </div>
       <TodoList todos={todos} />
     </div>
   );
@@ -520,7 +775,7 @@ function QuestionCard({ question }: { question: Question }) {
     await api.answer(question.id, a.trim()).catch(() => setSent(false));
   };
   return (
-    <div className="approval question">
+    <div className="approval question" role="group" aria-label="助手的问题">
       <div className="approval-title">助手想问你：</div>
       <div className="question-text">{question.question}</div>
       {question.options.length > 0 && (

@@ -20,7 +20,8 @@ export interface Attachment {
 
 export interface Check {
   name: string;
-  ok: boolean;
+  ok: boolean | null;
+  layer?: "structure" | "citations" | "numbers" | "human";
   detail: string;
 }
 
@@ -39,7 +40,13 @@ export interface Artifact {
   created_at: number;
 }
 
-// A numbered source [S#]: a search snippet, a page read in full, or a downloaded file.
+export interface DeliveryRecovery {
+  run_id: string;
+  status: string;
+  files: { entry_id: string; artifact: Artifact; availability: "available" | "missing" | "corrupt" | "unreadable" }[];
+}
+
+// A numbered source [S#] binds a content version; inspection records excerpts, not factual correctness.
 export interface Source {
   n: number;
   url: string;
@@ -49,6 +56,13 @@ export interface Source {
   published?: string;
   retrieved_at?: string;
   provider?: string;
+  state?: "discovered" | "fetched" | "extracted" | "inspected";
+  sha256?: string;
+  snapshot?: string;
+  text_ref?: string;
+  locator?: string;
+  access_scope?: string;
+  inspections?: { locator: string; partial_output: boolean; output_ranges: number[][] }[];
 }
 
 // A scheduled task (M3): a rule, its own session, and what its runs found.
@@ -63,6 +77,8 @@ export interface Occurrence {
 }
 
 export interface Schedule {
+  waiting: boolean;
+  pending: boolean;
   id: string;
   name: string;
   prompt: string;
@@ -97,7 +113,19 @@ export interface ScheduleBody {
   model?: string;
 }
 
+export interface Diagnostics {
+  recall_scope: string;
+  budget_defaults: Record<string, number>;
+  index: { pending: number; recent_errors: { session_id: string; error: string }[] };
+  runs: { run_id: string; status: string; model: string; model_calls: number; tool_calls: number;
+    unknown_calls: number; tool_errors: number; limits: Record<string, number> | null;
+    usage: Record<string, number>; failures: Record<string, string>[]; cost_status: string }[];
+}
+
 export interface SearchHit {
+  record_id: string;
+  project_id: string;
+  access_scope: string;
   title: string;
   kind: "message" | "source" | "file" | "upload";
   ref: string;
@@ -120,6 +148,9 @@ export type Preset = "readonly" | "workspace" | "trust";
 
 export interface Settings {
   preset: Preset;
+  recall_scope?: "project" | "session" | "selected" | "all";
+  recall_sessions?: string[];
+  budget?: Record<string, number>;
 }
 
 export interface ContextUsage {
@@ -136,9 +167,11 @@ export interface SessionInfo {
   leaf_id: string | null;
   updated_at: number;
   archived_at: number | null;
+  last_run?: { id: string; status: string; ended_at: number | null } | null;
 }
 
 export interface Project {
+  no_index: boolean;
   id: string;
   name: string;
   root_path: string;
@@ -159,6 +192,11 @@ export interface Approval {
 }
 
 export interface FeishuPreview {
+  operation_id?: string;
+  payload_hash?: string;
+  account_id?: string;
+  payload?: Record<string, any>;
+  files?: { name: string; bytes: number; sha256: string; snapshot: string }[];
   account?: string;
   action?: string;
   target?: string;
@@ -322,6 +360,7 @@ export interface MemoryFile {
 }
 
 export interface SettingsView {
+  plugins: { name: string; description: string; enabled: boolean }[];
   default_model: string;
   providers: ConnectionView[];
   models: ModelView[];
@@ -375,28 +414,58 @@ export const api = {
   info: () => call<Info>("GET", "/api/info"),
   projects: () => call<Project[]>("GET", "/api/projects"),
   addProject: (path: string, trusted: boolean) => call<Project>("POST", "/api/projects", { path, trusted }),
-  patchProject: (pid: string, body: { name?: string; trusted?: boolean }) => call<Project>("PATCH", `/api/projects/${pid}`, body),
+  patchProject: (pid: string, body: { name?: string; trusted?: boolean; no_index?: boolean }) => call<Project>("PATCH", `/api/projects/${pid}`, body),
   removeProject: (pid: string) => call<{ ok: boolean }>("DELETE", `/api/projects/${pid}`),
   pickFolder: () => call<{ path: string | null }>("POST", "/api/pick-folder"), // a native dialog on the server's machine
   // project_id null: a chat without a project
   newSession: (project_id: string | null, model?: string) => call<SessionInfo>("POST", "/api/sessions", { project_id, model }),
   snapshot: (sid: string) => call<Snapshot>("GET", `/api/sessions/${sid}`),
-  patch: (sid: string, body: { model?: string; preset?: string; title?: string; archived?: boolean }) =>
+  deliveries: (sid: string, run: string) => call<DeliveryRecovery>("GET", `/api/sessions/${sid}/deliveries/${run}`),
+  patch: (sid: string, body: { model?: string; preset?: string; title?: string; archived?: boolean;
+    recall_scope?: string; budget?: Record<string, number> }) =>
     call<SessionInfo>("PATCH", `/api/sessions/${sid}`, body),
   deleteSession: (sid: string) => call<{ ok: boolean }>("DELETE", `/api/sessions/${sid}`),
   send: (sid: string, body: { text: string; parent_id?: string | null; delivery?: "auto" | "steer" | "queue"; attachments?: string[] }) =>
-    call<{ delivery: string }>("POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
+    call<{ delivery: string; input_id: string; status: string; run_id: string | null; run_status: string | null }>(
+      "POST", `/api/sessions/${sid}/messages`, { request_id: crypto.randomUUID(), ...body }),
   // The raw file as the body; returns what to list in the message's attachments.
-  upload: async (sid: string, file: File): Promise<Attachment> => {
-    const r = await fetch(`/api/sessions/${sid}/attachments?name=${encodeURIComponent(file.name || "pasted.png")}`,
-      { method: "PUT", body: file });
-    if (!r.ok) throw new ApiError(r.status, (await r.json().catch(() => ({}))).detail ?? r.statusText);
-    return r.json();
+  upload: (sid: string, file: File, onProgress?: (loaded: number, total: number) => void): Promise<Attachment> => {
+    const url = `/api/sessions/${sid}/attachments?name=${encodeURIComponent(file.name || "pasted.png")}`;
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText) as Attachment);
+          } catch {
+            reject(new Error("附件已上传，但响应无法解析"));
+          }
+          return;
+        }
+        let detail: unknown = xhr.statusText;
+        try { detail = JSON.parse(xhr.responseText).detail ?? detail; } catch { /* keep status text */ }
+        reject(new ApiError(xhr.status, typeof detail === "string" ? detail : JSON.stringify(detail)));
+      };
+      xhr.onerror = () => reject(new Error("附件上传失败，请检查连接"));
+      xhr.onabort = () => reject(new Error("附件上传已取消"));
+      xhr.send(file);
+    });
   },
-  // Upload the files, then send the message that refers to them.
-  sendWithFiles: async (sid: string, text: string, files: File[], delivery: "auto" | "queue" = "auto") => {
+  // Upload the files, then send the message that refers to them. Progress spans all files.
+  sendWithFiles: async (sid: string, text: string, files: File[], delivery: "auto" | "queue" = "auto",
+    onProgress?: (loaded: number, total: number) => void) => {
     const ids: string[] = [];
-    for (const f of files) ids.push((await api.upload(sid, f)).id);
+    const total = files.reduce((sum, file) => sum + file.size, 0);
+    let base = 0;
+    for (const f of files) {
+      ids.push((await api.upload(sid, f, (loaded) => onProgress?.(base + loaded, total))).id);
+      base += f.size;
+      onProgress?.(base, total);
+    }
     return api.send(sid, { text, delivery, attachments: ids });
   },
   fileUrl: (sid: string, sha: string, name: string, download = false) =>
@@ -410,14 +479,18 @@ export const api = {
   putFeishu: (body: { enabled?: boolean; cli?: string }) => call<SettingsView>("PUT", "/api/settings/feishu", body),
   putBrowser: (body: { enabled?: boolean; headless?: boolean }) => call<SettingsView>("PUT", "/api/settings/browser", body),
   feishuStatus: () => call<FeishuStatus>("GET", "/api/connectors/feishu"),
+  enablePlugin: (name: string, enabled: boolean) =>
+    call<SettingsView>("PATCH", `/api/settings/plugins/${encodeURIComponent(name)}`, { enabled }),
   schedules: () => call<Schedule[]>("GET", "/api/schedules"),
   createSchedule: (body: ScheduleBody) => call<Schedule>("POST", "/api/schedules", body),
   patchSchedule: (id: string, body: Partial<Omit<ScheduleBody, "template" | "project_id">> & { enabled?: boolean }) =>
     call<Schedule>("PATCH", `/api/schedules/${id}`, body),
   deleteSchedule: (id: string) => call<{ ok: boolean }>("DELETE", `/api/schedules/${id}`),
   runSchedule: (id: string) => call<{ request_id: string }>("POST", `/api/schedules/${id}/run`),
-  searchRecords: (q: string, kind = "all") =>
-    call<SearchHit[]>("GET", `/api/search?q=${encodeURIComponent(q)}&kind=${kind}`),
+  searchRecords: (q: string, kind = "all", project = "") =>
+    call<SearchHit[]>("GET", `/api/search?q=${encodeURIComponent(q)}&kind=${kind}${project ? `&project_id=${project}` : ""}`),
+  readRecord: (ref: string) => call<{ body: string; total_chars: number }>("GET", `/api/records/${ref}`),
+  diagnostics: (sid: string) => call<Diagnostics>("GET", `/api/sessions/${sid}/diagnostics`),
   testSearch: () => call<{ ok: boolean; seconds?: number; results?: number; error?: string }>("POST", "/api/settings/search/test"),
   // summarize: first summarise the branch being left (needs a model call; the new leaf arrives as events)
   checkout: (sid: string, entry_id: string, descend = false, summarize = branchSummary.get()) =>
@@ -492,7 +565,10 @@ export const theme = {
     theme.apply(t);
   },
   apply(t: Theme = theme.get()): void {
-    if (t === "system") delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = t;
+    const root = document.documentElement;
+    root.classList.add("theme-changing");
+    if (t === "system") delete root.dataset.theme;
+    else root.dataset.theme = t;
+    window.setTimeout(() => root.classList.remove("theme-changing"), 220);
   },
 };

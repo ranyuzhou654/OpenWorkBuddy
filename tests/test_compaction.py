@@ -1,6 +1,7 @@
 """Context control tiers 2 and 3, driven end to end through Workspace with a small context window.
 
-The default test model has max_output 32,000, so window 38,000 leaves a budget of 6,000 tokens."""
+The default test model has max_output 32,000. A 39,000 window leaves 7,000 tokens, enough for
+the fixed prompt, scoped-recall tools and one recent user turn before history can compact."""
 
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from nano_workbuddy.llm.anthropic import to_anthropic
 from nano_workbuddy.llm.openai_chat import to_chat
 from nano_workbuddy.types import ASSISTANT, COMPACTION, NOTICE, PRUNE, text_of
 
-SMALL = 38_000
+SMALL = 39_000
 LONG = "x" * 7_000  # about 2,000 tokens
 
 

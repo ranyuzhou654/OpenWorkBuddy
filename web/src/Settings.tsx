@@ -4,11 +4,14 @@ import {
   type SettingsView,
 } from "./api";
 import {
-  Blocks, CircleHelp, Cpu, Gauge, type LucideIcon, Monitor, NotebookPen, ScrollText, Settings as SettingsIcon, Wrench,
+  Blocks, CircleHelp, Cpu, Gauge, type LucideIcon, Monitor, NotebookPen, ScrollText, Search,
+  Settings as SettingsIcon, Wrench,
 } from "lucide-react";
 import { McpSection } from "./Mcp";
+import { Select } from "./Select";
 import { MemorySection, SkillsSection } from "./Skills";
 import { DeveloperSection, GeneralSection, HelpSection, SystemSection, UsageSection } from "./System";
+import { PageHeader, Skeleton, useConfirm } from "./ui";
 
 // A connection is an endpoint plus one API key. Two keys for the same service = two connections.
 // Every model belongs to one connection; sessions pick a model, new sessions start on the default.
@@ -34,6 +37,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
   const [editingModel, setEditingModel] = useState<Partial<ModelView> | null>(null);
   const [remote, setRemote] = useState<Record<string, RemoteModel[] | string>>({});
   const [tests, setTests] = useState<Record<string, ModelTest | "running">>({});
+  const confirm = useConfirm();
 
   const fetchRemote = async (name: string) => {
     setRemote((r) => ({ ...r, [name]: "加载中…" }));
@@ -70,7 +74,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
             <div className="row">
               <button onClick={() => fetchRemote(p.name)}>获取模型列表</button>
               <button onClick={() => setEditingConn(p)}>编辑 / 换密钥</button>
-              <button className="danger" onClick={() => confirm(`删除连接 ${p.name}？它保存的密钥也会删除。`) && save(api.deleteProvider(p.name))}>删除</button>
+              <button className="danger" onClick={() => confirm({ title: "删除连接", message: `删除连接 ${p.name}？它保存的密钥也会删除。`, confirmLabel: "删除", danger: true }).then((ok) => ok && save(api.deleteProvider(p.name)))}>删除</button>
             </div>
             <RemoteList value={remote[p.name]} onPick={(m) => setEditingModel({
               provider: p.name, id: m.id, name: slug(m.id),
@@ -107,7 +111,7 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
                 {m.name !== view.default_model && <button onClick={() => save(api.setDefault(m.name))}>设为默认</button>}
                 <button onClick={() => setEditingModel(m)}>编辑</button>
                 {m.name !== view.default_model && (
-                  <button className="danger" onClick={() => confirm(`删除模型 ${m.name}？`) && save(api.deleteModel(m.name))}>删除</button>
+                  <button className="danger" onClick={() => confirm({ title: "删除模型", message: `删除模型 ${m.name}？`, confirmLabel: "删除", danger: true }).then((ok) => ok && save(api.deleteModel(m.name)))}>删除</button>
                 )}
                 <TestResult value={tests[m.name]} />
               </td>
@@ -127,8 +131,6 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
         </button>
       )}
 
-      <SearchSection view={view} save={save} />
-
     </>
   );
 }
@@ -137,34 +139,49 @@ function ModelsSection({ view, save }: { view: SettingsView; save: (p: Promise<S
 function SearchSection({ view, save }: { view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean> }) {
   const [key, setKey] = useState("");
   const [test, setTest] = useState<ModelTest | "running" | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const confirm = useConfirm();
   const k = view.search.key;
   return (
     <>
-      <h2>联网搜索</h2>
+      <h2>联网搜索与密钥</h2>
       <p className="note">
         配置后助手可以用 web_search 搜索网页（结果编号为 [S1]、[S2]… 供引用），工作区档下不需要逐次确认；搜索词会发给 Tavily。
-        密钥在 <a href="https://app.tavily.com" target="_blank" rel="noreferrer">app.tavily.com</a> 申请，有免费额度。国内网络可能需要给服务设置 HTTPS_PROXY。
+        密钥和额度可在 <a href="https://app.tavily.com" target="_blank" rel="noreferrer">Tavily 控制台</a> 管理。
       </p>
+      <p className="note">与模型密钥使用同一本地存储 ~/.nwb/secrets.json（仅当前用户可读），配置文件只保留引用，页面只显示末 4 位。保存不会发起搜索请求。</p>
       <div className="card">
         <div className="card-head">
           <b>Tavily</b>
           {k ? <KeyBadge k={k} /> : <span className="key missing">未配置：助手没有搜索工具</span>}
         </div>
         <div className="row">
-          <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)}
+          <input type="password" aria-label="Tavily API Key" autoComplete="off" value={key}
+            onChange={(e) => { setKey(e.target.value); setSaved(false); setTest(null); }}
             placeholder={k?.set ? "粘贴新密钥以替换" : "tvly-…"} style={{ flex: 1 }} />
-          <button className="primary" disabled={!key.trim()}
-            onClick={async () => (await save(api.putSearch({ api_key: key.trim() }))) && setKey("")}>保存</button>
-          <button disabled={!k?.set || test === "running"} onClick={async () => {
+          <button className="primary" disabled={!key.trim() || saving || test === "running"}
+            onClick={async () => {
+              setSaving(true); setTest(null); setSaved(false);
+              try { if (await save(api.putSearch({ api_key: key.trim() }))) { setKey(""); setSaved(true); } }
+              finally { setSaving(false); }
+            }}>{saving ? "保存中…" : "保存密钥"}</button>
+          <button disabled={!k?.set || saving || !!key.trim() || test === "running"} onClick={async () => {
             setTest("running");
             const r = await api.testSearch().catch((e) => ({ ok: false, error: String(e) }));
             setTest(r.ok ? { ok: true, ms: Math.round(((r as { seconds?: number }).seconds ?? 0) * 1000), reply: "搜索可用" }
               : { ok: false, error: (r as { error?: string }).error });
-          }}>测试</button>
-          {k && <button className="danger" onClick={() => confirm("移除搜索密钥？助手将不能联网搜索。") && save(api.putSearch({ clear: true }))}>移除</button>}
+          }}>测试搜索（1 次请求）</button>
+          {k && <button className="danger" disabled={saving || test === "running"} onClick={async () => {
+            if (await confirm({ title: "移除搜索密钥", message: "移除后助手将不能联网搜索。", confirmLabel: "移除", danger: true })
+              && await save(api.putSearch({ clear: true }))) {
+              setKey(""); setTest(null); setSaved(false);
+            }
+          }}>移除</button>}
           <TestResult value={test ?? undefined} />
         </div>
       </div>
+      {saved && <p className="note" role="status">Tavily 密钥已保存，输入框已清空。可点击测试搜索验证连接。</p>}
     </>
   );
 }
@@ -174,6 +191,7 @@ const GROUPS: { label: string; items: { key: string; label: string; icon: Lucide
   { label: "设置", items: [
     { key: "general", label: "通用", icon: SettingsIcon },
     { key: "models", label: "模型与密钥", icon: Cpu },
+    { key: "search", label: "联网搜索", icon: Search },
     { key: "usage", label: "用量", icon: Gauge },
     { key: "memory", label: "记忆", icon: NotebookPen },
   ] },
@@ -183,6 +201,7 @@ const GROUPS: { label: string; items: { key: string; label: string; icon: Lucide
     { key: "help", label: "帮助", icon: CircleHelp },
   ] },
   { label: "自定义", items: [
+    { key: "plugins", label: "插件", icon: Blocks },
     { key: "skills", label: "技能", icon: ScrollText },
     { key: "connectors", label: "连接器", icon: Blocks },
   ] },
@@ -210,33 +229,66 @@ export function Settings({ section, onChanged, onError }: {
   };
 
   const key = GROUPS.some((g) => g.items.some((i) => i.key === section)) ? section : "general";
-  const needsView = ["models", "skills", "connectors"].includes(key);
+  const current = GROUPS.flatMap((g) => g.items).find((i) => i.key === key);
+  const needsView = ["models", "search", "plugins", "skills", "connectors"].includes(key);
   return (
     <div className="settings-page">
-      <nav className="settings-nav">
+      <nav className="settings-nav" aria-label="设置分类">
         {GROUPS.map((g) => (
           <div key={g.label} className="nav-group">
             <div className="nav-label">{g.label}</div>
             {g.items.map(({ key: k, label, icon: Icon }) => (
-              <a key={k} href={`#/settings/${k}`} className={k === key ? "on" : ""}><Icon size={16} strokeWidth={1.75} />{label}</a>
+              <a key={k} href={`#/settings/${k}`} className={k === key ? "on" : ""} aria-current={k === key ? "page" : undefined}>
+                <Icon size={16} strokeWidth={1.75} />{label}
+              </a>
             ))}
           </div>
         ))}
       </nav>
       <div className="settings">
-        {needsView && !view ? <div className="empty">加载中…</div>
-          : key === "general" ? <GeneralSection onError={onError} />
-          : key === "models" ? <ModelsSection view={view!} save={save} />
-          : key === "usage" ? <UsageSection onError={onError} />
-          : key === "memory" ? <MemorySection onError={onError} />
-          : key === "system" ? <SystemSection onError={onError} />
-          : key === "developer" ? <DeveloperSection onError={onError} />
-          : key === "help" ? <HelpSection />
-          : key === "skills" ? <SkillsSection view={view!} save={save} />
-          : <McpSection view={view!} save={save} onError={onError} />}
+        <PageHeader eyebrow="设置" title={current?.label ?? "通用"} description="更改会保存在本机，并立即生效；密钥只写入本地文件或钥匙串。" />
+        <div className="settings-panel" key={key}>
+          {needsView && !view ? <SettingsSkeleton />
+            : key === "general" ? <GeneralSection onError={onError} />
+            : key === "models" ? <ModelsSection view={view!} save={save} />
+            : key === "search" ? <SearchSection view={view!} save={save} />
+            : key === "usage" ? <UsageSection onError={onError} />
+            : key === "memory" ? <MemorySection onError={onError} />
+            : key === "system" ? <SystemSection onError={onError} />
+            : key === "developer" ? <DeveloperSection onError={onError} />
+            : key === "help" ? <HelpSection />
+            : key === "plugins" ? <PluginsSection view={view!} save={save} />
+            : key === "skills" ? <SkillsSection view={view!} save={save} />
+            : <McpSection view={view!} save={save} onError={onError} />}
+        </div>
       </div>
     </div>
   );
+}
+
+function PluginsSection({ view, save }: {
+  view: SettingsView; save: (p: Promise<SettingsView>) => Promise<boolean>;
+}) {
+  const [pending, setPending] = useState<string | null>(null);
+  return <>
+    <h2>可选能力</h2>
+    <p className="note">会话、对话、上下文、记忆和基础工具属于内核。按需要启用下面的能力，下次运行生效；关闭插件会保留连接配置和密钥。</p>
+    {(view.plugins ?? []).map((plugin) => <div className="card" key={plugin.name}>
+      <div className="card-head"><b>{plugin.name}</b><span className="tag">{plugin.enabled ? "已启用" : "未启用"}</span></div>
+      <p>{plugin.description}</p>
+      <button disabled={pending !== null} onClick={async () => {
+        setPending(plugin.name);
+        try { await save(api.enablePlugin(plugin.name, !plugin.enabled)); }
+        finally { setPending(null); }
+      }}>{pending === plugin.name ? "保存中…" : plugin.enabled ? "关闭" : "启用"}</button>
+    </div>)}
+  </>;
+}
+
+function SettingsSkeleton() {
+  return <div className="settings-skeleton"><Skeleton lines={2} />
+    <div className="card"><Skeleton lines={4} /></div>
+    <div className="card"><Skeleton lines={3} /></div></div>;
 }
 
 function slug(id: string): string {
@@ -282,25 +334,29 @@ function ConnectionForm({ initial, onSave, onCancel }: {
   const [key, setKey] = useState("");
   const [useEnv, setUseEnv] = useState(initial?.key.source === "env");
   const [envName, setEnvName] = useState(initial?.key.source === "env" ? initial.key.name : "");
+  const [template, setTemplate] = useState("");
 
   return (
     <div className="card form">
       {!initial && (
         <label>从模板开始
-          <select defaultValue="" onChange={(e) => {
-            const t = TEMPLATES[Number(e.target.value)];
-            if (t) { setName(t.name); setProtocol(t.protocol); setBaseUrl(t.base_url); }
-          }}>
-            <option value="" disabled>选择服务商…</option>
-            {TEMPLATES.map((t, i) => <option key={t.label} value={i}>{t.label}</option>)}
-          </select>
+          <Select value={template} label="从模板开始" placeholder="选择服务商…"
+            options={[
+              { value: "", label: "选择服务商…", disabled: true },
+              ...TEMPLATES.map((t, i) => ({ value: String(i), label: t.label })),
+            ]}
+            onChange={(next) => {
+              setTemplate(next);
+              const picked = TEMPLATES[Number(next)];
+              if (picked) { setName(picked.name); setProtocol(picked.protocol); setBaseUrl(picked.base_url); }
+            }} />
         </label>
       )}
       <label>名称<input value={name} disabled={!!initial} onChange={(e) => setName(e.target.value)} placeholder="如 opendesign-work" /></label>
       <label>协议
-        <select value={protocol} onChange={(e) => setProtocol(e.target.value as Protocol)}>
-          {Object.entries(PROTOCOLS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+        <Select value={protocol} label="协议"
+          options={Object.entries(PROTOCOLS).map(([value, label]) => ({ value, label }))}
+          onChange={(next) => setProtocol(next as Protocol)} />
       </label>
       <label>地址<input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://…/v1" /></label>
       <label className="check"><input type="checkbox" checked={useEnv} onChange={(e) => setUseEnv(e.target.checked)} />从环境变量读取密钥</label>
@@ -345,18 +401,21 @@ function ModelForm({ initial, connections, existing, onSave, onCancel }: {
     <div className="card form">
       <label>名称<input value={m.name} disabled={existing} onChange={set("name")} placeholder="会话里显示的名字" /></label>
       <label>连接
-        <select value={m.provider} onChange={set("provider")}>{connections.map((c) => <option key={c}>{c}</option>)}</select>
+        <Select value={m.provider} label="连接"
+          options={connections.map((name) => ({ value: name, label: name }))}
+          onChange={(provider) => setM({ ...m, provider })} />
       </label>
       <label>模型 ID<input value={m.id} onChange={set("id")} placeholder="服务商的模型名，如 DeepSeek-v4.1-flash" /></label>
       <label>上下文窗口<input type="number" value={m.context_window} onChange={set("context_window")} /></label>
       <label>最大输出<input type="number" value={m.max_output} onChange={set("max_output")} /></label>
       <label>看图
-        <select value={vision === null ? "" : String(vision)}
-          onChange={(e) => setVision(e.target.value === "" ? null : e.target.value === "true")}>
-          <option value="">自动（OpenAI 兼容协议默认不支持，其他协议默认支持）</option>
-          <option value="true">支持图片输入</option>
-          <option value="false">不支持（图片只告诉模型文件名）</option>
-        </select>
+        <Select value={vision === null ? "" : String(vision)} label="看图"
+          options={[
+            { value: "", label: "自动（OpenAI 兼容协议默认不支持，其他协议默认支持）" },
+            { value: "true", label: "支持图片输入" },
+            { value: "false", label: "不支持（图片只告诉模型文件名）" },
+          ]}
+          onChange={(next) => setVision(next === "" ? null : next === "true")} />
       </label>
       <label>额外参数（JSON，可选）
         <textarea rows={3} value={params} onChange={(e) => setParams(e.target.value)}

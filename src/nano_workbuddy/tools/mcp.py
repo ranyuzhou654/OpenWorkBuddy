@@ -134,7 +134,8 @@ class Server:
             writable = (self.tmp, *(Path(w).expanduser().resolve() for w in s.writable))
             argv = wrap(argv, server_sandbox(writable, s.network, self.home.resolve()))
             env["TMPDIR"] = str(self.tmp)
-        return StdioServerParameters(command=argv[0], args=argv[1:], env=env, cwd=Path.home())
+        cwd = Path(s.cwd).expanduser().resolve() if s.cwd else Path.home()
+        return StdioServerParameters(command=argv[0], args=argv[1:], env=env, cwd=cwd)
 
     def as_tools(self) -> list[Tool]:
         out, taken = [], set()
@@ -207,8 +208,13 @@ class McpHub:
     def __init__(self, home: Path):
         self.home = home
         self.servers: dict[str, Server] = {}
+        self._lock = asyncio.Lock()
 
     async def connect(self, specs: dict[str, McpServer]) -> list[Server]:
+        async with self._lock:
+            return await self._connect(specs)
+
+    async def _connect(self, specs: dict[str, McpServer]) -> list[Server]:
         """Stop servers whose config changed or went away, then start every enabled one."""
         for name, srv in list(self.servers.items()):
             if specs.get(name) != srv.spec:

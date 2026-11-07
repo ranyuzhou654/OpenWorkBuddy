@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .budgets import Limits
 from .hooks import Hook
 from .hooks import parse as parse_hooks
 from .policy import Rule
@@ -117,6 +118,7 @@ class McpServer:
     writable: tuple[str, ...] = ()  # extra writable paths inside the sandbox, e.g. "~/.npm"
     timeout: int = 300  # seconds per tool call
     description: str = ""  # one line shown to the model while the server's tools are deferred
+    cwd: str = ""  # stdio workspace; empty preserves the default user's home
 
 
 @dataclass(frozen=True)
@@ -135,6 +137,8 @@ class Config:
     search: SearchConfig = field(default_factory=SearchConfig)
     feishu: FeishuConfig = field(default_factory=FeishuConfig)
     browser: BrowserConfig = field(default_factory=BrowserConfig)
+    budget: Limits = field(default_factory=Limits)
+    plugins_enabled: tuple[str, ...] = ("documents", "web", "feishu", "browser")
 
     def model(self, name: str | None = None) -> ModelSpec:
         name = name or self.default_model
@@ -154,7 +158,10 @@ def home_dir() -> Path:
 
 
 def load(home: Path | None = None) -> Config:
-    home = home or home_dir()
+    home = (home or home_dir()).expanduser().resolve()
+    from .maintenance import recover_restore
+
+    recover_restore(home)
     file = home / "config.toml"
     if not file.exists():
         home.mkdir(parents=True, exist_ok=True)
@@ -182,11 +189,16 @@ def parse(home: Path, raw: dict[str, Any]) -> Config:
     search = SearchConfig(**{k: v for k, v in raw.get("search", {}).items() if k in ("provider", "api_key")})
     if search.provider not in SEARCH_PROVIDERS:
         raise ValueError(f"search provider must be one of {', '.join(SEARCH_PROVIDERS)}")
+    enabled = raw.get("plugins", {}).get("enabled", ["documents", "web", "feishu", "browser"])
+    if not isinstance(enabled, list) or not all(isinstance(n, str) for n in enabled):
+        raise ValueError("plugins.enabled must be a list of plugin names")
     return Config(home, raw["default_model"], models, raw.get("max_turns", 50), rules, providers, mcp,
                   tuple(raw.get("skills", {}).get("disabled", ())), tuple(raw.get("skills", {}).get("dirs", ())),
                   parse_hooks(raw.get("hooks", {})),
                   Path(raw["scratch_dir"]).expanduser() if "scratch_dir" in raw else default_scratch(), search,
-                  _table(FeishuConfig, raw.get("feishu", {})), _table(BrowserConfig, raw.get("browser", {})))
+                  _table(FeishuConfig, raw.get("feishu", {})), _table(BrowserConfig, raw.get("browser", {})),
+                  _table(Limits, raw.get("budget", {})),
+                  tuple(dict.fromkeys(enabled)))
 
 
 def _table(kind: type, values: dict[str, Any]) -> Any:
@@ -207,7 +219,7 @@ def _mcp(name: str, m: dict[str, Any]) -> McpServer:
     return McpServer(name, m.get("command", ""), tuple(m.get("args", ())), dict(m.get("env", {})), m.get("url", ""),
                      dict(m.get("headers", {})), m.get("enabled", True), m.get("exposure", "auto"),
                      m.get("sandbox", True), m.get("network", True), tuple(m.get("writable", ())),
-                     int(m.get("timeout", 300)), m.get("description", ""))
+                     int(m.get("timeout", 300)), m.get("description", ""), m.get("cwd", ""))
 
 
 class SecretStore:

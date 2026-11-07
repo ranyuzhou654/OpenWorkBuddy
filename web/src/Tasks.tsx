@@ -1,12 +1,14 @@
 import { CalendarClock, Play, Search as SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Info, type Occurrence, type Project, type Schedule, type ScheduleBody, type SearchHit } from "./api";
+import { Select } from "./Select";
+import { Dialog, PageHeader, SkeletonList, useConfirm } from "./ui";
 
 // Scheduled tasks (M3). Each task has its own session: open it to see every run, its sources and its files.
 
 const OUTCOME: Record<string, [string, string]> = {
   changed: ["有新结果", "ok"], unchanged: ["无变化", ""], failed: ["失败", "bad"], needs_user: ["需要你处理", "bad"],
-  unknown: ["未报告结果", "warn"], cancelled: ["已取消", ""], skipped: ["已跳过", ""], missed: ["错过", "warn"],
+  unknown: ["结果待核验", "warn"], cancelled: ["已取消", ""], skipped: ["已跳过", ""], missed: ["错过", "warn"],
 };
 const CATCH_UP = { once: "合并补跑一次", skip: "跳过", ask: "问我" } as const;
 const DAYS = ["一", "二", "三", "四", "五", "六", "日"];
@@ -24,6 +26,7 @@ function Outcome({ o }: { o: Occurrence["outcome"] | null }) {
 export function Tasks({ info, projects, onError }: { info: Info | null; projects: Project[]; onError: (m: string) => void }) {
   const [list, setList] = useState<Schedule[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const confirm = useConfirm();
   const refresh = useCallback(() => { api.schedules().then(setList).catch((e) => onError(String(e))); }, [onError]);
   useEffect(() => {
     refresh();
@@ -34,18 +37,15 @@ export function Tasks({ info, projects, onError }: { info: Info | null; projects
 
   return (
     <div className="page tasks">
-      <div className="page-head">
-        <h1><CalendarClock size={18} />定时任务</h1>
-        <span className="grow" />
-        {!creating && <button className="primary" onClick={() => setCreating(true)}>新建任务</button>}
-      </div>
+      <PageHeader icon={<CalendarClock size={18} />} eyebrow="自动化" title="定时任务"
+        description="到点时助手在任务自己的会话里工作：有变化、失败或需要你确认时通知，没有变化不打扰。电脑休眠或关机时不会运行，醒来后按“错过时”处理。"
+        actions={!creating && <button className="primary" onClick={() => setCreating(true)}>新建任务</button>} />
       <p className="note">
-        到点时助手在任务自己的会话里工作：结果有变化、失败或需要你确认时发系统通知，没有变化不打扰。电脑休眠或关机时不会运行，醒来后按“错过时”的设置处理。
         需要服务一直在后台：在终端运行 <code>nwb service install</code> 可以让它随登录启动。
       </p>
       {creating && <TaskForm info={info} projects={projects} onCancel={() => setCreating(false)}
         onSave={(body) => api.createSchedule(body).then(() => { setCreating(false); refresh(); })} onError={onError} />}
-      {list === null ? <div className="note">加载中…</div> : list.length === 0 && !creating
+      {list === null ? <SkeletonList count={3} /> : list.length === 0 && !creating
         ? <div className="empty-state">还没有定时任务。试试“每周调研更新”：给一个主题，助手每周搜索新进展，有变化才生成新一期简报。</div>
         : list.map((s) => (
           <div key={s.id} className={`card task${s.enabled ? "" : " off"}`}>
@@ -54,7 +54,9 @@ export function Tasks({ info, projects, onError }: { info: Info | null; projects
               <span className="tag">{s.describe}</span>
               {s.template.template === "weekly_research" && <span className="tag">调研更新 · {s.template.topic}</span>}
               <span className="grow" />
-              {s.running ? <span className="outcome warn">运行中</span> : <Outcome o={s.last_outcome} />}
+              {s.waiting ? <span className="outcome warn">等待处理</span>
+                : s.running ? <span className="outcome warn">运行中</span>
+                : s.pending ? <span className="outcome warn">等待投递</span> : <Outcome o={s.last_outcome} />}
               <label className="check"><input type="checkbox" checked={s.enabled}
                 onChange={(e) => act(api.patchSchedule(s.id, { enabled: e.target.checked }))} />启用</label>
             </div>
@@ -77,14 +79,19 @@ export function Tasks({ info, projects, onError }: { info: Info | null; projects
               </details>
             )}
             <div className="row">
-              <button disabled={s.running} onClick={() => act(api.runSchedule(s.id))}><Play size={13} />立即运行</button>
+              <button disabled={s.running || s.pending}
+                onClick={() => act(api.runSchedule(s.id))}><Play size={13} />立即运行</button>
               <a className="button" href={`#/s/${s.session_id}`}>打开任务会话</a>
-              <select value={s.catch_up} title="错过执行时间时"
-                onChange={(e) => act(api.patchSchedule(s.id, { catch_up: e.target.value as Schedule["catch_up"] }))}>
-                {Object.entries(CATCH_UP).map(([k, v]) => <option key={k} value={k}>错过时：{v}</option>)}
-              </select>
-              <button className="danger" onClick={() => confirm(`删除任务「${s.name}」？它的会话和产物会保留。`) &&
-                act(api.deleteSchedule(s.id))}>删除</button>
+              <Select className="compact" value={s.catch_up} label="错过执行时间时"
+                title="错过执行时间时"
+                options={Object.entries(CATCH_UP).map(([value, label]) => ({ value, label: `错过时：${label}` }))}
+                onChange={(catch_up) => act(api.patchSchedule(s.id, { catch_up: catch_up as Schedule["catch_up"] }))} />
+              <button className="danger" onClick={() => confirm({
+                title: "删除定时任务", message: `删除任务「${s.name}」？它的会话和产物会保留。`,
+                confirmLabel: "删除", danger: true,
+              }).then((ok) => {
+                if (ok) void act(api.deleteSchedule(s.id));
+              })}>删除</button>
             </div>
           </div>
         ))}
@@ -113,14 +120,16 @@ function TaskForm({ info, projects, onSave, onCancel, onError }: {
   return (
     <div className="card form">
       <label>类型
-        <select value={template ? "research" : "custom"} onChange={(e) => {
-          const t = e.target.value === "research";
-          setTemplate(t);
-          setName(t ? "每周调研更新" : "");
-        }}>
-          <option value="research">每周调研更新（模板）</option>
-          <option value="custom">自定义指令</option>
-        </select>
+        <Select value={template ? "research" : "custom"} label="类型"
+          options={[
+            { value: "research", label: "每周调研更新（模板）" },
+            { value: "custom", label: "自定义指令" },
+          ]}
+          onChange={(next) => {
+            const research = next === "research";
+            setTemplate(research);
+            setName(research ? "每周调研更新" : "");
+          }} />
       </label>
       <label>名称<input value={name} onChange={(e) => setName(e.target.value)} /></label>
       {template ? (
@@ -134,15 +143,19 @@ function TaskForm({ info, projects, onSave, onCancel, onError }: {
           placeholder="到点时发给助手的任务说明；最后请它用 task_result 报告结果" /></label>
       )}
       <label>工作目录
-        <select value={project} onChange={(e) => setProject(e.target.value)}>
-          <option value="">无项目（对话文件夹）</option>
-          {projects.filter((p) => !p.scratch && p.trusted).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <Select value={project} label="工作目录"
+          options={[
+            { value: "", label: "无项目（对话文件夹）" },
+            ...projects.filter((p) => !p.scratch && p.trusted).map((p) => ({ value: p.id, label: p.name })),
+          ]}
+          onChange={setProject} />
       </label>
       <label>重复
-        <select value={kind} onChange={(e) => setKind(e.target.value as Schedule["kind"])}>
-          <option value="weekly">每周</option><option value="daily">每天</option><option value="once">仅一次</option>
-        </select>
+        <Select value={kind} label="重复"
+          options={[
+            { value: "weekly", label: "每周" }, { value: "daily", label: "每天" }, { value: "once", label: "仅一次" },
+          ]}
+          onChange={(next) => setKind(next as Schedule["kind"])} />
       </label>
       {kind === "weekly" && (
         <label>星期
@@ -155,9 +168,9 @@ function TaskForm({ info, projects, onSave, onCancel, onError }: {
       {kind === "once" && <label>日期<input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></label>}
       <label>时间<input type="time" value={at} onChange={(e) => setAt(e.target.value)} /></label>
       <label>错过时
-        <select value={catchUp} onChange={(e) => setCatchUp(e.target.value as Schedule["catch_up"])}>
-          {Object.entries(CATCH_UP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+        <Select value={catchUp} label="错过时"
+          options={Object.entries(CATCH_UP).map(([value, label]) => ({ value, label }))}
+          onChange={(next) => setCatchUp(next as Schedule["catch_up"])} />
       </label>
       {template && <div className="note">调研更新需要“联网搜索”密钥（设置 → 模型与密钥）。助手不会对外发送任何内容；默认模型：{info?.default_model}。</div>}
       <div className="row">
@@ -181,33 +194,50 @@ function TaskForm({ info, projects, onSave, onCancel, onError }: {
 const KIND: Record<SearchHit["kind"], string> = { message: "对话", source: "来源", file: "交付的文件", upload: "附件" };
 
 // Full-text search over the assistant's own records: every session, the sources cited, files delivered and attached.
-export function SearchPage({ onError }: { onError: (m: string) => void }) {
+export function SearchPage({ projects, onError }: { projects: Project[]; onError: (m: string) => void }) {
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("all");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
-  const run = () => q.trim() && api.searchRecords(q.trim(), kind).then(setHits).catch((e) => onError(String(e)));
+  const [project, setProject] = useState("");
+  const [excerpt, setExcerpt] = useState<string | null>(null);
+  const run = () => q.trim() && api.searchRecords(q.trim(), kind, project).then(setHits).catch((e) => onError(String(e)));
   return (
     <div className="page search">
-      <div className="page-head"><h1><SearchIcon size={18} />搜索记录</h1></div>
+      <PageHeader icon={<SearchIcon size={18} />} eyebrow="记录" title="搜索记录"
+        description="只搜索助手自己的记录（会话、引用过的来源、交付的文件和附件），不扫描你的其他文件。" />
       <div className="row search-box">
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索以前的对话、来源和文件"
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && run()} />
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="all">全部</option><option value="messages">对话</option><option value="sources">来源</option>
-          <option value="files">文件</option>
-        </select>
+        <Select value={kind} label="搜索类型"
+          options={[
+            { value: "all", label: "全部" }, { value: "messages", label: "对话" },
+            { value: "sources", label: "来源" }, { value: "files", label: "文件" },
+          ]}
+          onChange={setKind} />
         <button className="primary" onClick={run} disabled={!q.trim()}>搜索</button>
+        <Select value={project} label="全局搜索范围"
+          options={[
+            { value: "", label: "搜索范围：全部未排除项目" },
+            ...projects.filter((p) => !p.no_index).map((p) => ({ value: p.id, label: p.name })),
+          ]}
+          onChange={(next) => { setProject(next); setHits(null); }} />
       </div>
-      <p className="note">只搜索助手自己的记录（会话、引用过的来源、交付的文件和附件），不扫描你的其他文件。删除会话后，它的内容也从搜索中移除。</p>
+      {hits && <div className="result-count">{hits.length} 条结果</div>}
       {hits?.length === 0 && <div className="note">没有找到。</div>}
       {hits?.map((h, i) => (
-        <a key={i} className="hit" href={h.kind === "source" ? h.ref : `#/s/${h.session_id}`}
-          target={h.kind === "source" ? "_blank" : undefined} rel="noreferrer">
+        <div key={i} className="hit">
+          <a href={`#/s/${h.session_id}`}>
           <div className="hit-head"><span className="tag">{KIND[h.kind]}</span><b>{h.title || "（未命名会话）"}</b>
             <span className="note">{new Date(h.at * 1000).toLocaleDateString("zh-CN")}</span></div>
-          <div className="hit-snippet">{h.snippet}</div>
-        </a>
+          <div className="hit-snippet">{h.snippet}</div></a>
+          <button onClick={() => api.readRecord(h.record_id).then((r) => setExcerpt(`${r.body}\n（索引共 ${r.total_chars} 字符）`))
+            .catch((e) => onError(String(e)))}>读取命中片段</button>
+        </div>
       ))}
+      <Dialog open={excerpt !== null} onClose={() => setExcerpt(null)} title="命中片段" size="lg"
+        footer={<button onClick={() => setExcerpt(null)}>关闭</button>}>
+        <pre className="excerpt">{excerpt}</pre>
+      </Dialog>
     </div>
   );
 }

@@ -39,14 +39,14 @@ def test_checkout_branches_and_survives_reopen(tmp_path):
     assert SessionLog.open(log.file).leaf_id == u1.id
 
 
-def test_partial_last_line_is_truncated_on_open(tmp_path):
+def test_partial_last_line_is_repaired_only_by_a_locked_writer(tmp_path):
     log, root = make(tmp_path)
     u = log.append(USER, {"content": []})
     with open(log.file, "a") as f:
         f.write('{"id": "e_half", "parent_id": ')  # crash mid-write
     reopened = SessionLog.open(log.file)
     assert reopened.leaf_id == u.id
-    assert log.file.read_text().endswith("\n")
+    assert not log.file.read_text().endswith("\n")  # readers never truncate a concurrent writer
     reopened.append(ASSISTANT, {"content": [], "stop": "end"})
     assert len(SessionLog.open(log.file).entries) == 3
 

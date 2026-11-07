@@ -1,5 +1,6 @@
 """The Responses adapter against a local server that speaks its streaming protocol, so the real SDK parses it."""
 
+import copy
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -113,4 +114,40 @@ async def test_context_overflow(server):
     url, _ = server
     with pytest.raises(ContextOverflow):
         async for _ in model(url).stream("SYS", [Message(role="user", content=[text("too long")])], []):
+            pass
+
+
+@pytest.mark.parametrize(("status", "reason", "expected"), [
+    ("incomplete", "max_output_tokens", "length"),
+    ("incomplete", "content_filter", "error"),
+    ("incomplete", "future_reason", "error"),
+    ("failed", None, "error"),
+    ("future_status", None, "error"),
+    ("refusal", None, "error"),
+])
+async def test_abnormal_terminal_responses_keep_usage_but_never_authorize_tools(server, monkeypatch,
+                                                                               status, reason, expected):
+    final = copy.deepcopy(FINAL)
+    final["status"] = status
+    if status == "incomplete":
+        final["incomplete_details"] = {"reason": reason}
+    elif status == "failed":
+        final["error"] = {"code": "server_error", "message": "failed"}
+    elif status == "refusal":
+        final["status"] = "completed"
+        final["output"][1]["content"] = [{"type": "refusal", "refusal": "refused"}]
+    terminal = "response.failed" if status == "failed" else (
+        "response.incomplete" if status == "incomplete" else "response.completed")
+    monkeypatch.setattr(__import__(__name__), "EVENTS", [{"type": terminal, "response": final, "sequence_number": 1}])
+    messages = [Message(role="user", content=[text("hi")])]
+    response = [item async for item in model(server[0]).stream("SYS", messages, [])][-1]
+    assert response.stop == expected
+    assert response.usage == {"input": 100, "output": 20, "cache_read": 80}
+    assert response.meta["raw_usage"]["output_tokens_details"]["reasoning_tokens"] == 5
+
+
+async def test_missing_final_response_raises_without_returning_tool_calls(server, monkeypatch):
+    monkeypatch.setattr(__import__(__name__), "EVENTS", EVENTS[:-1])
+    with pytest.raises(RuntimeError, match="without a final response"):
+        async for _ in model(server[0]).stream("SYS", [Message(role="user", content=[text("hi")])], []):
             pass

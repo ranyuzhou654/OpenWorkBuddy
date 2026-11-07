@@ -8,7 +8,7 @@ from test_compaction import LONG, SMALL
 
 from nano_workbuddy import settings, skills
 from nano_workbuddy.config import load
-from nano_workbuddy.context import is_prunable
+from nano_workbuddy.context import budget, is_prunable, request_tokens
 from nano_workbuddy.runtime import Workspace
 from nano_workbuddy.types import COMPACTION, NOTICE, TOOL_RESULT, new_id, text_of
 
@@ -73,7 +73,9 @@ async def test_skill_is_listed_loaded_and_switched_off(home, project, make_ws):
 async def test_loaded_skill_survives_compaction(home, project, make_ws):
     make_skill(home / "skills", "pdf")
     turns = [reply(None, load_skill("pdf")), reply("loaded")] + [reply(f"answer {i}") for i in range(6)]
-    model = FakeModel(*turns, window=SMALL)
+    # The fixed prompt, tool schemas, one 2k-token user message and pinned skill must all fit.
+    # The previous 6k budget only passed because restored notices were sent beyond the limit.
+    model = FakeModel(*turns, window=SMALL + 1500)
     ws = make_ws(model)
     log = ws.new_session(project)
     await ws.submit(log, "use pdf")
@@ -87,6 +89,8 @@ async def test_loaded_skill_survives_compaction(home, project, make_ws):
     copies = [t for t in sent if '<skill name="pdf"' in t]
     assert len(copies) == 1 and copies[0].startswith("<system-notice>")  # put back once, as a notice
     assert notices(log, "skill:pdf")[-1] == text_of(loaded.data["content"])
+    assert all(request_tokens(r["system"], r["messages"], r["tools"]) <= budget(model.spec)
+               for r in model.requests)
 
 
 async def test_slash_command_loads_the_skill(home, project, make_ws):
@@ -119,7 +123,9 @@ async def test_memory_tool_edits_user_and_project_files(home, project, make_ws):
     assert [r["is_error"] for r in results] == [False, False, False, False, True]
     assert (home / "USER.md").read_text() == "- Prefers short answers in Chinese\n"
     assert (project / "AGENTS.md").read_text() == "\n"
-    assert "next session" in text_of(results[0]["content"])
+    assert "next model request" in text_of(results[0]["content"])
+    assert "Prefers short answers" in model.requests[-1]["system"]
+    assert "Prefers concise answers" not in model.requests[-1]["system"]
 
     fresh = ws.new_session(project)  # the next session's frozen prompt includes the memory
     assert "Prefers short answers" in fresh.path()[0].data["text"]

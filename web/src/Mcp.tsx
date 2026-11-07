@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Exposure, type FeishuStatus, type KeyStatus, type McpSpec, type McpView, type SettingsView } from "./api";
+import { Select } from "./Select";
+import { useConfirm } from "./ui";
 
 // MCP servers live in [mcp.NAME] of config.toml and are shared by all projects. stdio servers run in
 // the sandbox: they may use the network, but write only to a temp dir and the paths listed here.
@@ -43,7 +45,7 @@ function FeishuCard({ view, save }: { view: SettingsView; save: (p: Promise<Sett
         {status === "loading" ? <span className="note">检查中…</span>
           : !s?.available ? <span className="key missing">未找到 {view.feishu.cli}</span>
           : s.user?.available ? <span className="key ok">✓ {s.user.name} · {s.version}</span>
-          : <span className="key missing">未授权：需要在终端运行 lark-cli auth login</span>}
+          : <span className="key missing">未授权：需要以本人身份登录</span>}
         <span className="grow" />
         <label className="check"><input type="checkbox" checked={view.feishu.enabled}
           onChange={(e) => save(api.putFeishu({ enabled: e.target.checked }))} />启用</label>
@@ -53,8 +55,19 @@ function FeishuCard({ view, save }: { view: SettingsView; save: (p: Promise<Sett
         每次都会弹出审批卡，显示账户、目标、内容和 dry-run 预览，不能“总是允许”。删除、改权限等高风险操作不开放。令牌由 lark-cli 存在系统钥匙串里，助手和模型拿不到。
       </p>
       {s?.available && !s.user?.available && (
-        <div className="note warn-line">在终端里运行 <code>lark-cli auth login</code>，按提示在飞书里确认授权后，点“重新检查”。</div>
+        <div className="note warn-line">先按下方步骤授权文档和日历读取，再点“重新检查”。</div>
       )}
+      <details className="note">
+        <summary>如何配置飞书文档和日历读取</summary>
+        <ol>
+          <li>确认终端可运行 <code>lark-cli --version</code>。首次使用且尚未配置应用时，运行 <code>lark-cli config init --new</code>；已有应用配置可跳过。</li>
+          <li>以本人身份授权文档与日历只读权限：<br /><code>lark-cli auth login --scope "docx:document:readonly calendar:calendar:readonly"</code><br />
+            按终端提示在飞书确认。若提示应用未开通这些权限，先由应用管理员开通，随后重新授权。</li>
+          <li>回到此处点“重新检查”，确认显示本人账户，再勾选“启用”。已有会话在下一次运行时生效。</li>
+          <li>在对话中明确提供允许读取的文档链接或日历名称。只读授权不包含发布权限；后续发布测试需另设测试位置，并逐次确认审批内容。</li>
+        </ol>
+        <p>飞书登录由官方 CLI 管理，不需要将 App Secret 或访问令牌填入此页面。</p>
+      </details>
       <div className="row"><button onClick={check}>重新检查</button></div>
     </div>
   );
@@ -93,6 +106,7 @@ export function McpSection({ view, save, onError }: {
   const [editing, setEditing] = useState<McpView | "new" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const confirm = useConfirm();
 
   const connect = async (name: string) => {
     setBusy(name);
@@ -143,7 +157,9 @@ export function McpSection({ view, save, onError }: {
                 </button>
               )}
               <button onClick={() => setEditing(m)}>编辑</button>
-              <button className="danger" onClick={() => confirm(`删除 MCP 服务器 ${m.name}？它保存的密钥也会删除。`) && save(api.deleteMcp(m.name))}>删除</button>
+              <button className="danger" onClick={() => confirm({ title: "删除连接器", message: `删除 MCP 服务器 ${m.name}？它保存的密钥也会删除。`, confirmLabel: "删除", danger: true }).then((ok) => {
+                if (ok) void save(api.deleteMcp(m.name));
+              })}>删除</button>
             </div>
             {m.status === "error" && <div className="note warn-line">{m.error}</div>}
             {open[m.name] && (
@@ -209,6 +225,7 @@ function McpForm({ initial, onSave, onCancel, onError }: {
   const [headers, setHeaders] = useState(toLines(start.headers, ": "));
   const [writable, setWritable] = useState(start.writable.join("\n"));
   const [asSecrets, setAsSecrets] = useState(true);
+  const [template, setTemplate] = useState("");
   const set = <K extends keyof McpSpec>(k: K, v: McpSpec[K]) => setSpec({ ...spec, [k]: v });
 
   const pick = (i: number) => {
@@ -236,18 +253,22 @@ function McpForm({ initial, onSave, onCancel, onError }: {
     <div className="card form">
       {!initial && (
         <label>从模板开始
-          <select defaultValue="" onChange={(e) => pick(Number(e.target.value))}>
-            <option value="" disabled>选择…</option>
-            {TEMPLATES.map((t, i) => <option key={t.label} value={i}>{t.label}</option>)}
-          </select>
+          <Select value={template} label="从模板开始"
+            options={[
+              { value: "", label: "选择…", disabled: true },
+              ...TEMPLATES.map((t, i) => ({ value: String(i), label: t.label })),
+            ]}
+            onChange={(next) => { setTemplate(next); pick(Number(next)); }} />
         </label>
       )}
       <label>名称<input value={name} disabled={!!initial} onChange={(e) => setName(e.target.value)} placeholder="如 github" /></label>
       <label>类型
-        <select value={remote ? "http" : "stdio"} onChange={(e) => setRemote(e.target.value === "http")}>
-          <option value="stdio">本机命令（stdio）</option>
-          <option value="http">远程地址（Streamable HTTP）</option>
-        </select>
+        <Select value={remote ? "http" : "stdio"} label="类型"
+          options={[
+            { value: "stdio", label: "本机命令（stdio）" },
+            { value: "http", label: "远程地址（Streamable HTTP）" },
+          ]}
+          onChange={(next) => setRemote(next === "http")} />
       </label>
       {remote ? (
         <>
@@ -275,9 +296,9 @@ function McpForm({ initial, onSave, onCancel, onError }: {
       <label className="check"><input type="checkbox" checked={asSecrets} onChange={(e) => setAsSecrets(e.target.checked)} />
         把{remote ? "请求头" : "环境变量"}的值存为密钥（~/.nwb/secrets.json，配置文件里只留引用）</label>
       <label>工具声明
-        <select value={spec.exposure} onChange={(e) => set("exposure", e.target.value as Exposure)}>
-          {Object.entries(EXPOSURES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+        <Select value={spec.exposure} label="工具声明"
+          options={Object.entries(EXPOSURES).map(([value, label]) => ({ value, label }))}
+          onChange={(next) => set("exposure", next as Exposure)} />
       </label>
       <label>一句话说明<input value={spec.description} onChange={(e) => set("description", e.target.value)}
         placeholder="延迟加载时告诉模型这个服务器能做什么（可选）" /></label>

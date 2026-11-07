@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type MemoryFile, type SettingsView } from "./api";
+import { Select } from "./Select";
 
 // Skills: SKILL.md directories found in ~/.nwb/skills, ~/.agents/skills, extra dirs, and each project's
 // .agents/skills. Switching one off (by name) removes it from the next run's list and skill tool.
@@ -67,14 +68,14 @@ export function MemorySection({ onError }: { onError: (m: string) => void }) {
     <>
       <h2>记忆</h2>
       <p className="note">
-        模型用 memory 工具把你的偏好记在 USER.md（所有项目通用），把项目约定记在项目的 AGENTS.md。每个会话开始时读入一次，所以修改从下一个会话起生效。
+        模型用 memory 工具把你的偏好记在 USER.md（所有项目通用），把项目约定记在项目的 AGENTS.md。每次模型请求前读取当前版本，修改也会在已有会话的下一次请求中生效。
         这里可以查看和改正它记下的任何内容。
       </p>
       <div className="card form memory">
         <label>文件
-          <select value={key} onChange={(e) => { setKey(e.target.value); setDraft(null); }}>
-            {files.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-          </select>
+          <Select value={key} label="文件"
+            options={files.map((f) => ({ value: f.key, label: f.label }))}
+            onChange={(next) => { setKey(next); setDraft(null); }} />
         </label>
         {file && <code className="cmd">{file.path}</code>}
         <textarea rows={10} value={text} onChange={(e) => setDraft(e.target.value)} placeholder="（空）" />

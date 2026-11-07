@@ -88,8 +88,12 @@ class Notes:
 
 
 def research_model(outcome: str = "changed", summary: str = "新增两条进展"):
-    return FakeModel(reply(None, call("task_result", outcome=outcome, summary=summary)), reply("done"),
-                     reply(None, call("task_result", outcome="unchanged", summary="无新内容")), reply("done"))
+    return FakeModel(reply(None, call("create_document", path="brief.md", content="# 新进展\n\n本地合成验证。"),
+                          call("task_result", outcome=outcome, summary=summary, evidence=["brief.md"])), reply("done"),
+                     reply(None, call("read", path="brief.md"),
+                           call("task_result", outcome="unchanged", summary="与上期对比无新内容",
+                                evidence=["brief.md"])),
+                     reply("done"))
 
 
 async def finish(runs, sid):
@@ -184,11 +188,11 @@ async def test_busy_session_defers_and_waiting_notifies(setup, tmp_path):
     await finish(runs, row["session_id"])
 
 
-async def test_run_now_and_task_result_only_in_scheduled_runs(setup):
+async def test_run_now_and_task_result_only_in_scheduled_runs(setup, project):
     model = FakeModel(reply("plain chat"), reply(None, call("task_result", outcome="failed", summary="缺少搜索密钥")),
                       reply("ok"))
     ws, runs, s, notes, row = setup(model)
-    await ws.submit(ws.new_session(ws.cfg.scratch_dir), "hello")
+    await ws.submit(ws.new_session(project), "hello")
     assert "task_result" not in [t["name"] for t in model.requests[0]["tools"]]
     await s.run_now(row["id"])
     await finish(runs, row["session_id"])

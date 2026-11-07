@@ -1,8 +1,7 @@
 """Long-term memory (D18): two Markdown files the user can read and edit, and the model can update.
 
-~/.nwb/USER.md holds what is true of the user everywhere; the project's AGENTS.md holds what is true of
-this project. Both are frozen into the system prompt when a session starts (prompt.py), so an update
-takes effect from the next session and never invalidates the running session's prompt cache.
+~/.nwb/USER.md holds user preferences; AGENTS.md holds project conventions. The harness snapshots
+current files before each request without rewriting the conversation history.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from typing import Literal
 from pydantic import Field
 
 from .prompt import MAX_FILE_CHARS, PROJECT_FILES
-from .tools.builtin import Args
+from .tools.builtin import Args, atomic_write
 from .tools.registry import Result, Tool, ToolCtx, ToolError, Verdict, tool
 
 
@@ -58,14 +57,14 @@ def memory_tool(home: Path) -> Tool:
     async def memory(args: MemoryArgs, ctx: ToolCtx) -> Result:
         """Save durable knowledge for future sessions: the user's preferences, facts about them, or this
         project's conventions. Keep entries short and specific; update or remove outdated ones instead of
-        adding duplicates. Never store secrets. Changes take effect from the next session."""
+        adding duplicates. Never store secrets. Changes take effect on the next model request."""
         f = target(args, ctx)
         current = f.read_text(encoding="utf-8") if f.is_file() else ""
         new = apply(args, current)
         if len(new) > MAX_FILE_CHARS:
             raise ToolError(f"{f.name} would exceed {MAX_FILE_CHARS} characters; consolidate or remove entries first")
         f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(new, encoding="utf-8")
-        return Result.ok(f"Updated {f}. It takes effect from the next session; this session keeps its prompt.")
+        atomic_write(f, new)
+        return Result.ok(f"Updated {f}. It takes effect on the next model request, including this session.")
 
     return memory

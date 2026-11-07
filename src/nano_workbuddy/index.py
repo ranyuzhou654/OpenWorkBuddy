@@ -4,6 +4,7 @@ titles, leaves and indexed sizes."""
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sqlite3
@@ -36,10 +37,11 @@ create table if not exists rules(
   effect text not null, created_at real not null);
 create table if not exists approvals(
   id text primary key, session_id text not null, run_id text, call_id text not null, tool text not null,
-  args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real);
+  args_json text not null, status text not null, feedback text, created_at real not null, resolved_at real,
+  preview_json text);
 create table if not exists inputs(
   id text primary key, session_id text not null, delivery text not null, content text not null,
-  parent_id text, status text not null, created_at real not null, done_at real, extra_json text);
+  parent_id text, status text not null, created_at real not null, done_at real, extra_json text, run_id text);
 create table if not exists schedules(
   id text primary key, name text not null, prompt text not null, session_id text not null, kind text not null,
   at_time text not null, tz text not null, weekdays text not null default '', day text not null default '',
@@ -48,10 +50,11 @@ create table if not exists schedules(
   last_run_at real, last_outcome text, last_summary text);
 create table if not exists occurrences(
   schedule_id text not null, planned_at real not null, missed integer not null default 1, status text not null,
-  request_id text, outcome text, summary text, created_at real not null, done_at real,
+  request_id text, outcome text, summary text, created_at real not null, done_at real, input_id text,
   primary key(schedule_id, planned_at));
 create table if not exists requests(
-  request_id text primary key, session_id text not null, payload_hash text not null, created_at real not null);
+  request_id text primary key, session_id text not null, payload_hash text not null,
+  created_at real not null, input_id text);
 """
 
 # Append only: MIGRATIONS[i] upgrades schema version i to i + 1. SCHEMA always describes the latest shape.
@@ -61,6 +64,15 @@ MIGRATIONS = [
     "alter table sessions add column archived_at real",
     "update projects set trusted=1",  # projects added before trust existed were all chosen by the user
     "alter table inputs add column extra_json text",  # attachments of a pending message (M1)
+    "alter table approvals add column preview_json text",  # frozen payload/account/hash shown to the user (R-A)
+    "alter table requests add column input_id text",
+    "alter table inputs add column run_id text",
+    "alter table occurrences add column input_id text",
+    """update requests set input_id=(select id from inputs where inputs.session_id=requests.session_id
+       and json_extract(extra_json,'$.request_id')=requests.request_id order by created_at limit 1)
+       where input_id is null""",
+    """update inputs set run_id=(select id from runs where runs.session_id=inputs.session_id
+       and runs.request_id=json_extract(inputs.extra_json,'$.request_id')) where run_id is null""",
 ]
 
 
@@ -91,6 +103,16 @@ class Index:
     def _all(self, sql: str, *args: Any) -> list[dict[str, Any]]:
         return [dict(r) for r in self.db.execute(sql, args)]
 
+    @contextlib.contextmanager
+    def transaction(self):
+        self.db.execute("begin immediate")
+        try:
+            yield
+            self.db.execute("commit")
+        except BaseException:
+            self.db.execute("rollback")
+            raise
+
     # projects
 
     def project_at(self, root: Path) -> dict[str, Any] | None:
@@ -110,9 +132,13 @@ class Index:
     def projects(self) -> list[dict[str, Any]]:
         return self._all("select * from projects where owner_id=? order by created_at", OWNER)
 
-    def update_project(self, project_id: str, name: str | None = None, trusted: bool | None = None) -> None:
+    def update_project(self, project_id: str, name: str | None = None, trusted: bool | None = None,
+                       no_index: bool | None = None) -> None:
         self.db.execute("update projects set name=coalesce(?, name), trusted=coalesce(?, trusted) where id=?",
                         (name, None if trusted is None else int(trusted), project_id))
+        if no_index is not None:
+            settings = {**json.loads(self.project(project_id)["settings_json"]), "no_index": no_index}
+            self.db.execute("update projects set settings_json=? where id=?", (json.dumps(settings), project_id))
 
     def delete_project(self, project_id: str) -> None:
         """Only the index row; the caller deletes the sessions first."""
@@ -131,7 +157,8 @@ class Index:
         self.db.execute(
             """insert into sessions(id, project_id, title, file_path, indexed_bytes, leaf_id, model_ref, updated_at)
                values (?,?,?,?,?,?,?,?)
-               on conflict(id) do update set title=excluded.title, indexed_bytes=excluded.indexed_bytes,
+               on conflict(id) do update set title=excluded.title, file_path=excluded.file_path,
+                 indexed_bytes=excluded.indexed_bytes,
                  leaf_id=excluded.leaf_id, model_ref=coalesce(excluded.model_ref, sessions.model_ref),
                  updated_at=excluded.updated_at""",
             (log.id, log.header["project_id"], title, str(log.file), log.file.stat().st_size,
@@ -153,6 +180,16 @@ class Index:
     def sessions(self, project_id: str) -> list[dict[str, Any]]:
         rows = self._all("select * from sessions where project_id=? order by updated_at desc", project_id)
         return [self._session(r) for r in rows]
+
+    def last_runs(self, project_id: str) -> dict[str, dict[str, Any]]:
+        """The most recent run per session, used by the sidebar's status dot."""
+        rows = self._all(
+            """select r.session_id, r.id, r.status, r.ended_at from runs r
+               join sessions s on s.id=r.session_id
+               where s.project_id=? and r.id=(select id from runs latest
+                 where latest.session_id=r.session_id order by latest.started_at desc, latest.id desc limit 1)""",
+            project_id)
+        return {r.pop("session_id"): r for r in rows}
 
     def rename_session(self, session_id: str, name: str | None) -> None:
         """None goes back to the title taken from the first message."""
@@ -184,14 +221,21 @@ class Index:
 
     # runs
 
-    def start_run(self, session_id: str, request_id: str | None, model_ref: str) -> tuple[dict[str, Any], bool]:
+    def start_run(self, session_id: str, request_id: str | None, model_ref: str,
+                  input_id: str | None = None) -> tuple[dict[str, Any], bool]:
         """Returns (run, created). A repeated request_id returns the existing run."""
-        if request_id and (r := self._one("select * from runs where request_id=?", request_id)):
-            return r, False
-        run_id = new_id("r")
-        self.db.execute("insert into runs(id, session_id, request_id, status, model_ref, started_at)"
-                        " values (?,?,?,?,?,?)", (run_id, session_id, request_id, "running", model_ref, time.time()))
-        return self._one("select * from runs where id=?", run_id), True
+        with self.transaction():
+            if request_id and (r := self._one("select * from runs where request_id=?", request_id)):
+                if r["session_id"] != session_id:
+                    raise ValueError("request_id belongs to another session")
+                return r, False
+            run_id = new_id("r")
+            self.db.execute("insert into runs(id, session_id, request_id, status, model_ref, started_at)"
+                            " values (?,?,?,?,?,?)", (run_id, session_id, request_id, "running", model_ref,
+                                                      time.time()))
+            if input_id:
+                self.bind_input(input_id, run_id)
+            return self._one("select * from runs where id=?", run_id), True
 
     def finish_run(self, run_id: str, status: str, usage: dict[str, int] | None = None) -> None:
         self.db.execute("update runs set status=?, ended_at=?, usage_json=? where id=?",
@@ -217,16 +261,58 @@ class Index:
     # requests and inputs (messages accepted from a client)
 
     def claim_request(self, request_id: str, session_id: str, payload: str) -> str:
-        """A client's request id, seen for the first time ("new"), again with the same message ("duplicate":
-        a retry, do nothing) or again with a different one ("conflict"). Recorded before anything else
-        happens, so a retry that races the first attempt is still caught."""
+        """Legacy import/probe helper. Application submissions must use atomic accept_input instead."""
         digest = hashlib.sha256(payload.encode()).hexdigest()
         cur = self.db.execute("insert or ignore into requests(request_id, session_id, payload_hash, created_at)"
                               " values (?,?,?,?)", (request_id, session_id, digest, time.time()))
         if cur.rowcount:
             return "new"
-        row = self._one("select payload_hash from requests where request_id=?", request_id)
-        return "duplicate" if row["payload_hash"] == digest else "conflict"
+        row = self._one("select * from requests where request_id=?", request_id)
+        return "duplicate" if row["session_id"] == session_id and row["payload_hash"] == digest else "conflict"
+
+    def request_input(self, request_id: str | None, session_id: str, payload: str,
+                      legacy_payload: str | None = None) -> dict | None:
+        if not request_id:
+            return None
+        row = self._one("select * from requests where request_id=?", request_id)
+        if row is None:
+            return None
+        hashes = {hashlib.sha256(p.encode()).hexdigest() for p in (payload, legacy_payload) if p is not None}
+        if row["session_id"] != session_id or row["payload_hash"] not in hashes:
+            raise ValueError(f"request_id {request_id} was already used for a different session or payload")
+        return self.input(row["input_id"]) if row["input_id"] else None
+
+    def accept_input(self, session_id: str, delivery: str, content: str, parent_id: str | None = None,
+                     extra: dict | None = None, *, request_id: str | None = None,
+                     payload: str = "", legacy_payload: str | None = None) -> tuple[dict, bool]:
+        """Request IDs are home-wide and bind session + text + parent + attachment IDs + requested delivery.
+        The request and its input commit together. A pre-R-B orphan claim can be repaired on a matching retry.
+        """
+        with self.transaction():
+            return self._accept_input(session_id, delivery, content, parent_id, extra, request_id, payload,
+                                      legacy_payload)
+
+    def _accept_input(self, session_id, delivery, content, parent_id, extra, request_id, payload, legacy_payload=None):
+        existing = self.request_input(request_id, session_id, payload, legacy_payload)
+        if existing:
+            return existing, False
+        if request_id:
+            self.db.execute("insert or ignore into requests(request_id,session_id,payload_hash,created_at)"
+                            " values (?,?,?,?)", (request_id, session_id, hashlib.sha256(payload.encode()).hexdigest(),
+                                                  time.time()))
+        if request_id:
+            extra = {**(extra or {}), "request_id": request_id}
+        iid = self.add_input(session_id, delivery, content, parent_id, extra)
+        if request_id:
+            self.db.execute("update requests set input_id=?,payload_hash=? where request_id=?",
+                            (iid, hashlib.sha256(payload.encode()).hexdigest(), request_id))
+        return self.input(iid), True
+
+    def input(self, input_id: str) -> dict | None:
+        return self._one("select * from inputs where id=?", input_id)
+
+    def bind_input(self, input_id: str, run_id: str) -> None:
+        self.db.execute("update inputs set run_id=? where id=? and run_id is null", (run_id, input_id))
 
     def add_input(self, session_id: str, delivery: str, content: str, parent_id: str | None = None,
                   extra: dict[str, Any] | None = None) -> str:
@@ -240,9 +326,9 @@ class Index:
                          json.dumps(extra, ensure_ascii=False) if extra else None))
         return input_id
 
-    def finish_input(self, input_id: str, status: str) -> None:
-        self.db.execute("update inputs set status=?, done_at=? where id=? and status='pending'",
-                        (status, time.time(), input_id))
+    def finish_input(self, input_id: str, status: str, run_id: str | None = None) -> None:
+        self.db.execute("update inputs set status=?, done_at=?, run_id=coalesce(run_id,?)"
+                        " where id=? and status='pending'", (status, time.time(), run_id, input_id))
 
     def pending_inputs(self, session_id: str | None = None) -> list[dict[str, Any]]:
         sql = "select * from inputs where status='pending'"
@@ -293,6 +379,34 @@ class Index:
                               (schedule_id, planned_at, missed, status, request_id, time.time()))
         return cur.rowcount == 1
 
+    def accept_occurrence(self, row: dict, planned: float, missed: int, content: str, request_id: str,
+                          *, advance: bool = False, next_run: float | None = None, now: float = 0,
+                          manual: bool = False) -> dict:
+        """Occurrence, accepted input and schedule advancement are one durable transaction."""
+        with self.transaction():
+            if manual:
+                import math
+
+                while self._one("select 1 from occurrences where schedule_id=? and planned_at=?", row["id"], planned):
+                    planned = math.nextafter(planned, float("inf"))
+            self.claim_occurrence(row["id"], planned, missed, "submitted", request_id)
+            occ = self._one("select * from occurrences where schedule_id=? and planned_at=?", row["id"], planned)
+            if occ["status"] == "submitted" and not occ["input_id"]:
+                extra = {"request_id": occ["request_id"]}
+                payload = json.dumps({"schedule": row["id"], "planned": planned}, sort_keys=True)
+                accepted = self._one("select * from inputs where session_id=?"
+                                     " and json_extract(extra_json,'$.request_id')=? order by created_at limit 1",
+                                     row["session_id"], occ["request_id"])
+                if accepted is None:
+                    accepted, _ = self._accept_input(row["session_id"], "run", content, None, extra,
+                                                      occ["request_id"], payload)
+                self.db.execute("update occurrences set input_id=? where schedule_id=? and planned_at=?",
+                                (accepted["id"], row["id"], planned))
+                occ["input_id"] = accepted["id"]
+            if advance:
+                self.update_schedule(row["id"], next_run=next_run, last_run_at=now)
+            return occ
+
     def finish_occurrence(self, schedule_id: str, planned_at: float, outcome: str, summary: str = "") -> None:
         self.db.execute("update occurrences set status='done', outcome=?, summary=?, done_at=? "
                         "where schedule_id=? and planned_at=?",
@@ -323,11 +437,13 @@ class Index:
 
     # approvals
 
-    def add_approval(self, approval_id: str, session_id: str, run_id: str | None, call: dict[str, Any]) -> None:
-        self.db.execute("insert into approvals(id, session_id, run_id, call_id, tool, args_json, status, created_at)"
-                        " values (?,?,?,?,?,?,?,?)", (approval_id, session_id, run_id, call["id"], call["name"],
+    def add_approval(self, approval_id: str, session_id: str, run_id: str | None, call: dict[str, Any],
+                     preview: Any = None) -> None:
+        self.db.execute("insert into approvals(id, session_id, run_id, call_id, tool, args_json, status, created_at,"
+                        " preview_json) values (?,?,?,?,?,?,?,?,?)", (approval_id, session_id, run_id,
+                                                      call["id"], call["name"],
                                                       json.dumps(call["args"], ensure_ascii=False), "pending",
-                                                      time.time()))
+                                                      time.time(), json.dumps(preview, ensure_ascii=False)))
 
     def resolve_approval(self, approval_id: str, status: str, feedback: str | None = None) -> None:
         self.db.execute("update approvals set status=?, feedback=?, resolved_at=? where id=? and status='pending'",

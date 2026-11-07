@@ -141,13 +141,22 @@ MONO = "Menlo"
 
 def to_docx(blocks: list[Block], path: Path, title: str = "") -> None:
     import docx
+    from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Pt, RGBColor
 
     d = docx.Document()
     d.core_properties.title = title
+    d.styles["Normal"].font.size = Pt(11)
+    d.styles["Normal"].paragraph_format.space_after = Pt(4)
     for name in ("Normal", "Title", *(f"Heading {i}" for i in range(1, 7))):
-        d.styles[name].element.get_or_add_rPr().get_or_add_rFonts().set(qn("w:eastAsia"), EAST_ASIAN_FONT)
+        style = d.styles[name]
+        style.element.get_or_add_rPr().get_or_add_rFonts().set(qn("w:eastAsia"), EAST_ASIAN_FONT)
+        if name != "Normal":
+            style.font.color.rgb = RGBColor(0, 0, 0)
+            style.paragraph_format.keep_with_next = True
+            for border in style.element.xpath("./w:pPr/w:pBdr"):
+                border.getparent().remove(border)
 
     def fill(p: Any, runs: list[Run]) -> None:
         for r in runs:
@@ -160,9 +169,11 @@ def to_docx(blocks: list[Block], path: Path, title: str = "") -> None:
                 run.font.name = MONO
                 run.font.color.rgb = RGBColor(0x8B, 0x3A, 0x1E)
 
-    for b in blocks:
+    for index, b in enumerate(blocks):
         if b.kind == "heading":
-            fill(d.add_heading(level=min(b.level, 6)), b.runs)
+            p = d.add_paragraph(style="Title") if index == 0 and b.level == 1 else d.add_heading(
+                level=min(b.level, 6))
+            fill(p, b.runs)
         elif b.kind == "para":
             p = d.add_paragraph()
             if b.level:
@@ -188,6 +199,22 @@ def to_docx(blocks: list[Block], path: Path, title: str = "") -> None:
             width = max(len(r) for r in b.rows)
             t = d.add_table(rows=len(b.rows), cols=width, style="Table Grid")
             _borders(t)
+            weights = []
+            for j in range(width):
+                texts = ["".join(r.text for r in row[j]) for row in b.rows if j < len(row)]
+                length = max((len(s) + len(CJK.findall(s)) for s in texts), default=0)
+                weights.append(max(8, min(50, length)))
+            section = d.sections[-1]
+            available = section.page_width - section.left_margin - section.right_margin
+            for col, weight in zip(t.columns, weights, strict=True):
+                col.width = int(available * weight / sum(weights))
+                for cell in col.cells:
+                    cell.width = col.width
+            for i, row in enumerate(t.rows):
+                props = row._tr.get_or_add_trPr()
+                props.append(OxmlElement("w:cantSplit"))
+                if i == 0:
+                    props.append(OxmlElement("w:tblHeader"))
             for i, row in enumerate(b.rows):
                 for j, cell in enumerate(row):
                     p = t.cell(i, j).paragraphs[0]
@@ -304,7 +331,7 @@ def to_pdf(blocks: list[Block], path: Path, title: str = "") -> None:
     regular, bold = pdf_fonts()
     base = ParagraphStyle("body", fontName=regular, fontSize=10.5, leading=16, wordWrap="CJK", spaceAfter=6)
     heads = {n: ParagraphStyle(f"h{n}", parent=base, fontName=bold, fontSize=size, leading=size * 1.35,
-                               spaceBefore=10 if n > 1 else 4, spaceAfter=6)
+                               spaceBefore=10 if n > 1 else 4, spaceAfter=6, keepWithNext=True)
              for n, size in ((1, 20), (2, 16), (3, 13.5), (4, 12), (5, 11), (6, 10.5))}
     quote = ParagraphStyle("quote", parent=base, leftIndent=12, textColor=colors.HexColor("#555555"))
     code = ParagraphStyle("code", parent=base, fontName="Courier", fontSize=8.5, leading=11.5,
@@ -322,7 +349,8 @@ def to_pdf(blocks: list[Block], path: Path, title: str = "") -> None:
             if r.italic:
                 s = f"<i>{s}</i>"
             if r.href:
-                s = f'<a href="{r.href.replace(chr(34), "%22")}" color="#1F5FAD">{s}</a>'
+                href = r.href.replace("&", "&amp;").replace(chr(34), "%22").replace("<", "%3C").replace(">", "%3E")
+                s = f'<a href="{href}" color="#1F5FAD">{s}</a>'
             out.append(s)
         return "".join(out)
 

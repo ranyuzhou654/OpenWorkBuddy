@@ -121,7 +121,7 @@ def terminal_ask(ws: Workspace, log: SessionLog) -> Ask:
         always = check.suggestion()
         print(f"{YELLOW}? {check.action}: {check.resource[:400]}{RESET}")
         if check.preview:
-            print(f"{DIM}{json.dumps(check.preview, ensure_ascii=False, indent=2)[:1500]}{RESET}")
+            print(f"{DIM}{json.dumps(check.preview, ensure_ascii=False, indent=2)}{RESET}")
         print("  y = allow once · n [reason] = deny" if check.once_only else
               f"  y = allow once · a = always allow {always.action} {always.resource[:80]} · n [reason] = deny")
         loop, task = asyncio.get_running_loop(), asyncio.current_task()
@@ -237,7 +237,7 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
         case "/tree":
             print_tree(log)
         case "/checkout":
-            log.checkout(log.resolve(arg))
+            ws.checkout(log, log.resolve(arg))
         case "/branch":
             run(ws, ws.switch_branch(log, log.latest_leaf(log.resolve(arg)), PRINTER))
         case "/edit":
@@ -245,7 +245,7 @@ def command(ws: Workspace, log: SessionLog, line: str) -> SessionLog | None:
             if e.type != USER:
                 print("only user messages can be edited")
             else:
-                log.checkout(e.parent_id)
+                ws.checkout(log, e.parent_id)
                 print(f"{DIM}was: {text_of(e.data['content'])}{RESET}\ntype the new message:")
         case "/fork":
             log = PRINTER.watch(ws.fork(log, log.resolve(arg)))
@@ -296,6 +296,18 @@ def repl(ws: Workspace, log: SessionLog) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
+    from .config import home_dir
+    from .maintenance import home_guard, recover_restore
+
+    if argv[:1] in (["backup"], ["restore"], ["service"]):
+        return _main(argv)
+    home = home_dir()
+    recover_restore(home)
+    with home_guard(home):
+        return _main(argv)
+
+
+def _main(argv: list[str]) -> None:
     if argv[:1] == ["serve"]:
         return serve_main(argv[1:])
     if argv[:1] == ["key"]:
@@ -347,7 +359,10 @@ def maintenance_main(argv: list[str]) -> None:
         p.add_argument("--with-secrets", action="store_true", help="include API keys (secrets.json)")
         p.add_argument("--with-browser", action="store_true", help="include the browser profile (logged-in cookies)")
         a = p.parse_args(argv[1:])
-        m = maintenance.backup(home, a.file, a.with_secrets, a.with_browser)
+        try:
+            m = maintenance.backup(home, a.file, a.with_secrets, a.with_browser)
+        except (OSError, ValueError, RuntimeError) as e:
+            sys.exit(f"{RED}{e}{RESET}")
         print(f"backed up {', '.join(m['included'])} to {a.file}" +
               ("" if a.with_secrets else "\n(API keys not included: add them again after restoring, or use "
                                          "--with-secrets)"))
@@ -357,9 +372,15 @@ def maintenance_main(argv: list[str]) -> None:
         a = p.parse_args(argv[1:])
         try:
             m = maintenance.restore(a.file, home, a.force)
-        except (FileExistsError, ValueError) as e:
+        except (OSError, ValueError, RuntimeError) as e:
             sys.exit(f"{RED}{e}{RESET}")
         print(f"restored {', '.join(m['included'])} into {home}")
+        if not m.get("integrity_verified"):
+            print("Legacy backup: no per-file integrity manifest was available.")
+        if missing := m["relocation"]["missing_projects"]:
+            print("Project folders are not included in this backup; these paths need reconnecting:")
+            for project in missing:
+                print(f"  {project['root_path']}")
     else:
         p.add_argument("action", choices=["install", "uninstall", "status"])
         p.add_argument("--port", type=int, default=8765)

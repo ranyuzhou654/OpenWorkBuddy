@@ -45,6 +45,8 @@ class OpenAIChat:
                 raise ContextOverflow(str(e)) from e
             raise
         async for item in assemble(chunks, self.spec.provider.name, self.spec.id):
+            if isinstance(item, Response):
+                item.meta["request_id"] = chunks.response.headers.get("x-request-id")
             yield item
 
 
@@ -107,9 +109,15 @@ async def assemble(chunks: AsyncIterable[Any], provider: str, model: str) -> Asy
     calls: dict[int, dict[str, str]] = {}
     stop: Stop | None = None
     usage: dict[str, int] = {}
+    raw_usage, response_id, actual_model = None, None, model
     async for chunk in chunks:
+        response_id = getattr(chunk, "id", None) or response_id
+        actual_model = getattr(chunk, "model", None) or actual_model
         if chunk.usage:
+            from ..usage import wire_usage
+
             usage = _usage(chunk.usage)
+            raw_usage = wire_usage(chunk.usage)
         if not chunk.choices:
             continue
         choice = chunk.choices[0]
@@ -127,7 +135,7 @@ async def assemble(chunks: AsyncIterable[Any], provider: str, model: str) -> Asy
                 slot["name"] += tc.function.name or ""
                 slot["args"] += tc.function.arguments or ""
         if choice.finish_reason:
-            stop = STOPS.get(choice.finish_reason, "end")
+            stop = STOPS.get(choice.finish_reason, "error")
 
     content: list[Block] = []
     if thinking:
@@ -149,7 +157,9 @@ async def assemble(chunks: AsyncIterable[Any], provider: str, model: str) -> Asy
         stop = "error"
     elif calls and stop == "end":
         stop = "tool_use"
-    yield Response(content, stop, usage, {"provider": provider, "model": model})
+    yield Response(content, stop, usage, {"provider": provider, "model": actual_model,
+                                        "response_id": response_id, "raw_usage": raw_usage,
+                                        "usage_complete": raw_usage is not None})
 
 
 def _usage(u: Any) -> dict[str, int]:

@@ -1,0 +1,4 @@
+stage,tests,failures,errors,skipped,seconds,source
+baseline,221,0,0,0,25.247,docs/research/2026-10-25-resume-baseline/baseline.json
+R-B,340,0,0,0,64.464,docs/research/2026-10-26-rb-validation.json
+R-C,372,0,0,0,60.918,docs/research/2026-10-26-rc-validation.json

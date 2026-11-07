@@ -171,10 +171,12 @@ export function textOf(content: { type: string; text?: string; attachment?: stri
 
 // Every numbered source in the session (all branches: numbers are per session), latest record per number.
 export function sourcesOf(entries: Record<string, Entry>): Source[] {
-  const byUrl = new Map<string, Source>();
-  for (const e of Object.values(entries).sort((a, b) => a.seq - b.seq))
-    if (e.type === "tool_result") for (const s of (e.data.meta?.sources ?? []) as Source[]) byUrl.set(s.url, s);
-  return [...byUrl.values()].sort((a, b) => a.n - b.n);
+  const byNumber = new Map<number, Source>();
+  for (const e of Object.values(entries).sort((a, b) => a.seq - b.seq)) {
+    for (const s of (e.data.meta?.sources ?? []) as Source[]) byNumber.set(s.n, s);
+    for (const a of e.data.attachments ?? []) if (a.source) byNumber.set(a.source.n, a.source);
+  }
+  return [...byNumber.values()].sort((a, b) => a.n - b.n);
 }
 
 // Delivered files on the current path, newest version per path first in the list it belongs to.

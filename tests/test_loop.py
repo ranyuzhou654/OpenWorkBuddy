@@ -38,14 +38,13 @@ async def test_multi_step_file_task(make_ws, project):
     assert status == "ok"
     assert (project / "notes.md").read_text() == "# hi\n"
     assert types(log) == ["system_prompt", "user", "notice", "assistant", "tool_started", "tool_result", "assistant",
-                          "tool_started", "tool_result", "assistant"]
+                          "tool_started", "tool_result", "evidence", "assistant"]
     assert "Permission preset: workspace" in log.path()[2].data["text"]
     assert text_of(log.path()[-1].data["content"]) == "done: # hi"
     assert model.requests[0]["system"].startswith("You are nano-workbuddy")
     assert [t["name"] for t in model.requests[0]["tools"]] == [
-        "read", "write", "edit", "bash", "grep", "glob", "web_fetch", "create_document", "present", "recall", "todo",
-        "ask_user",
-        "memory"]  # web_search only when a search key is configured
+        "read", "write", "edit", "bash", "grep", "glob", "recall", "read_record", "todo", "ask_user", "memory",
+        "create_document", "export_document", "present", "web_fetch"]  # optional plugins follow the core
     assert {"run.started", "assistant.delta", "run.finished"} <= {e["type"] for e in events}
     run = ws.index.unfinished_runs(log.id)
     assert run == []

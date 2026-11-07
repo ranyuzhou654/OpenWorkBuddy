@@ -4,15 +4,14 @@ The CLI already covers documents, calendar, tasks and messages, keeps the OAuth 
 and labels every command with a risk level in its help ("Risk: read" / "write" / "high-risk-write").
 This module adds the boundary the assistant needs on top:
 
-  - one tool, `feishu`, whose argument is the CLI's own argv (so the official lark skills' examples apply
-    directly), run with a fixed argv and never through a shell;
+  - one tool, `feishu`: read argv and a small set of structured write operations; canonical argv, no shell;
   - an allowlist: read commands of the enabled domains run without asking; a short list of write commands
     needs an approval for that exact call (it can never be "always allowed"); everything else, including
     every high-risk-write (delete, permissions) and the raw `api` escape hatch, is refused;
   - the user's own identity always (--as user), so the assistant sees exactly what the user can see;
-  - values that make the CLI read local files (@file, --file ...) must stay inside the project;
-  - message sends carry an idempotency key derived from the call, so a replay after a crash does not
-    send twice; every write's result is kept as a receipt in the tool result's meta.
+  - write payloads, files, account and CLI identity are frozen before approval; execution uses those bytes;
+  - sends carry a host-owned idempotency key. Uncertain writes stop for reconciliation instead of replaying;
+    a confirmed CLI receipt can be recovered locally without another write.
 
 Tokens never reach the model, the log or a sandboxed shell: the CLI reads them from the keychain itself,
 and bash runs sandboxed without network or keychain access.
@@ -31,14 +30,15 @@ import shutil
 import signal
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .. import artifacts
 from ..tools.builtin import Args, _env, resolve
 from ..tools.registry import Result, ToolCtx, ToolError, Verdict, tool
 from ..types import text
+from . import feishu_ops as ops
 
 # What the user enabled (2026-10-24): documents (search, read, create, update), calendar and tasks (read),
 # messages (read, send, reply), plus the lookups those need (contacts, wiki, sheets, drive search/download).
@@ -50,8 +50,6 @@ WRITES = {
     ("docs", "+update"): "change a document",
     ("drive", "+import"): "import a local file as a cloud document",
 }
-IDEMPOTENT = {("im", "+messages-send"), ("im", "+messages-reply")}  # take --idempotency-key
-FORBIDDEN_FLAGS = ("--as", "--profile")  # identity is fixed; profiles would switch app or account
 PATH_FLAGS = ("--file", "--image", "--audio", "--video", "--video-cover", "--output", "--output-dir")
 TARGET_FLAGS = ("--chat-id", "--user-id", "--message-id", "--doc", "--parent-token", "--folder-token", "--file")
 TIMEOUT = 120
@@ -71,14 +69,16 @@ class Feishu:
     def available(self) -> bool:
         return Path(self.cli).is_file() and os.access(self.cli, os.X_OK)
 
-    async def run(self, argv: list[str], cwd: Path, timeout: int = TIMEOUT) -> tuple[int, str]:
+    async def run(self, argv: list[str], cwd: Path, timeout: int = TIMEOUT,
+                  input: bytes | None = None) -> tuple[int, str]:
         """(exit code, stdout+stderr). Network and keychain are needed, so this never runs in the sandbox;
         the environment is the same whitelist bash gets, so no other secret leaks into the CLI."""
         proc = await asyncio.create_subprocess_exec(
-            self.cli, *argv, cwd=cwd, env=_env(), stdin=asyncio.subprocess.DEVNULL,
+            self.cli, *argv, cwd=cwd, env=_env(), stdin=asyncio.subprocess.PIPE if input is not None else
+            asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True)
         try:
-            out, _ = await asyncio.wait_for(proc.communicate(), timeout)
+            out, _ = await asyncio.wait_for(proc.communicate(input), timeout)
         except (TimeoutError, asyncio.CancelledError):
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(proc.pid, signal.SIGKILL)
@@ -130,10 +130,13 @@ def notice(status: dict[str, Any]) -> str:
            else "but the user's authorisation is missing: calls will fail until the user runs "
                 "`lark-cli auth login` in a terminal")
     writes = "; ".join(f"{d} {c} ({what})" for (d, c), what in WRITES.items())
-    return (f"Feishu (飞书) is connected through the `feishu` tool {who}. Pass lark-cli arguments as a list, "
-            f"exactly as the lark-* skills show them without the leading `lark-cli`. Read commands of these "
+    return (f"Feishu (飞书) is connected through the `feishu` tool {who}. Pass read-only lark-cli arguments as a list, "
+            f"without the leading `lark-cli`. Read commands of these "
             f"domains run directly: {', '.join(READ_DOMAINS)}. These writes need the user's approval of the exact "
-            f"call: {writes}. Everything else (deleting, permissions, other domains, `api`) is not available. "
+            f"call: {writes}. Prefer the structured operation field for writes; mode=preview never executes a write. "
+            "CLI flags for identity, dry-run and idempotency are host-controlled. Messages support text/markdown; "
+            "document updates support append/overwrite/str_replace. Everything else (deleting, permissions, "
+            "other domains, `api`) is not available. "
             "Never run lark-cli through bash. Resolve names to IDs (contact +search-user, im +chat-search, "
             "docs +search) before writing; when a name is ambiguous, ask the user instead of guessing.")
 
@@ -142,8 +145,22 @@ def notice(status: dict[str, Any]) -> str:
 
 
 class FeishuArgs(Args):
-    command: list[str] = Field(description='lark-cli arguments, e.g. ["docs", "+search", "--query", "季度规划"] or '
-                                           '["im", "+messages-send", "--chat-id", "oc_…", "--markdown", "…"]')
+    command: list[str] = Field(default_factory=list, description='Read CLI argv, e.g. ["docs", "+search", "--query", '
+                              '"季度规划"]. Legacy writes are normalized to a controlled operation.')
+    operation: ops.Operation | None = None
+    mode: Literal["execute", "preview"] = "execute"
+
+    @model_validator(mode="after")
+    def one_request(self):
+        if bool(self.command) == (self.operation is not None):
+            raise ValueError("provide command or operation, not both")
+        return self
+
+    def write(self) -> ops.Operation | None:
+        if self.operation is not None:
+            return self.operation
+        classify(self.command)
+        return ops.legacy(self.command) if tuple(self.command[:2]) in ops.KINDS else None
 
 
 def classify(argv: list[str]) -> tuple[str, str, bool]:
@@ -155,11 +172,8 @@ def classify(argv: list[str]) -> tuple[str, str, bool]:
         raise ToolError(f"Feishu domain {domain!r} is not enabled; enabled: {', '.join(READ_DOMAINS)}")
     if not command.startswith("+"):
         raise ToolError(f"only lark-cli shortcuts (commands starting with +) are allowed, not {command!r}")
-    for flag in argv[2:]:
-        name = flag.split("=", 1)[0]
-        if name in FORBIDDEN_FLAGS:
-            raise ToolError(f"{name} cannot be set: the connector always acts as the user, with the configured app")
-    write = (domain, command) in WRITES and "--dry-run" not in argv
+    ops.flags(argv)
+    write = (domain, command) in WRITES
     return domain, command, write
 
 
@@ -178,11 +192,18 @@ def target(argv: list[str]) -> str:
 
 
 def _scope(args: FeishuArgs, ctx: ToolCtx) -> tuple[str, str]:
-    try:
-        domain, command, write = classify(args.command)
-    except ToolError:
-        return "feishu", "invalid"  # execute() reports why
-    return ("feishu.write" if write else "feishu"), f"{domain} {command} {target(args.command)}"
+    op = args.write()
+    if op is not None:
+        return ("feishu.write" if args.mode == "execute" else "feishu"), _target(op)
+    domain, command, _ = classify(args.command)
+    return "feishu", f"{domain} {command} {target(args.command)}"
+
+
+def _target(op: ops.Operation) -> str:
+    values = op.model_dump()
+    return next((f"{k.replace('_', '-')}={values[k]}" for k in
+                 ("chat_id", "user_id", "message_id", "doc", "parent_token", "folder_token", "file")
+                 if values.get(k)), "(new)")
 
 
 def _confine(argv: list[str], ctx: ToolCtx) -> None:
@@ -194,6 +215,8 @@ def _confine(argv: list[str], ctx: ToolCtx) -> None:
         p = resolve(ctx, path)
         if not any(p.is_relative_to(a) for a in allowed):
             raise ToolError(f"{flag} refers to {p}, outside the project; copy the file into the project first")
+        if not ctx.allowed("write" if flag in ("--output", "--output-dir") else "read", str(p)):
+            raise ToolError(f"{flag} on {p} is not allowed by the resource rules")
 
     for i, a in enumerate(argv[2:], 2):
         value = argv[i + 1] if a.startswith("--") and "=" not in a and i + 1 < len(argv) else None
@@ -209,30 +232,90 @@ def _confine(argv: list[str], ctx: ToolCtx) -> None:
             check(value, a)
 
 
-def _recover(args: FeishuArgs, ctx: ToolCtx) -> Verdict:
-    """After a crash mid-call: reads and idempotent sends (same key) are safe to run again; any other write
-    has an unknown outcome and is never replayed automatically."""
-    try:
-        domain, command, write = classify(args.command)
-    except ToolError:
-        return "not_done"
-    return "not_done" if not write or (domain, command) in IDEMPOTENT else "unknown"
+def _recover(args: FeishuArgs, ctx: ToolCtx) -> Verdict | Result:
+    return ops.recover(args.write() is not None and args.mode == "execute", ctx, ops.digest(args.model_dump()))
 
 
 async def _preview(args: FeishuArgs, ctx: ToolCtx) -> dict[str, Any] | None:
-    """For the approval card: the account, the target and the CLI's own dry run of the exact request."""
-    if ctx.feishu is None:
+    """Prepare exact content, account, target and CLI identity before showing anything approvable."""
+    if ctx.service("feishu") is None:
+        raise ToolError("Feishu is not enabled")
+    op = args.write()
+    if op is None:
         return None
-    argv = list(args.command)
+    prepared = await ops.prepare(op, ops.digest(args.model_dump()), ctx)
+    code, out = await ctx.service("feishu").run(
+        [*prepared.argv, "--dry-run"], ctx.root, timeout=30, input=prepared.stdin)
+    data = _parse(out)
+    if code or not isinstance(data, dict) or data.get("ok") is not True or data.get("dry_run") is not True:
+        raise ToolError("CLI dry-run did not produce a verifiable preview; the write is blocked")
+    context = data.get("data", {}).get("context", {})
+    who = prepared.record["account"]
+    if (context.get("app_id", who["app_id"]) != who["app_id"]
+            or context.get("user_open_id", who["user_id"]) != who["user_id"]):
+        raise ToolError("CLI dry-run identity differs from the prepared account")
+    return {"account": who["name"], "account_id": who["user_id"], "action": WRITES[ops.COMMANDS[op.kind]],
+            "target": _target(op), "payload": prepared.record["payload"], "files": prepared.record["files"],
+            "payload_hash": prepared.record["payload_hash"], "operation_id": prepared.record["operation_id"],
+            "dry_run": data}
+
+
+async def _decision(args: FeishuArgs, ctx: ToolCtx, status: str, approval_id: str) -> None:
+    if args.write() is not None:
+        await ops.decision(ops.digest(args.model_dump()), ctx, status, approval_id)
+
+
+def _receipt_id(data: Any, keys: tuple[str, ...]) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    for k, value in data.items():
+        if k in keys and isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict) and (found := _receipt_id(value, keys)):
+            return found
+    return None
+
+
+async def _execute_write(args: FeishuArgs, op: ops.Operation, ctx: ToolCtx) -> Result:
+    p = ctx.prepared.pop(ctx.call_key, None)  # a prepared approval is consumed once
+    if p is None or not p.approved or p.record["input_hash"] != ops.digest(args.model_dump()):
+        raise ToolError("write needs approval of this exact prepared operation")
+    who, binary = await ops.account(ctx.service("feishu")), await ops.cli_identity(ctx.service("feishu"))
+    if any(who[k] != p.record["account"][k] for k in ("app_id", "user_id", "brand")) or binary != p.record["cli"]:
+        raise ToolError("account or CLI changed after approval; prepare and confirm again")
+    for attachment in p.record["files"]:
+        f = Path(attachment["snapshot"])
+        if f.is_symlink() or hashlib.sha256(f.read_bytes()).hexdigest() != attachment["sha256"]:
+            raise ToolError("frozen attachment changed after approval; prepare and confirm again")
+    p.record["status"] = "started"
+    ops.save(p.path, p.record)
     try:
-        classify(argv)
-        _confine(argv, ctx)
-        code, out = await ctx.feishu.run([*argv, "--as", "user", "--dry-run"], ctx.root, timeout=30)
-    except (ToolError, TimeoutError, OSError) as e:
-        return {"error": str(e)}
-    user = user_identity(await ctx.feishu.status())
-    return {"account": user.get("userName") or user.get("openId") or "?", "action": WRITES.get(tuple(argv[:2])),
-            "target": target(argv), "dry_run": _parse(out) if code == 0 else out[-2000:]}
+        code, out = await ctx.service("feishu").run(list(p.argv), ctx.root, input=p.stdin)
+    except BaseException as exc:
+        p.record.update(status="unknown", error_type=type(exc).__name__)
+        ops.save(p.path, p.record)
+        if isinstance(exc, asyncio.CancelledError):
+            raise
+        if not isinstance(exc, Exception):
+            raise
+        return Result.error(f"operation {p.record['operation_id']} has an UNKNOWN outcome; verify it before retrying")
+    data = _parse(out)
+    value = data.get("data") if isinstance(data, dict) else None
+    keys = ("message_id",) if isinstance(op, ops.Send | ops.Reply) else ("document_id", "token")
+    receipt_id = _receipt_id(value, keys)
+    if code or not isinstance(data, dict) or data.get("ok") is not True or not receipt_id:
+        p.record.update(status="unknown", cli_exit=code)
+        ops.save(p.path, p.record)
+        return Result.error(f"operation {p.record['operation_id']} has an UNKNOWN outcome (missing CLI receipt); "
+                            "verify it before retrying")
+    receipt = {"command": " ".join(ops.COMMANDS[op.kind]), "target": _target(op), "what": WRITES[ops.COMMANDS[op.kind]],
+               "operation_id": p.record["operation_id"], "payload_hash": p.record["payload_hash"],
+               "approval_id": p.record["approval_id"], "account_id": who["user_id"], "result": value,
+               "status": "confirmed", "verification": "CLI success and stable result identifier",
+               "links": sorted(set(re.findall(r"https://[^\s\"']+", out)))[:5], "at": time.time()}
+    p.record.update(status="confirmed", receipt=receipt)
+    ops.save(p.path, p.record)
+    return Result([text(out.strip())], meta={"receipt": receipt})
 
 
 def _parse(out: str) -> Any:
@@ -242,40 +325,36 @@ def _parse(out: str) -> Any:
         return out
 
 
-def _key(ctx: ToolCtx, argv: list[str]) -> str:
-    """Stable for one tool call (also after a crash and replay), different for every other call."""
-    seed = f"{ctx.session_id}\0{ctx.call_key or ctx.call_id}\0{json.dumps(argv)}"
-    return hashlib.sha256(seed.encode()).hexdigest()[:40]
-
-
 @tool(effect="exec", recover=_recover, scope=_scope)
 async def feishu(args: FeishuArgs, ctx: ToolCtx) -> Result:
     """Use Feishu (飞书) through lark-cli as the user: search and read documents, wiki pages and sheets, check the
     calendar and tasks, read chats; with the user's approval, send or reply to messages and create or update
-    documents. Pass the CLI arguments as a list (without "lark-cli"); add "--dry-run" to preview a write."""
-    if ctx.feishu is None:
+    documents. Use structured operation for writes and mode=preview for a dry run. Identity, dry-run and
+    idempotency flags are controlled by the host. Raw read commands are a list without "lark-cli"."""
+    if ctx.service("feishu") is None:
         raise ToolError("Feishu is not enabled; the user can enable it in Settings → 连接器")
+    op = args.write()
+    if op is not None:
+        if args.mode == "preview":
+            return Result.ok(json.dumps(await _preview(args, ctx), ensure_ascii=False))
+        return await _execute_write(args, op, ctx)
     argv = list(args.command)
-    domain, command, write = classify(argv)
+    domain, command, _ = classify(argv)
     _confine(argv, ctx)
-    risk = await ctx.feishu.risk(domain, command)
+    risk = await ctx.service("feishu").risk(domain, command)
     if risk is None:
         raise ToolError(f"unknown command {domain} {command}; check the lark-{domain} skill for the right "
                         "command name")
     if risk == "high-risk-write":
         raise ToolError(f"{domain} {command} is a high-risk operation (delete, permissions); it is not available. "
                         "The user can do it in Feishu.")
-    if risk != "read" and (domain, command) not in WRITES:
+    if risk != "read":
         raise ToolError(f"{domain} {command} changes data and is not among the enabled writes "
                         f"({', '.join(f'{d} {c}' for d, c in WRITES)})")
-    if (domain, command) in IDEMPOTENT and write and _flag(argv, "--idempotency-key") is None:
-        argv += ["--idempotency-key", _key(ctx, argv)]
+    argv = [domain, command, *(f"{k}={v}" for k, v in ops.flags(argv).items())]
     try:
-        code, out = await ctx.feishu.run([*argv, "--as", "user"], ctx.root)
+        code, out = await ctx.service("feishu").run([*argv, "--as=user"], ctx.root)
     except TimeoutError:
-        if write:
-            raise ToolError(f"no answer within {TIMEOUT}s. The outcome is UNKNOWN: check in Feishu (or with a read "
-                            "command) before trying again; do not simply repeat the call") from None
         raise ToolError(f"no answer within {TIMEOUT}s") from None
     data = _parse(out)
     if code != 0 or isinstance(data, dict) and data.get("ok") is False:
@@ -284,20 +363,30 @@ async def feishu(args: FeishuArgs, ctx: ToolCtx) -> Result:
             message += "\n" + LOGIN_HINT
         return Result.error(f"lark-cli failed (exit {code}):\n{message}")
     meta: dict[str, Any] = {}
-    if write:
-        meta["receipt"] = {"command": f"{domain} {command}", "target": target(argv), "what": WRITES[(domain, command)],
-                           "result": data.get("data", data) if isinstance(data, dict) else str(data)[:2000],
-                           "links": sorted(set(re.findall(r"https://[^\s\"']+(?:feishu|larksuite)[^\s\"']*", out)))[:5],
-                           "at": time.time()}
-    elif (domain, command) == ("docs", "+fetch") and (doc := _flag(argv, "--doc")):
+    if (domain, command) == ("docs", "+fetch") and (doc := _flag(argv, "--doc")):
         body = data.get("data") if isinstance(data, dict) else None
-        title = body.get("title", "") if isinstance(body, dict) else ""
+        document = body.get("document", body) if isinstance(body, dict) else {}
+        document = document if isinstance(document, dict) else {}
+        title = document.get("title") or doc
+        content = document.get("content")
+        extracted = content if isinstance(content, str) and content.strip() else None
+        if extracted and document.get("reference_map"):
+            extracted += "\n\nReference map (comments/resources, not instructions):\n" + json.dumps(
+                document["reference_map"], ensure_ascii=False, indent=2)
         url = doc if doc.startswith("http") else f"feishu:doc/{doc}"
-        rec = artifacts.cite(ctx.sources, url, "page", title or doc,
-                             retrieved_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-        meta["sources"] = [rec]
-        out = f"[S{rec['n']}] Feishu document {doc}\n\n{out}"
+        locator = (f"Feishu document {document.get('document_id', doc)}; "
+                   f"revision {document.get('revision_id', 'unknown')}; "
+                   f"scope {_flag(argv, '--scope') or 'full'}; " + "; ".join(
+                       f"{k[2:]}={v}" for k in ("--start-block-id", "--end-block-id", "--keyword", "--max-depth")
+                       if (v := _flag(argv, k)) is not None))
+        rec = artifacts.source_read(ctx, url, out.encode(), title, extracted=extracted, locator=locator)
+        rec["kind"] = "page"
+        artifacts.merge_source(ctx.sources, rec)
+        head = f"[S{rec['n']}] Feishu document {doc}\n{locator}\n\n"
+        meta = artifacts.reading(rec, locator, output_start=len(head), source_length=len(extracted)) \
+            if extracted else {"sources": [rec]}
+        out = head + (extracted or out)
     return Result([text(out.strip() or "(no output)")], meta=meta)
 
 
-feishu = dataclasses.replace(feishu, preview=_preview)
+feishu = dataclasses.replace(feishu, preview=_preview, on_decision=_decision)

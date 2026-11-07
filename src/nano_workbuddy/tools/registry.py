@@ -36,11 +36,24 @@ class ToolCtx:
     store: Path | None = None  # ~/.nwb/files: parsed-document cache and kept versions of delivered files
     vision: bool = True  # the model accepts images
     search: Any = None  # the web_search backend (search.SearchProvider); None: not configured
-    sources: dict[str, dict[str, Any]] = field(default_factory=dict)  # url -> source record [S#] in this session
+    sources: dict[str, dict[str, Any]] = field(default_factory=dict)  # URI -> latest; URI@S# -> older content versions
     versions: dict[str, list[str]] = field(default_factory=dict)  # path -> sha256 of each delivered version
+    document_records: dict[str, dict[str, Any]] = field(default_factory=dict)  # frozen create_document evidence
     feishu: Any = None  # connectors.feishu.Feishu, or None: not enabled
     call_key: str = ""  # this call, stable across a crash and replay: "<assistant entry id>:<call id>"
     recall: Callable[[str, str, int], list[dict[str, Any]]] | None = None  # search over past records (knowledge.py)
+    read_record: Callable[[str, int, int], dict[str, Any] | None] | None = None
+    recall_scope: Callable[[], str] = lambda: "current session"
+    allowed: Callable[[str, str], bool] = lambda action, resource: True  # concrete child resources, not just a parent
+    prepared: dict[str, Any] = field(default_factory=dict)  # host-owned prepared operations, keyed by call_key
+    services: dict[str, Any] = field(default_factory=dict)  # optional plugin dependencies, frozen per run
+
+    def can_read(self, path: Path) -> bool:
+        return self.allowed("read", str(path.resolve()))
+
+    def service(self, name: str) -> Any:
+        """Plugin dependency; legacy direct fields remain accepted by embedded callers."""
+        return self.services.get(name, getattr(self, name, None))
 
 
 @dataclass(slots=True)
@@ -70,10 +83,11 @@ class Tool:
     fn: Callable[[Any, ToolCtx], Awaitable[Result]]
     effect: Effect
     parallel: bool  # safe to run concurrently with other parallel tools
-    recover: Callable[[Any, ToolCtx], Verdict] | None  # after a crash: did the call already take effect?
+    recover: Callable[[Any, ToolCtx], Verdict | Result] | None  # may return a durable, verified receipt
     scope: Callable[[Any, ToolCtx], tuple[str, str]] | None  # (action, resource) for permission rules
     input_schema: dict[str, Any] | None = None  # given by the tool's owner (MCP) instead of derived from args
     preview: Callable[[Any, ToolCtx], Awaitable[dict[str, Any] | None]] | None = None  # for the approval card
+    on_decision: Callable[[Any, ToolCtx, str, str], Awaitable[None]] | None = None  # decision + approval_id
 
     def permission_scope(self, args: Any, ctx: ToolCtx) -> tuple[str, str]:
         return self.scope(args, ctx) if self.scope else (self.name, "")
@@ -88,7 +102,7 @@ class Tool:
         return {"name": self.name, "description": self.description, "parameters": params}
 
 
-def tool(*, effect: Effect, parallel: bool = False, recover: Callable[[Any, ToolCtx], Verdict] | None = None,
+def tool(*, effect: Effect, parallel: bool = False, recover: Callable[[Any, ToolCtx], Verdict | Result] | None = None,
          scope: Callable[[Any, ToolCtx], tuple[str, str]] | None = None):
     def wrap(fn: Callable[[Any, ToolCtx], Awaitable[Result]]) -> Tool:
         args = next(iter(inspect.signature(fn, eval_str=True).parameters.values())).annotation
@@ -107,7 +121,8 @@ class Registry:
     """All tools a run may call. Deferred tools are callable but declared to the model only after
     tool_search loaded them (D14), so dozens of rarely used schemas do not ride along every request."""
 
-    def __init__(self, tools: list[Tool], deferred: Iterable[str] = ()):
+    def __init__(self, tools: list[Tool], deferred: Iterable[str] = (), *,
+                 services: dict[str, Any] | None = None, cleanup: Iterable[Callable[[str], None]] = ()):
         self.tools: dict[str, Tool] = {}  # insertion order is the declared order (stable prefix, D9)
         for t in tools:
             if t.name in self.tools:  # e.g. two MCP servers whose names differ only in punctuation
@@ -115,6 +130,8 @@ class Registry:
                 continue
             self.tools[t.name] = t
         self.deferred = set(deferred)
+        self.services = dict(services or {})
+        self.cleanup = tuple(cleanup)
 
     def get(self, name: str) -> Tool | None:
         return self.tools.get(name)

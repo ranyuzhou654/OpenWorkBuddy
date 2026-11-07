@@ -37,7 +37,8 @@ async def test_create_document_versions_and_overwrite_guard(project, tmp_path):
     r, out = await run(c, "create_document", path="out/brief.docx", content="# 简报\n\n正文", title="简报")
     a = r.meta["artifact"]
     assert not r.is_error and (project / "out/brief.docx").is_file() and a["version"] == 1 and a["kept"]
-    assert all(ch["ok"] for ch in a["checks"]) and "Delivered" in out
+    assert all(ch["ok"] for ch in a["checks"] if ch["layer"] == "structure") and "Delivered" in out
+    assert all(ch["ok"] is None for ch in a["checks"] if ch["layer"] in ("numbers", "human"))
     assert artifacts.blob(tmp_path / "store", a["sha256"]).read_bytes() == (project / "out/brief.docx").read_bytes()
 
     r, out = await run(c, "create_document", path="out/brief.docx", content="# 第二版")
@@ -109,8 +110,8 @@ async def test_citations_are_checked_against_sources(project, tmp_path):
     checks = {ch["name"]: ch for ch in r.meta["artifact"]["checks"]}
     assert not checks["citations refer to recorded sources"]["ok"] and "S9" in checks[
         "citations refer to recorded sources"]["detail"]
-    assert "S1" in checks["cited sources were read in full"]["detail"]
-    assert "S2" not in checks["cited sources were read in full"]["detail"]
+    detail = checks["cited source excerpts entered model context"]["detail"]
+    assert "S1" in detail and "S2" in detail  # neither a snippet nor a legacy 'page' proves model exposure
 
 
 async def test_sources_and_versions_survive_a_restart(home, project, monkeypatch):

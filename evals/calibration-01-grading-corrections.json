@@ -1,0 +1,16 @@
+{
+  "reason": "Development calibration only. DOC-01 used numeric values rendered with thousands separators; the original string grader falsely rejected them. WF-01 asked for updated.md without specifying its directory, while the grader assumed the root. Both Agents produced workflow/updated.md alongside the input draft; accept this valid interpretation for this development run. Preserve initial results and all budget/scope failures. Future v2 tasks specify the full path.",
+  "overrides": {
+    "DEV-DOC-01": {
+      "report-values": {
+        "kind": "numbers",
+        "expected": [2160, 2220, 2289.6, 2353.2, 63.6]
+      }
+    },
+    "DEV-WF-01": {
+      "revision": {
+        "path": "workflow/updated.md"
+      }
+    }
+  }
+}

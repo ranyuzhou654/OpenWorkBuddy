@@ -1,0 +1,56 @@
+{
+  "stage": "R-C",
+  "at": "2026-10-26T11:49:42.795833+08:00",
+  "git_sha": "66dc15b0ef5d11399e4ed089348079bb0ce96113",
+  "code_sha256": "ee5f13e078ede8793f26530eb0adc93c0a5dfcbbe04965014739b47d8e1510c6",
+  "web_sha256": "651b30ff9c51699b6581044c1a0e775b8aecf9a5185d68d2bcf5521c02a52505",
+  "tests_sha256": "c9f854fa447b541732a857bac9ffcd2c80de546ae93ac46a82d41aa99f456921",
+  "pytest": {
+    "tests": "372",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "time": "60.918"
+  },
+  "rc_cases": 32,
+  "browser": {
+    "framework": "playwright 1.64.1",
+    "engine": "Chromium 156.0.8078.4",
+    "expected": 5,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "duration_ms": 5221.606,
+    "workers": 1,
+    "retries": 0,
+    "real_http_sse": true,
+    "model": "deterministic local fake",
+    "temporary_home_only": true,
+    "fixture_scheduler_tick_seconds": 0.1,
+    "product_scheduler_tick_seconds": 30
+  },
+  "checks": {
+    "ruff_src_tests_evals": "passed",
+    "frontend_build": "passed",
+    "git_diff_check": "passed"
+  },
+  "paid_provider_requests": 0,
+  "live_search_requests": 0,
+  "real_office_writes": 0,
+  "generated_document_human_review": "not_assessed",
+  "ui_screenshot_review": "four validation layers visible at 1440x1000",
+  "cost": null,
+  "cost_status": "unknown: package billing not reconciled",
+  "hosted_ci_verified": false,
+  "rd_user_trials": "0/12; not executed",
+  "formal_holdout_run": false,
+  "original_v2_freeze": "preserved; new source freeze required before another model run",
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "python": "3.12.12",
+  "artifacts": {
+    "2026-10-26-rc-tests.xml": "84204811fff511a9b1ce5f1a95fc0e9b115408c436aae3b588cb4c40721bbd55",
+    "2026-10-26-rc-tests-initial.xml": "756d307f21bf48b6a1cd20d77fad1763f38b1e2ccc84ee07c46e7abd87febaa2",
+    "2026-10-26-rc-browser.json": "bcee0ede5c3de5822e2d0ef2a203cbab891358a8e9dcfaf415e7ff6886d20062",
+    "2026-10-26-rc-validation-layers.png": "c8a4a98c831eeadc9208876ed36fa18e7d762910f084487fd7b2a6643d91d983"
+  }
+}

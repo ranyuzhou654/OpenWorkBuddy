@@ -106,8 +106,8 @@ async def test_run_streams_entries_and_deltas(ws_for, project):
         await s.client.patch(f"/api/sessions/{sid}", json={"preset": "trust"})
         stream = Stream(s.client, sid)
         await stream.ready.wait()
-        assert (await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "go"})).json() == {
-            "delivery": "run"}
+        accepted = (await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "go"})).json()
+        assert accepted["delivery"] == "run" and accepted["input_id"] and accepted["status"] == "pending"
         done = await stream.until(finished)
         stream.close()
         assert done["status"] == "ok"
@@ -385,13 +385,11 @@ async def test_session_written_by_another_process_is_refused(ws_for, project):
         cli = SessionLog.open(s.ws.open_session(sid).file)
         with cli.writing():
             await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "while busy"})
-            dropped = await stream.until(lambda e: e["type"] == "inbox" and e.get("dropped"))
-            assert dropped["dropped"] == ["while busy"]
-            assert any(e["type"] == "run.error" and "another process" in e["message"] for e in stream.events)
+            await asyncio.sleep(0.05)
+            assert [r["content"] for r in s.ws.index.pending_inputs(sid)] == ["while busy"]
             root = s.ws.open_session(sid).path()[0].id
             r = await s.client.post(f"/api/sessions/{sid}/checkout", json={"entry_id": root})
             assert r.status_code == 409
-        assert s.ws.index.pending_inputs(sid) == []  # handed back, not left pending
-        await s.client.post(f"/api/sessions/{sid}/messages", json={"text": "now"})
+        s.runs.deliver_pending(sid)
         await stream.until(lambda e: finished(e) and e["status"] == "ok")
         stream.close()

@@ -1,8 +1,9 @@
-import { Paperclip, X } from "lucide-react";
+import { ArrowUp, Loader2, Paperclip, Square, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { available, type Command, type Ctx } from "./commands";
-import { size } from "./Files";
+import { size } from "./format";
+import { useToast } from "./ui";
 
 interface Suggestion {
   key: string;
@@ -16,27 +17,48 @@ interface Suggestion {
 
 // Enter sends; Shift+Enter is a newline. While a run is active, a message can join it (插话 / steer)
 // or wait for its own run (排队 / queue). "/" at the start opens commands and skills (D15); ↑↓ choose,
-// Tab completes, Enter picks. `children` go left of the buttons (the new-chat page's pickers).
+// Tab completes, Enter picks. `children` render as a quiet option row under the box.
 // Files can be attached with the clip button, by dropping them on the box or by pasting (screenshots);
-// they are uploaded when the message is sent.
+// they are uploaded when the message is sent. Children render as the option row under the box.
 export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropped = [], onTakeDropped, onError,
   placeholder, children }: {
   projectId: string | null; ctx: Ctx; busy?: boolean;
-  submit: (text: string, delivery: "auto" | "queue", files: File[]) => Promise<unknown>;
+  submit: (text: string, delivery: "auto" | "queue", files: File[],
+    onProgress?: (loaded: number, total: number) => void) => Promise<unknown>;
   onCancel?: () => void; dropped?: string[]; onTakeDropped?: () => void; onError: (m: string) => void;
   placeholder?: string; children?: ReactNode;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const filesRef = useRef<File[]>([]);
+  const updateFiles = (next: File[]) => { filesRef.current = next; setFiles(next); };
   const [sending, setSending] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [dragDepth, setDragDepth] = useState(0);
+  const [dragCount, setDragCount] = useState(0);
+  const [progress, setProgress] = useState<number | null>(null);
+  const toast = useToast();
   const picker = useRef<HTMLInputElement>(null);
+  const area = useRef<HTMLTextAreaElement>(null);
   const [sel, setSel] = useState(0);
   const addFiles = (list: FileList | File[]) => {
-    const add = [...list].filter((f) => f.size > 0);
-    const big = add.find((f) => f.size > 50 * 1024 * 1024);
-    if (big) return onError(`${big.name} 超过 50 MB，不能附加`);
-    setFiles((cur) => [...cur, ...add]);
+    const incoming = [...list].filter((f) => f.size > 0);
+    if (!incoming.length) return;
+    const big = incoming.filter((f) => f.size > 50 * 1024 * 1024);
+    const allowed = incoming.filter((f) => f.size <= 50 * 1024 * 1024);
+    if (big.length) onError(`${big[0].name}${big.length > 1 ? ` 等 ${big.length} 个文件` : ""} 超过 50 MB，不能附加`);
+    if (!allowed.length) return;
+    const fingerprint = (f: File) => `${f.name}\u0000${f.size}\u0000${f.type}`;
+    const seen = new Set(filesRef.current.map(fingerprint));
+    const fresh: File[] = [];
+    for (const f of allowed) {
+      const key = fingerprint(f);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      fresh.push(f);
+    }
+    const duplicate = allowed.length - fresh.length;
+    if (fresh.length) updateFiles([...filesRef.current, ...fresh]);
+    if (duplicate) toast.info(`已忽略 ${duplicate} 个重复附件`);
   };
   const [skills, setSkills] = useState<{ name: string; description: string }[]>([]);
 
@@ -51,6 +73,16 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
     }
   }, [dropped, onTakeDropped]);
 
+  useEffect(() => {
+    const reset = () => { setDragDepth(0); setDragCount(0); };
+    window.addEventListener("drop", reset);
+    window.addEventListener("dragend", reset);
+    return () => {
+      window.removeEventListener("drop", reset);
+      window.removeEventListener("dragend", reset);
+    };
+  }, []);
+
   const commands = available(ctx);
   const run = async (c: Command, arg: string) => {
     setText("");
@@ -63,27 +95,40 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
   };
   const suggestions = suggest(text, ctx, commands, busy ? [] : skills, run, setText);
   useEffect(() => setSel(0), [text]);
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(216, el.scrollHeight)}px`;
+  }, [text]);
 
   const send = async (delivery: "auto" | "queue" = "auto") => {
     if ((!text.trim() && !files.length) || sending) return;
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text.trim());
     const command = !files.length && m && commands.find((c) => c.name === m[1]);
     if (command) return run(command, m[2] ?? "");
-    const [body, attached] = [text, files];
+    const [body, attached] = [text, filesRef.current];
     setText("");
-    setFiles([]);
+    updateFiles([]);
     setSending(true);
+    setProgress(attached.length ? 0 : null);
     try {
-      await submit(body, delivery, attached);
+      await submit(body, delivery, attached, attached.length
+        ? (loaded, total) => setProgress(total ? Math.min(1, loaded / total) : null)
+        : undefined);
     } catch (e) {
       setText(body);
-      setFiles(attached);
+      updateFiles(attached);
       onError(String(e));
     } finally {
       setSending(false);
+      setProgress(null);
     }
   };
   const ready = (text.trim() || files.length > 0) && !sending;
+  const stopping = busy && Boolean(onCancel) && !sending && !text.trim() && !files.length;
+  const dragging = dragDepth > 0;
+  const pct = progress === null ? null : Math.round(progress * 100);
 
   return (
     <div className="composer">
@@ -101,24 +146,43 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
           ))}
         </div>
       )}
-      <div className={`composer-box${dragging ? " dragging" : ""}`}
-        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } setDragging(false); }}>
+      <div className={`composer-box${dragging ? " dragging" : ""}${busy ? " busy" : ""}`}
+        onDragEnter={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragDepth((depth) => depth + 1);
+          setDragCount(e.dataTransfer.items.length);
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={() => setDragDepth((depth) => Math.max(0, depth - 1))}
+        onDrop={(e) => {
+          if (e.dataTransfer.files.length) {
+            e.preventDefault();
+            addFiles(e.dataTransfer.files);
+          }
+          setDragDepth(0);
+          setDragCount(0);
+        }}>
         {files.length > 0 && (
           <div className="attach-list">
             {files.map((f, i) => (
-              <span key={i} className="attach" title={`${f.name} · ${size(f.size)}`}>
+              <span key={i} className="attach" title={`${f.name} · ${size(f.size)}`}
+                style={{ animationDelay: `${Math.min(i, 5) * 30}ms` }}>
                 <Paperclip size={12} />{f.name}<i>{size(f.size)}</i>
-                <button aria-label={`移除 ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={12} /></button>
+                <button aria-label={`移除 ${f.name}`} onClick={() => updateFiles(filesRef.current.filter((_, j) => j !== i))}><X size={12} /></button>
               </span>
             ))}
           </div>
         )}
         <textarea
+          ref={area}
           value={text}
           placeholder={busy ? "运行中：回车插话（下一步前送达），或点“排队”" : placeholder ?? "回复，或输入 / 查看命令和技能"}
-          rows={Math.min(10, Math.max(2, text.split("\n").length))}
+          rows={2}
           autoFocus
           onChange={(e) => setText(e.target.value)}
           onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
@@ -148,15 +212,35 @@ export function Composer({ projectId, ctx, busy = false, submit, onCancel, dropp
           <input ref={picker} type="file" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
           <button className="ghost icon" title="附加文件（也可以拖进来或粘贴截图）" aria-label="附加文件"
             onClick={() => picker.current?.click()}><Paperclip size={15} /></button>
-          {children}
           <span className="grow" />
-          <span className="hint">{sending ? (files.length ? "上传中…" : "发送中…") : "Shift+回车换行"}</span>
-          {busy && <button onClick={() => send("queue")} disabled={!ready} title="等这次运行结束后再发">排队</button>}
-          {busy && onCancel && <button className="danger" onClick={onCancel}>停止</button>}
-          <button className="send" onClick={() => send()} disabled={!ready} title={busy ? "插话：下一步之前送达" : "发送"}
-            aria-label={busy ? "插话" : "发送"}>↑</button>
+          {pct !== null && (
+            <span className="upload-meter" role="progressbar" aria-label="附件上传进度"
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} title={`上传 ${pct}%`}>
+              <i style={{ width: `${pct}%` }} />
+            </span>
+          )}
+          <span className="hint">{sending ? (pct !== null ? `上传中 ${pct}%` : "发送中…")
+            : <><kbd>Shift</kbd><span>+</span><kbd>Enter</kbd> 换行</>}</span>
+          {busy && !stopping && <button className="queue" onClick={() => send("queue")} disabled={!ready} title="等这次运行结束后再发">排队</button>}
+          {busy && onCancel && (text.trim() || files.length > 0) && (
+            <button className="danger stop" onClick={onCancel} title="停止这次运行">停止</button>
+          )}
+          <button className={`send${stopping ? " stopping" : ""}`}
+            onClick={sending ? undefined : stopping ? onCancel : () => send()}
+            disabled={sending || (!ready && !stopping)}
+            title={stopping ? "停止这次运行" : sending ? "发送中…" : busy ? "插话：下一步之前送达" : "发送"}
+            aria-label={sending ? "发送中" : stopping ? "停止" : busy ? "插话" : "发送"}>
+            {sending ? <Loader2 className="spin" size={16} /> : stopping ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} strokeWidth={2.4} />}
+          </button>
         </div>
+        {dragging && (
+          <div className="drop-veil" aria-hidden>
+            <Paperclip size={17} />
+            <b>松开以附加{dragCount > 0 ? ` ${dragCount} 个文件` : "文件"}</b>
+          </div>
+        )}
       </div>
+      {children && <div className="composer-options">{children}</div>}
     </div>
   );
 }

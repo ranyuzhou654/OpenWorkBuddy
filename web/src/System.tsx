@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, branchSummary, type SystemInfo, theme, type Theme, type Usage } from "./api";
 import { COMMANDS } from "./commands";
+import { Skeleton } from "./ui";
 
 // Settings sections that describe this machine and this browser rather than models or tools.
 
@@ -71,6 +72,7 @@ export function UsageSection({ onError }: { onError: (m: string) => void }) {
         </div>
       </div>
       <p className="note">按每次运行记录的 token 数汇总，来自服务商返回的用量。只统计已结束的运行；压缩和分支摘要的调用也算在内。</p>
+      {!usage ? <Skeleton lines={6} /> : <>
       <div className="stats">
         <div><span>运行次数</span><b>{total.runs}</b></div>
         <div><span>输入 tokens</span><b>{fmt(total.input)}</b></div>
@@ -88,7 +90,7 @@ export function UsageSection({ onError }: { onError: (m: string) => void }) {
         <div className="bars-axis"><span>{series[0].day}</span><span>峰值 {fmt(peak)}</span><span>今天</span></div>
       </div>
       <h2>按模型</h2>
-      {usage && usage.per_model.length === 0 ? <p className="note">这段时间还没有运行。</p> : (
+      {!usage ? <Skeleton lines={3} /> : usage.per_model.length === 0 ? <p className="note">这段时间还没有运行。</p> : (
         <table className="models">
           <thead><tr><th>模型</th><th>运行</th><th>输入</th><th>其中缓存</th><th>输出</th></tr></thead>
           <tbody>
@@ -100,13 +102,14 @@ export function UsageSection({ onError }: { onError: (m: string) => void }) {
           </tbody>
         </table>
       )}
+      </>}
     </>
   );
 }
 
 export function SystemSection({ onError }: { onError: (m: string) => void }) {
   const info = useSystem(onError);
-  if (!info) return <div className="empty">加载中…</div>;
+  if (!info) return <Skeleton lines={6} />;
   const rows: [string, React.ReactNode, string?][] = [
     ["命令沙箱", info.sandbox ?? <span className="danger-text">没有可用的沙箱</span>,
       info.sandbox ? "只读档和工作区档的命令在这里面运行" : "命令无法在沙箱里运行，只能用“完全信任”档或逐条批准沙箱外运行"],
@@ -132,7 +135,7 @@ export function SystemSection({ onError }: { onError: (m: string) => void }) {
 
 export function DeveloperSection({ onError }: { onError: (m: string) => void }) {
   const info = useSystem(onError);
-  if (!info) return <div className="empty">加载中…</div>;
+  if (!info) return <Skeleton lines={5} />;
   return (
     <>
       <h2>钩子</h2>

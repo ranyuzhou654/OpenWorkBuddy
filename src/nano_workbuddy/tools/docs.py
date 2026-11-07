@@ -1,7 +1,8 @@
-"""create_document and present (M1): files handed to the user as deliverables.
+"""Document creation, deterministic format export and delivery.
 
 create_document lays out Markdown the model wrote as .md, .docx or .pdf; present delivers a file made any
-other way (a script, bash, write). Both re-open the result to check it (artifacts.check), keep a copy of
+other way (a script, bash, write). export_document converts one delivered Markdown without rewriting.
+All re-open the result to check it (artifacts.check), keep a copy of
 this version, and return an artifact record in the result's meta, which the UI shows as a file card.
 A missing or unreadable file is never announced as delivered.
 """
@@ -9,11 +10,14 @@ A missing or unreadable file is never announced as delivered.
 from __future__ import annotations
 
 import contextlib
+import copy
+import hashlib
 import os
 import re
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from pydantic import Field
 
@@ -23,7 +27,12 @@ from .builtin import Args, resolve
 from .registry import Result, ToolCtx, ToolError, tool
 
 FORMATS = (".md", ".docx", ".pdf")
-CITATION = re.compile(r"\[S(\d+)\]")
+CITATION = re.compile(r"\[(S\d+(?:[ \t,;，；][^\]\n]*)?)\]")
+
+
+def cited_numbers(markdown: str) -> list[int]:
+    """Keep source IDs in page-qualified and grouped citations; page numbers are not source IDs."""
+    return sorted({int(n) for bracket in CITATION.findall(markdown) for n in re.findall(r"\bS(\d+)\b", bracket)})
 
 
 class CreateArgs(Args):
@@ -43,11 +52,20 @@ async def create_document(args: CreateArgs, ctx: ToolCtx) -> Result:
     """Create a document (Markdown, Word or PDF) from Markdown and deliver it to the user. Use this for
     reports, briefs and other files the user asked for; the result is checked and shown as a file card."""
     p = resolve(ctx, args.path)
+    content, sources = bibliography(args.content, ctx)
+    _write_document(p, content, args.title, args.overwrite, ctx)
+    result = _deliver(p, ctx, args.title, citation_checks(args.content, ctx))
+    result.meta["artifact"]["sources"] = sources  # immutable evidence bound to this delivered version
+    ctx.document_records[str(p)] = copy.deepcopy(result.meta["artifact"])
+    return result
+
+
+def _write_document(p: Path, content: str, title: str, overwrite: bool, ctx: ToolCtx) -> None:
     if p.suffix.lower() not in FORMATS:
         raise ToolError(f"unsupported format {p.suffix or '(none)'}; use one of {', '.join(FORMATS)}")
     if p.exists():
         history = ctx.versions.get(str(p), [])
-        if not args.overwrite:
+        if not overwrite:
             raise ToolError(f"{p} already exists; choose another name, or set overwrite=true to replace a file "
                             "you created")
         if not history:
@@ -61,33 +79,96 @@ async def create_document(args: CreateArgs, ctx: ToolCtx) -> Result:
     os.close(fd)
     try:
         if p.suffix.lower() == ".md":
-            Path(tmp).write_text(args.content, encoding="utf-8")
+            Path(tmp).write_text(content, encoding="utf-8")
         elif p.suffix.lower() == ".docx":
-            render.to_docx(render.parse(args.content), Path(tmp), args.title)
+            render.to_docx(render.parse(content), Path(tmp), title)
         else:
-            render.to_pdf(render.parse(args.content), Path(tmp), args.title)
+            render.to_pdf(render.parse(content), Path(tmp), title)
         os.chmod(tmp, 0o644)
         os.replace(tmp, p)  # the file appears complete or not at all
     finally:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
-    return _deliver(p, ctx, args.title, citation_checks(args.content, ctx))
+
+
+class ExportArgs(Args):
+    source: str = Field(description="An unchanged .md created by create_document in this session")
+    path: str = Field(description="Output .docx or .pdf path; content is read from source, not generated again")
+    title: str = Field("", description="Optional title override; otherwise preserve the source title")
+    overwrite: bool = Field(False, description="Replace an unchanged file this session created earlier")
+
+
+@tool(effect="write", scope=_create_scope)
+async def export_document(args: ExportArgs, ctx: ToolCtx) -> Result:
+    """Export a delivered Markdown document to Word or PDF without rewriting its content. First use
+    create_document for .md, then call this with source/path only, optionally in the same ordered batch.
+    Preserves the source version's bibliography and citation checks; never appends another bibliography."""
+    source, target = resolve(ctx, args.source), resolve(ctx, args.path)
+    if not ctx.can_read(source):
+        raise ToolError(f"read on {source} is not allowed")
+    original = ctx.document_records.get(str(source))
+    if source.suffix.lower() != ".md" or original is None:
+        raise ToolError("source must be a Markdown created by create_document in this session")
+    if target.suffix.lower() not in (".docx", ".pdf"):
+        raise ToolError("export path must end in .docx or .pdf")
+    if not source.is_file():
+        raise ToolError("source is missing; restore or create the document again before exporting")
+    data = source.read_bytes()
+    if hashlib.sha256(data).hexdigest() != original["sha256"]:
+        raise ToolError("source changed after delivery; create a new document version before exporting")
+    title = args.title or original.get("title", "")
+    _write_document(target, data.decode("utf-8"), title, args.overwrite, ctx)
+    checks = [copy.deepcopy(c) for c in original["checks"] if c.get("layer") == "citations"]
+    result = _deliver(target, ctx, title, checks)
+    result.meta["artifact"].update(sources=copy.deepcopy(original["sources"]), derived_from={
+        "path": str(source), "sha256": original["sha256"], "version": original["version"]})
+    return result
+
+
+def bibliography(markdown: str, ctx: ToolCtx) -> tuple[str, list[dict[str, Any]]]:
+    known = {s["n"]: s for s in ctx.sources.values()}
+    sources = [copy.deepcopy(known[n]) for n in cited_numbers(markdown) if n in known]
+    if not sources:
+        return markdown, []
+    lines = [markdown.rstrip(), "", "## 参考文献", ""]
+    for s in sources:
+        label = (s.get("title") or s["url"]).replace("\n", " ")
+        title = re.sub(r"([\\`*_\[\]<>])", r"\\\1", label)
+        uri = s["url"].replace(")", "%29").replace("(", "%28").replace(" ", "%20")
+        if urlsplit(s["url"]).scheme in ("http", "https"):
+            reference = f"[{title}]({uri}) · {s['url']}" if label != s["url"] else f"<{uri}>"
+        else:
+            # CommonMark intentionally rejects file: links. Keep local/opaque URIs readable once;
+            # do not relax link validation or turn other schemes into clickable links.
+            address = re.sub(r"([\\`*_\[\]<>])", r"\\\1", s["url"])
+            reference = f"{title} · {address}" if label != s["url"] else address
+        when = s.get("retrieved_at") or "unknown"
+        locator = "; ".join(x["locator"] for x in s.get("inspections", [])) or s.get("locator", "not inspected")
+        lines.append(f"- [S{s['n']}] {reference} · 访问 {when} · "
+                     f"{s.get('state', 'legacy state unknown')} · {locator} · "
+                     f"SHA256 {s.get('sha256') or s.get('discovery_sha256', 'unknown')}")
+    lines += ["", "来源状态仅表示获取、提取或上下文读取进度；不代表事实或计算已经核验。", ""]
+    return "\n".join(lines), sources
 
 
 def citation_checks(markdown: str, ctx: ToolCtx) -> list[dict[str, Any]]:
     """Every [S#] the document cites must be a source recorded in this session."""
-    cited = sorted({int(n) for n in CITATION.findall(markdown)})
+    cited = cited_numbers(markdown)
     if not cited:
         return []
     known = {s["n"]: s for s in ctx.sources.values()}
     unknown = [n for n in cited if n not in known]
-    snippets = [n for n in cited if n in known and known[n]["kind"] == "search"]
+    unread = [n for n in cited if n in known and known[n].get("state") != "inspected"]
     out = [{"name": "citations refer to recorded sources", "ok": not unknown,
+            "layer": "citations",
             "detail": f"unknown: {', '.join(f'S{n}' for n in unknown)}" if unknown else f"{len(cited)} cited"}]
-    if snippets:
-        out.append({"name": "cited sources were read in full", "ok": False,
-                    "detail": f"only search snippets seen for {', '.join(f'S{n}' for n in snippets)}; "
-                              "fetch them before relying on details"})
+    out.append({"name": "cited source excerpts entered model context", "ok": not unread,
+                "layer": "citations", "detail": f"not inspected: {', '.join(f'S{n}' for n in unread)}" if unread
+                else "inspected excerpts only; claim support and factual correctness are not assessed"})
+    missing = [n for n in cited if n in known and not known[n].get("snapshot")]
+    out.append({"name": "cited versions have retained snapshots", "ok": not missing, "layer": "citations",
+                "detail": "missing snapshot: " + ", ".join(f"S{n}" for n in missing) if missing
+                else "content-addressed snapshots retained; no factual verification implied"})
     return out
 
 

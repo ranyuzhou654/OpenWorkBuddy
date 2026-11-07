@@ -11,8 +11,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from .compaction import fit
-from .context import in_view, loaded_tools, pinned, spill, to_messages
+from .budgets import RunBudget
+from .compaction import ContextTooLarge, fit
+from .context import budget, in_view, loaded_tools, pinned, request_tokens, spill, to_messages
 from .llm import ContextOverflow, Delta, Model, Response
 from .log import SessionLog
 from .tools.registry import Registry, Result, Tool, ToolCtx, ToolError, execute, parse_args
@@ -20,6 +21,8 @@ from .types import (
     ASSISTANT,
     BRANCH_SUMMARY,
     COMPACTION,
+    CONTEXT_STATE,
+    EVIDENCE,
     NOTICE,
     PRUNE,
     STATE,
@@ -71,7 +74,7 @@ type Step = CallModel | RunTools | FailCalls | Done
 
 
 # bookkeeping: never decides the next step
-TRANSPARENT = (TOOL_STARTED, STATE, NOTICE, PRUNE, COMPACTION, BRANCH_SUMMARY)
+TRANSPARENT = (TOOL_STARTED, STATE, NOTICE, PRUNE, COMPACTION, BRANCH_SUMMARY, EVIDENCE, CONTEXT_STATE)
 
 
 def next_step(path: list[Entry]) -> Step:
@@ -150,6 +153,9 @@ class Run:
     after_tool: AfterTool | None = None
     on_stop: OnStop | None = None  # asked when the model is done (Stop hooks); argument: asked before in this run
     notices: dict[str, str] = field(default_factory=dict)  # kind -> text the model must currently see
+    context_governance: bool = True  # evaluation ablation only; product default remains enabled
+    run_budget: RunBudget | None = None
+    refresh_context: Callable[[], None] | None = None
 
     def schemas(self) -> list[dict[str, Any]]:
         """Tools declared in the next request: the direct ones plus whatever tool_search loaded."""
@@ -168,7 +174,8 @@ async def drive(run: Run) -> str:
                     stop_asked = True
                     run.log.append(USER, {"content": [text(more)], "synthetic": True}, run_id=run.run_id)
                     continue
-                return "ok"
+                last = next((e for e in reversed(run.log.path()) if e.type == ASSISTANT), None)
+                return "ok" if last is None or last.data["stop"] == "end" else "error"
             case CallModel():
                 if _take_steer(run):
                     continue
@@ -201,20 +208,36 @@ def sync_notices(run: Run) -> bool:
     seen = in_view(path)
     changed = [(k, v) for k, v in (run.notices | pinned(path)).items() if seen.get(k) != v]
     for kind, body in changed:
-        run.log.append(NOTICE, {"kind": kind, "text": body}, run_id=run.run_id)
+        run.log.append(NOTICE, {"kind": kind, "text": body, "replace": True}, run_id=run.run_id)
     return bool(changed)
 
 
 async def prepare(run: Run, overflow: bool = False) -> tuple[str, list[Message]]:
+    if run.refresh_context:
+        run.refresh_context()
+    if run.run_budget and run.run_budget.finishing():
+        left = run.run_budget.remaining()
+        run.notices["budget_finish"] = (
+            f"预算收尾：剩余 {left['model_calls']} 次模型请求，约 {left['wall_seconds']} 秒。"
+            "停止新增网页搜索和抓取，优先保存交付物、导出已有文档或说明未完成项。"
+            "预算不会重置。" + ("可用 export_document 将已生成的 Markdown 转成 Word/PDF，无需重写正文。"
+                           if run.tools.get("export_document") else ""))
     sync_notices(run)
     system, messages = await fit(run, overflow)
     if sync_notices(run):  # a compaction may have folded a notice into the summary
         system, messages = to_messages(run.log.path())
+        if request_tokens(system, messages, run.schemas()) > budget(run.model.spec):
+            raise ContextTooLarge("the request exceeds the budget after restoring pinned notices")
     return system, messages
 
 
 async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
     system, messages = await prepare(run)
+    from .evidence import inspect_sources
+
+    if run.run_budget:
+        run.run_budget.check_model()
+    inspect_sources(run, messages)
     partial: list[str] = []
     resp: Response | None = None
     try:
@@ -233,6 +256,9 @@ async def call_model(run: Run, tool_choice: str | None = None) -> Entry:
                     raise
                 run.emit({"type": "context.overflow"})
                 system, messages = await prepare(run, overflow=True)
+                if run.run_budget:
+                    run.run_budget.check_model()
+                inspect_sources(run, messages)
     except asyncio.CancelledError:
         if partial:  # keep what the user already saw; never keep half-streamed tool calls
             run.log.append(ASSISTANT, {"content": [text("".join(partial))], "stop": "aborted"}, run_id=run.run_id)
@@ -264,10 +290,13 @@ async def run_tools(run: Run, calls: list[ToolCall]) -> None:
     try:
         fresh = []
         for c in calls:
-            if c["id"] in started and (r := _recover(run, c)):
+            if c["id"] in started and (r := _recover(run, c, turn)):
                 _finish(run, c, r)
             else:
                 fresh.append(c)
+        if run.run_budget:
+            for c in fresh:
+                run.run_budget.tool(c["name"])  # reserve the batch before any tool may start
         if len(fresh) > 1 and all((t := run.tools.get(c["name"])) and t.parallel for c in fresh):
             await asyncio.gather(*(_one(run, c, turn) for c in fresh))
         else:
@@ -285,7 +314,11 @@ async def run_tools(run: Run, calls: list[ToolCall]) -> None:
 async def _one(run: Run, c: ToolCall, turn: str = "") -> None:
     t = run.tools.get(c["name"])
     if t is None:
-        return _finish(run, c, Result.error(f"unknown tool {c['name']!r}"))
+        available = ", ".join(s["name"] for s in run.schemas())
+        return _finish(run, c, Result.error(f"unknown tool {c['name']!r}. Available tools: {available}"))
+    if run.run_budget and run.run_budget.finishing() and t.name in ("web_search", "web_fetch"):
+        return _finish(run, c, Result.error("预算进入收尾阶段，不能新增网页搜索或抓取。请使用已有材料完成交付，"
+                                           "不足之处标为 unknown。"))
     if run.gate and (blocked := await run.gate(t, c)):  # asked before tool_started: nothing has happened yet
         return _finish(run, c, blocked)
     run.log.append(TOOL_STARTED, {"call_id": c["id"], "name": c["name"]}, run_id=run.run_id)
@@ -294,12 +327,20 @@ async def _one(run: Run, c: ToolCall, turn: str = "") -> None:
 
 
 def _finish(run: Run, c: ToolCall, r: Result) -> None:
-    r = spill(r, run.ctx.spill_dir, c["id"])
+    if run.context_governance:
+        r = spill(r, run.ctx.spill_dir, c["id"])
+    if exposure := r.meta.get("exposure"):
+        from .artifacts import merge_source
+
+        for source in r.meta.get("sources", []):
+            output = {"path": exposure["full_output"], "sha256": exposure["full_sha256"]}
+            source["outputs"] = [*source.get("outputs", []), output]
+            merge_source(run.ctx.sources, source)
     data = {"call_id": c["id"], "name": c["name"], "content": r.content, "is_error": r.is_error}
     run.log.append(TOOL_RESULT, data | ({"meta": r.meta} if r.meta else {}), run_id=run.run_id)
 
 
-def _recover(run: Run, c: ToolCall) -> Result | None:
+def _recover(run: Run, c: ToolCall, turn: str = "") -> Result | None:
     """A call has a durable tool_started but no result. Returns a result, or None to run it again."""
     t = run.tools.get(c["name"])
     if t is None or t.effect == "read":
@@ -307,9 +348,11 @@ def _recover(run: Run, c: ToolCall) -> Result | None:
     if t.recover is None:
         return Result.error(UNKNOWN)  # e.g. bash: never replay side effects automatically
     try:
-        verdict = t.recover(parse_args(t, c), run.ctx)
+        verdict = t.recover(parse_args(t, c), replace(run.ctx, call_id=c["id"], call_key=f"{turn}:{c['id']}"))
     except ToolError:
         return None
+    if isinstance(verdict, Result):
+        return verdict
     return {"done": Result.ok(RECOVERED), "not_done": None, "unknown": Result.error(UNKNOWN)}[verdict]
 
 

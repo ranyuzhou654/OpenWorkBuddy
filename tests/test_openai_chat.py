@@ -62,6 +62,12 @@ async def test_stream_without_finish_reason_is_an_error():
     assert out[-1].stop == "error"
 
 
+async def test_unknown_finish_reason_does_not_authorize_a_tool():
+    out = await collect([chunk(tool_calls=[tc(0, "c", "write", '{"path":"x","content":"y"}')],
+                               finish="provider_new_reason")])
+    assert out[-1].stop == "error"
+
+
 def test_to_chat_replays_thinking_only_to_its_provider():
     thinking = {"type": "thinking", "text": "hmm", "provider": "deepseek", "meta": {"field": "reasoning_content"}}
     call = {"type": "tool_call", "id": "c1", "name": "read", "args": {"path": "中文"}}
